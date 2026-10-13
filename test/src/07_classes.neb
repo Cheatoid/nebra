@@ -141,6 +141,44 @@ end
 class DeepHeir extends Heir
 end
 
+class Ordered
+    base: number = 0
+
+    constructor(base: number)
+        self.base = self:normalize(base)
+    end
+
+    function describe(): string
+        return "ordered:" .. tostring(self:doubled()) .. ":" .. tostring(self.half)
+    end
+
+    function doubled(): number
+        return self.base * 2
+    end
+
+    function normalize(value: number): number
+        return value + 1
+    end
+
+    get half(): number
+        return self.base - 2
+    end
+end
+
+abstract class Labelled
+    function label(): string
+        return "labelled:" .. self:name()
+    end
+
+    abstract function name(): string
+end
+
+class Product extends Labelled
+    function name(): string
+        return "lamp"
+    end
+end
+
 export function run(): nil
     section("classes")
 
@@ -222,5 +260,10 @@ export function run(): nil
     local num: any = 5
     expect("is still narrows a primitive", num is number)
     expect("is rejects a mismatched primitive", not (num is string))
+
+    -- A member body may use members declared after it
+    expectEq("constructor calls a later method", (new Ordered(3)).base, 4)
+    expectEq("method calls a later method and getter", (new Ordered(3)):describe(), "ordered:8:2")
+    expectEq("abstract base calls a later abstract method", (new Product()):label(), "labelled:lamp")
 
 end

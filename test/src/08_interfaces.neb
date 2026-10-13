@@ -150,6 +150,20 @@ local function inspectExternal(c: Character): number
     return c:getId() + c:getHealth()
 end
 
+interface LateNamed
+    function label(): string
+        return "named:" .. self:name()
+    end
+
+    function name(): string
+end
+
+class LatePerson implements LateNamed
+    function name(): string
+        return "ada"
+    end
+end
+
 export function run(): nil
     section("interfaces")
 
@@ -202,5 +216,9 @@ export function run(): nil
     expectEq("interface satisfied by an inherited field", ih.name, "from-base")
     -- The `is` operator against interface types
     expect("is against an implemented interface", r is Greetable)
+
+    -- An interface default may call a member declared after it
+    local lateNamed: LateNamed = new LatePerson()
+    expectEq("interface default calls a later member", lateNamed:label(), "named:ada")
 
 end

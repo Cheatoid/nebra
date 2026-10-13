@@ -824,10 +824,9 @@ public sealed class InferTypesPass() : Pass(PassName, PassScope.PerBuild)
             var ctorSide = Nebra.Compiler.Annotations.BuiltinAnnotations.ExtractSide(cd.Constructor.Annotations,
                 (ann, badName) => ReportBadSide(pc, ann, badName));
             classType.ConstructorSide = ctorSide;
-
-            CheckSuperCall(pc, cd, classType);
-            ResolveFunctionBody(pc, cd.Constructor.Body, cd.Constructor.ReturnStmt);
         }
+
+        var methodBodies = new List<(ClassMethodNode Method, Type ReturnType)>();
 
         foreach (var method in cd.Methods)
         {
@@ -906,15 +905,7 @@ public sealed class InferTypesPass() : Pass(PassName, PassScope.PerBuild)
             }
 
             if (!method.IsAbstract && !cd.IsDeclare)
-            {
-                ResolveFunctionBody(pc, method.Body, method.ReturnStmt);
-
-                var collected = CollectReturnTypes(pc, method.Body);
-                if (method.ReturnStmt != null)
-                    collected.Add((ComputeReturnType(pc, method.ReturnStmt.Values), method.ReturnStmt.Span));
-                CheckReturnFlow(pc, retType.ID, collected, method.Body, method.ReturnStmt,
-                    method.ReturnType?.Span ?? method.Name.Span);
-            }
+                methodBodies.Add((method, retType));
             if (method.IsAsync) _asyncDepth--;
         }
 
@@ -951,9 +942,19 @@ public sealed class InferTypesPass() : Pass(PassName, PassScope.PerBuild)
             {
                 pc.Diag.Report(accessor.Span, Diagnostics.DiagnosticCode.ErrOverrideNoParent, accessor.Name.Name);
             }
-
-            ResolveFunctionBody(pc, accessor.Body, accessor.ReturnStmt);
         }
+
+        if (cd.Constructor != null)
+        {
+            CheckSuperCall(pc, cd, classType);
+            ResolveFunctionBody(pc, cd.Constructor.Body, cd.Constructor.ReturnStmt);
+        }
+
+        foreach (var (method, returnType) in methodBodies)
+            ResolveMethodBody(pc, method.Body, method.ReturnStmt, method.IsAsync, returnType, method.ReturnType?.Span ?? method.Name.Span);
+
+        foreach (var accessor in cd.Accessors)
+            ResolveFunctionBody(pc, accessor.Body, accessor.ReturnStmt);
 
         CheckInterfaceImplementation(pc, cd, classType);
         CheckAbstractImplementation(pc, cd, classType);
@@ -1445,6 +1446,7 @@ public sealed class InferTypesPass() : Pass(PassName, PassScope.PerBuild)
             StampMemberSide(pc, field.Annotations, ifaceType.FieldSides, field.Name.Name);
         }
 
+        var defaultBodies = new List<(InterfaceMethodNode Method, Type ReturnType)>();
         foreach (var method in id.Methods)
         {
             var methodParams = new List<Tuple<string, Type>>();
@@ -1491,18 +1493,30 @@ public sealed class InferTypesPass() : Pass(PassName, PassScope.PerBuild)
             {
                 ifaceType.DefaultMethods.Add(method.Name.Name);
                 ifaceType.DefaultMethodNodes[method.Name.Name] = method;
-
-                if (method.IsAsync) _asyncDepth++;
-                ResolveFunctionBody(pc, method.Body!, method.ReturnStmt);
-
-                var collected = CollectReturnTypes(pc, method.Body!);
-                if (method.ReturnStmt != null)
-                    collected.Add((ComputeReturnType(pc, method.ReturnStmt.Values), method.ReturnStmt.Span));
-                CheckReturnFlow(pc, retType.ID, collected, method.Body!, method.ReturnStmt,
-                    method.ReturnType?.Span ?? method.Name.Span);
-                if (method.IsAsync) _asyncDepth--;
+                defaultBodies.Add((method, retType));
             }
         }
+
+        foreach (var (method, returnType) in defaultBodies)
+            ResolveMethodBody(pc, method.Body!, method.ReturnStmt, method.IsAsync, returnType, method.ReturnType?.Span ?? method.Name.Span);
+    }
+
+    /// <summary>
+    /// Type-checks a method body and its return paths against <paramref name="returnType"/>. Runs
+    /// after every member of the owning type has been registered, so the body may call members
+    /// declared after it.
+    /// </summary>
+    private void ResolveMethodBody(PassContext pc, List<Stmt> body, ReturnStmt? returnStmt, bool isAsync, Type returnType,
+        Diagnostics.TextSpan returnSpan)
+    {
+        if (isAsync) _asyncDepth++;
+        ResolveFunctionBody(pc, body, returnStmt);
+
+        var collected = CollectReturnTypes(pc, body);
+        if (returnStmt != null)
+            collected.Add((ComputeReturnType(pc, returnStmt.Values), returnStmt.Span));
+        CheckReturnFlow(pc, returnType.ID, collected, body, returnStmt, returnSpan);
+        if (isAsync) _asyncDepth--;
     }
 
     private Type? ResolveExtendTarget(PassContext pc, ExtendDecl ed)
