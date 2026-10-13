@@ -83,6 +83,12 @@ public sealed class NebraWorkspace
     }
 
     /// <summary>
+    /// The most recent workspace snapshot, which may lag behind the latest edits; null before the
+    /// first one is built. For features that can do with a slightly stale view and must not wait.
+    /// </summary>
+    public WorkspaceSnapshot? LatestSnapshot => Volatile.Read(ref _snapshot);
+
+    /// <summary>
     /// Returns the snapshot reflecting every change received so far, compiling it if the latest
     /// one is out of date. Concurrent callers share one compilation.
     /// </summary>
@@ -422,7 +428,7 @@ public sealed class NebraWorkspace
 
     public record struct ExportInfo(IR.Type Type, IR.SymbolKind SymKind, SymID Sym, Node? DeclNode);
 
-    private static Dictionary<string, ExportInfo> CollectExports(AnalysisResult result, string? targetModuleName = null)
+    public static Dictionary<string, ExportInfo> CollectExports(AnalysisResult result, string? targetModuleName = null)
     {
         var exports = new Dictionary<string, ExportInfo>();
         foreach (var stmt in result.Hir.Body)

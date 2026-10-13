@@ -91,24 +91,18 @@ public sealed class CompletionHandler(NebraWorkspace workspace) : CompletionHand
                     continue;
 
                 var typeStr = workspace.FormatType(result.Types, sym.Type);
-                var kind = sym.Kind switch
-                {
-                    NebraSymbolKind.Function => CompletionItemKind.Function,
-                    NebraSymbolKind.Enum => CompletionItemKind.Enum,
-                    NebraSymbolKind.Class => CompletionItemKind.Class,
-                    NebraSymbolKind.Interface => CompletionItemKind.Interface,
-                    NebraSymbolKind.TypeParam => CompletionItemKind.TypeParameter,
-                    _ => CompletionItemKind.Variable
-                };
                 items.Add(new CompletionItem
                 {
                     Label = sym.Name,
-                    Kind = kind,
+                    Kind = AutoImportCompletion.KindOf(sym.Kind),
                     Detail = typeStr,
                     Documentation = BuildSymbolDocumentation(result, sym),
                     Tags = IsDeprecated(result, sym) ? new Container<CompletionItemTag>(CompletionItemTag.Deprecated) : null
                 });
             }
+
+            var visible = symbols.Select(sym => sym.Name).ToHashSet(StringComparer.Ordinal);
+            items.AddRange(AutoImportCompletion.Items(result, workspace.LatestSnapshot, request.Position, typeContext, visible));
         }
         else
         {

@@ -466,6 +466,18 @@ public sealed class LspSession : IAsyncDisposable
             .ToList();
     }
 
+    public async Task<IReadOnlyList<CompletionItem>> CompletionItemsAsync(string marker)
+    {
+        var at = At(marker);
+        var result = await Client.TextDocument.RequestCompletion(new CompletionParams
+        {
+            TextDocument = at.TextDocument,
+            Position = at.Position
+        });
+
+        return result.Items.ToList();
+    }
+
     public async Task<IReadOnlyList<string>> CompletionLabelsAsync(string marker)
     {
         var at = At(marker);
