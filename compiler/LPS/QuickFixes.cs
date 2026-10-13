@@ -25,6 +25,7 @@ public static class QuickFixes
             nameof(DiagnosticCode.ErrOverrideNoParent) => RemoveOverride(result, diagnostic),
             nameof(DiagnosticCode.ErrAbstractInNonAbstractClass) => MakeClassAbstract(result, diagnostic),
             nameof(DiagnosticCode.ErrInstanceMethodNeedsColon) => UseColon(result, diagnostic),
+            nameof(DiagnosticCode.ErrInterfaceMethodNeedsColon) => UseColon(result, diagnostic),
             nameof(DiagnosticCode.ErrPossiblyNil) => GuardNil(result, diagnostic),
             nameof(DiagnosticCode.ErrSymbolNotExported) => ExportDeclaration(result, workspace, diagnostic),
             nameof(DiagnosticCode.ErrTypeMismatch) => ChangeAnnotation(result, diagnostic),

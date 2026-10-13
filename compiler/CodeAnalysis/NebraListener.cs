@@ -1081,6 +1081,16 @@ public interface INebraListener : IParseTreeListener {
 	/// <param name="context">The parse tree.</param>
 	void ExitDeclareInterfaceMethodMember([NotNull] NebraParser.DeclareInterfaceMethodMemberContext context);
 	/// <summary>
+	/// Enter a parse tree produced by <see cref="NebraParser.interfaceMemberKind"/>.
+	/// </summary>
+	/// <param name="context">The parse tree.</param>
+	void EnterInterfaceMemberKind([NotNull] NebraParser.InterfaceMemberKindContext context);
+	/// <summary>
+	/// Exit a parse tree produced by <see cref="NebraParser.interfaceMemberKind"/>.
+	/// </summary>
+	/// <param name="context">The parse tree.</param>
+	void ExitInterfaceMemberKind([NotNull] NebraParser.InterfaceMemberKindContext context);
+	/// <summary>
 	/// Enter a parse tree produced by <see cref="NebraParser.extendDecl"/>.
 	/// </summary>
 	/// <param name="context">The parse tree.</param>

@@ -155,6 +155,16 @@ public sealed class InferTypesPass() : Pass(PassName, PassScope.PerBuild)
     }
 
     /// <summary>
+    /// Whether <paramref name="iface"/> or an interface it extends declares <paramref name="name"/>
+    /// with <c>method</c>, making it an instance method that has to be called with <c>:</c>.
+    /// </summary>
+    private static bool DeclaresInstanceMethod(InterfaceType iface, string name)
+    {
+        return new[] { iface }.Concat(Type.BaseInterfacesOf(iface))
+            .Any(candidate => candidate.MethodNodes.TryGetValue(name, out var node) && node.IsMethod);
+    }
+
+    /// <summary>
     /// Adds <paramref name="item"/> unless <paramref name="list"/> holds it already. Classes and
     /// interfaces are shared by name between packages while every package resolves its own copy
     /// of a library's declarations, so the same relation is resolved once per package; adding it
@@ -2846,6 +2856,18 @@ public sealed class InferTypesPass() : Pass(PassName, PassScope.PerBuild)
                 foreach (var arg in call.Arguments) SynthesizeExpr(pc, arg);
                 return call.IsOptional ? MakeNullable(pc, pc.Types.PrimAny.ID) : pc.Types.PrimAny.ID;
             }
+        }
+
+        if (call.Callee is DotAccessExpr ifaceCallee
+            && pc.Pkg!.Types.GetByID(SynthesizeExpr(pc, ifaceCallee.Object), out var ifaceReceiver)
+            && ifaceReceiver is InterfaceType receiverInterface
+            && DeclaresInstanceMethod(receiverInterface, ifaceCallee.FieldName.Name))
+        {
+            var receiverName = ifaceCallee.Object is NameExpr receiverExpr ? receiverExpr.Name.Name : "obj";
+            pc.Diag.Report(call.Callee.Span, DiagnosticCode.ErrInterfaceMethodNeedsColon,
+                ifaceCallee.FieldName.Name, receiverInterface.Name, receiverName);
+            foreach (var arg in call.Arguments) SynthesizeExpr(pc, arg);
+            return call.IsOptional ? MakeNullable(pc, pc.Types.PrimAny.ID) : pc.Types.PrimAny.ID;
         }
 
         var argTypes = new List<TypID>();

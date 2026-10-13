@@ -16,6 +16,20 @@ internal partial class IRVisitor
         return AccessorKind.Getter;
     }
 
+    /// <summary>
+    /// Tells whether an interface member is declared with <c>method</c> rather than
+    /// <c>function</c>. <c>method</c> is a contextual keyword, so the grammar accepts any
+    /// identifier in its place and anything else is reported here.
+    /// </summary>
+    private bool IsMethodKind(NebraParser.InterfaceMemberKindContext kind)
+    {
+        if (kind.FUNCTION() != null) return false;
+        if (kind.NAME().GetText() == "method") return true;
+
+        diag.Report(SpanFromTerm(kind.NAME()), Diagnostics.DiagnosticCode.ErrInvalidInterfaceMemberKind, kind.NAME().GetText());
+        return false;
+    }
+
     public override Node VisitFunctionDecl(NebraParser.FunctionDeclContext context)
     {
         var (namePath, methodName) = VisitFuncNameContent(context.funcName());
@@ -496,7 +510,10 @@ internal partial class IRVisitor
                 {
                     var methodName = NameRefFromTerm(method.NAME());
                     var (parameters, returnType) = VisitFuncSignatureContent(method.funcSignature());
-                    var imNode = new InterfaceMethodNode(methodName, parameters, returnType, method.ASYNC() != null, SpanFromCtx(method));
+                    var imNode = new InterfaceMethodNode(methodName, parameters, returnType, method.ASYNC() != null, SpanFromCtx(method))
+                    {
+                        IsMethod = IsMethodKind(method.interfaceMemberKind())
+                    };
                     imNode.TypeParams = VisitTypeParamListContent(method.funcSignature().typeParamList());
                     imNode.Annotations = VisitAnnotationListContent(method.annotationList());
                     methods.Add(imNode);
@@ -732,7 +749,10 @@ internal partial class IRVisitor
                     var methodName = NameRefFromTerm(method.NAME());
                     var (parameters, returnType) = VisitFuncSignatureContent(method.funcSignature());
                     var imTypeParams = VisitTypeParamListContent(method.funcSignature().typeParamList());
-                    var imNode = new InterfaceMethodNode(methodName, parameters, returnType, isAsync, SpanFromCtx(method));
+                    var imNode = new InterfaceMethodNode(methodName, parameters, returnType, isAsync, SpanFromCtx(method))
+                    {
+                        IsMethod = IsMethodKind(method.interfaceMemberKind())
+                    };
                     imNode.TypeParams = imTypeParams;
                     imNode.Annotations = VisitAnnotationListContent(method.annotationList());
                     methods.Add(imNode);
@@ -745,7 +765,10 @@ internal partial class IRVisitor
                     var (parameters, returnType, body, ret) = VisitFuncBodyContent(method.funcBody());
                     var imTypeParams = VisitTypeParamListContent(method.funcBody().typeParamList());
                     var imNode = new InterfaceMethodNode(methodName, parameters, returnType, isAsync,
-                        SpanFromCtx(method), body, ret);
+                        SpanFromCtx(method), body, ret)
+                    {
+                        IsMethod = IsMethodKind(method.interfaceMemberKind())
+                    };
                     imNode.TypeParams = imTypeParams;
                     imNode.Annotations = VisitAnnotationListContent(method.annotationList());
                     methods.Add(imNode);

@@ -1270,6 +1270,18 @@ public partial class NebraBaseListener : INebraListener {
 	/// <param name="context">The parse tree.</param>
 	public virtual void ExitDeclareInterfaceMethodMember([NotNull] NebraParser.DeclareInterfaceMethodMemberContext context) { }
 	/// <summary>
+	/// Enter a parse tree produced by <see cref="NebraParser.interfaceMemberKind"/>.
+	/// <para>The default implementation does nothing.</para>
+	/// </summary>
+	/// <param name="context">The parse tree.</param>
+	public virtual void EnterInterfaceMemberKind([NotNull] NebraParser.InterfaceMemberKindContext context) { }
+	/// <summary>
+	/// Exit a parse tree produced by <see cref="NebraParser.interfaceMemberKind"/>.
+	/// <para>The default implementation does nothing.</para>
+	/// </summary>
+	/// <param name="context">The parse tree.</param>
+	public virtual void ExitInterfaceMemberKind([NotNull] NebraParser.InterfaceMemberKindContext context) { }
+	/// <summary>
 	/// Enter a parse tree produced by <see cref="NebraParser.extendDecl"/>.
 	/// <para>The default implementation does nothing.</para>
 	/// </summary>

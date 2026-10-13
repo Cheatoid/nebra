@@ -223,4 +223,11 @@ public sealed class InterfaceMethodNode(
     public List<Stmt>? Body { get; } = body;
     public ReturnStmt? ReturnStmt { get; } = returnStmt;
     public bool IsDefault => Body != null;
+
+    /// <summary>
+    /// True for a member declared with <c>method</c>: an instance method that receives the value
+    /// it is called on as <c>self</c>, so it must be called with <c>:</c>. A member declared with
+    /// <c>function</c> is a plain function field and is called with <c>.</c>.
+    /// </summary>
+    public bool IsMethod { get; init; }
 }

@@ -413,7 +413,7 @@ public sealed class DeclGenPass() : Pass(PassName, PassScope.PerBuild, true)
             EmitDoc(sb, "        ", method.Doc);
             sb.Append("        ");
             if (method.IsAsync) sb.Append("async ");
-            sb.Append("function ");
+            sb.Append(method.IsMethod ? "method " : "function ");
             sb.Append(method.Name.Name);
             sb.Append('(');
             EmitParams(sb, ctx, pkg, method.Parameters);
@@ -439,14 +439,14 @@ public sealed class DeclGenPass() : Pass(PassName, PassScope.PerBuild, true)
                 if (p.TypeAnnotation != null)
                 {
                     sb.Append(": ");
-                    sb.Append(FormatSymType(ctx, pkg, p.Name));
+                    sb.Append(FormatAnnotatedType(ctx, pkg, p.TypeAnnotation, p.Name));
                 }
             }
             else
             {
                 sb.Append(p.Name.Name);
                 sb.Append(": ");
-                sb.Append(FormatSymType(ctx, pkg, p.Name));
+                sb.Append(FormatAnnotatedType(ctx, pkg, p.TypeAnnotation, p.Name));
                 if (p.DefaultValue != null)
                     sb.Append(" = ...");
             }

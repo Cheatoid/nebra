@@ -262,14 +262,15 @@ public static class DocSiteBuilder
             {
                 Name = m.Name.Name,
                 Kind = DocMemberKind.Method,
-                Signature = FormatFunctionSignature(pkg, m.Name, m.Parameters, m.IsAsync),
+                Signature = FormatFunctionSignature(pkg, m.Name, m.Parameters, m.IsAsync, m.IsMethod ? "method" : "function"),
                 Doc = m.Doc
             });
         }
         return members;
     }
 
-    private static string FormatFunctionSignature(PackageContext pkg, NameRef nameRef, List<Parameter> parameters, bool isAsync)
+    private static string FormatFunctionSignature(PackageContext pkg, NameRef nameRef, List<Parameter> parameters, bool isAsync,
+        string keyword = "function")
     {
         var paramStr = FormatParams(pkg, parameters);
         var ret = "nil";
@@ -278,7 +279,7 @@ public static class DocSiteBuilder
         {
             ret = FormatType(pkg, ft.ReturnType);
         }
-        var prefix = isAsync ? "async function " : "function ";
+        var prefix = isAsync ? $"async {keyword} " : $"{keyword} ";
         return $"{prefix}{nameRef.Name}({paramStr}): {ret}";
     }
 

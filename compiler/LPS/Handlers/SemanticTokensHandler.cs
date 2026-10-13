@@ -117,6 +117,7 @@ public sealed class SemanticTokensHandler(NebraWorkspace workspace) : SemanticTo
 
         CollectEnumMemberTokens(result, result.Hir.Body, overrides);
         CollectAnnotationTokens(result, overrides);
+        CollectMethodKeywords(result, overrides);
 
         return overrides;
     }
@@ -290,6 +291,27 @@ public sealed class SemanticTokensHandler(NebraWorkspace workspace) : SemanticTo
 
             _ => -1
         };
+    }
+
+    /// <summary>
+    /// Highlights the contextual keyword <c>method</c> of an interface member, which the lexer
+    /// reads as a plain name: a <c>method</c> followed by the member's name and its parameter or
+    /// type parameter list.
+    /// </summary>
+    private static void CollectMethodKeywords(AnalysisResult result, Dictionary<(int, int), int> overrides)
+    {
+        result.TokenStream.Fill();
+        var tokens = result.TokenStream.GetTokens().Where(token => token.Channel == 0).ToList();
+
+        for (var index = 0; index + 2 < tokens.Count; index++)
+        {
+            var keyword = tokens[index];
+            if (keyword.Type != NebraLexer.NAME || keyword.Text != "method") continue;
+            if (tokens[index + 1].Type != NebraLexer.NAME) continue;
+            if (tokens[index + 2].Type is not (NebraLexer.LPAREN or NebraLexer.LT)) continue;
+
+            overrides[(keyword.Line - 1, keyword.Column)] = 0;
+        }
     }
 
     /// <summary>

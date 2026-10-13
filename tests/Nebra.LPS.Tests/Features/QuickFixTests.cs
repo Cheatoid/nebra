@@ -92,6 +92,18 @@ public sealed class QuickFixTests
         Assert.EndsWith("print(counter:bump())\n", changed["src/main.neb"]);
     }
 
+    [Fact]
+    public async Task AnInterfaceMethodCalledWithADotIsCalledWithAColon()
+    {
+        await using var session = await LspSession.StartAsync(
+            ("src/main.neb",
+                "interface Named\n    method name(): string\nend\n\nlocal function show(named: Named): nil\n    print(named.name())\nend\n\nprint(show)\n"));
+
+        var changed = await ApplyFix(session, "src/main.neb", "ErrInterfaceMethodNeedsColon", "Call the method with ':'");
+
+        Assert.Contains("print(named:name())", changed["src/main.neb"]);
+    }
+
     [Theory]
     [InlineData("Access it with '?.'", "print(found?.size)\n")]
     [InlineData("Assert that it is not nil with '!'", "print((found!).size)\n")]

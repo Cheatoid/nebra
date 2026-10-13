@@ -432,6 +432,17 @@ public enum DiagnosticCode
     [Help("call it with '.' instead, or give it an explicit 'self' first parameter")]
     WarnColonCallWithoutSelf = 0x402C,
 
+    [Level(DiagnosticLevel.Error)]
+    [Category(DiagnosticCategory.Semantic)]
+    [Format("Interface member must be declared with 'function' or 'method', found '{0}'")]
+    ErrInvalidInterfaceMemberKind = 0x402D,
+
+    [Level(DiagnosticLevel.Error)]
+    [Category(DiagnosticCategory.Semantic)]
+    [Format("Method '{0}' of interface '{1}' must be called with ':' (try `{2}:{0}(...)`); '.' would not pass the receiver as self")]
+    [Help("members called with '.' are declared with 'function' instead")]
+    ErrInterfaceMethodNeedsColon = 0x402E,
+
     #endregion
 
     #region Annotations

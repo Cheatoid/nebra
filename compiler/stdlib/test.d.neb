@@ -6,20 +6,20 @@
 
 declare module "nebra:test"
     interface Assertion
-        function toBe(other: any): nil
-        function toEqual(other: any): nil
-        function toBeNear(other: number, eps: number?): nil
-        function toBeTruthy(): nil
-        function toBeFalsy(): nil
-        function toBeNil(): nil
-        function toBeDefined(): nil
-        function toContain(needle: any): nil
-        function toMatch(pattern: string): nil
-        function toHaveLength(n: number): nil
-        function toThrow(message: string?): nil
-        function toNotBe(other: any): nil
-        function toNotEqual(other: any): nil
-        function toNotContain(needle: any): nil
+        method toBe(other: any): nil
+        method toEqual(other: any): nil
+        method toBeNear(other: number, eps: number?): nil
+        method toBeTruthy(): nil
+        method toBeFalsy(): nil
+        method toBeNil(): nil
+        method toBeDefined(): nil
+        method toContain(needle: any): nil
+        method toMatch(pattern: string): nil
+        method toHaveLength(n: number): nil
+        method toThrow(message: string?): nil
+        method toNotBe(other: any): nil
+        method toNotEqual(other: any): nil
+        method toNotContain(needle: any): nil
     end
 
     function test(name: string, fn: () -> nil): nil

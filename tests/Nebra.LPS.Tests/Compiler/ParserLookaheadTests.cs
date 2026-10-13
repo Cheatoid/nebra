@@ -11,14 +11,16 @@ public sealed class ParserLookaheadTests
     /// a generated API with a few hundred members took over half a minute to parse.
     /// </summary>
     [Theory]
-    [InlineData("declare interface Large\n{0}end\n")]
-    [InlineData("declare module \"api\"\n    interface Large\n{0}    end\nend\n")]
-    public void DeclaredInterfaceMembersNeedOnlyLocalLookahead(string template)
+    [InlineData("declare interface Large\n{0}end\n", "function")]
+    [InlineData("declare interface Large\n{0}end\n", "method")]
+    [InlineData("declare module \"api\"\n    interface Large\n{0}    end\nend\n", "function")]
+    [InlineData("declare module \"api\"\n    interface Large\n{0}    end\nend\n", "method")]
+    public void DeclaredInterfaceMembersNeedOnlyLocalLookahead(string template, string keyword)
     {
         var members = new StringBuilder();
         for (var index = 0; index < 200; index++)
         {
-            members.Append($"        function method{index}(value: number): number\n");
+            members.Append($"        {keyword} member{index}(value: number): number\n");
         }
 
         var parser = new NebraParser(new CommonTokenStream(new NebraLexer(new AntlrInputStream(string.Format(template, members)))));

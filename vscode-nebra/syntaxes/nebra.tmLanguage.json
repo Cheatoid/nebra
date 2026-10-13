@@ -252,6 +252,13 @@
           }
         },
         {
+          "match": "\\b(method)\\s+([A-Za-z_]\\w*)(?=\\s*[(<])",
+          "captures": {
+            "1": { "name": "storage.type.function.nebra" },
+            "2": { "name": "entity.name.function.nebra" }
+          }
+        },
+        {
           "match": "\\b(class|interface|enum)\\s+([A-Za-z_]\\w*)",
           "captures": {
             "1": { "name": "storage.type.nebra" },

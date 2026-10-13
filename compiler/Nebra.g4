@@ -349,8 +349,8 @@ classRef
 
 interfaceMember
     : annotationList NAME typeAnnotation                           # InterfaceFieldMember
-    | annotationList ASYNC? FUNCTION NAME funcBody                 # InterfaceDefaultMethodMember
-    | annotationList ASYNC? FUNCTION NAME funcSignature            # InterfaceMethodMember
+    | annotationList ASYNC? interfaceMemberKind NAME funcBody      # InterfaceDefaultMethodMember
+    | annotationList ASYNC? interfaceMemberKind NAME funcSignature # InterfaceMethodMember
     ;
 
 // A member of an interface in a declaration file: fields and method signatures, never a body.
@@ -359,7 +359,12 @@ interfaceMember
 // lookahead to the end of the interface, which is quadratic in its size.
 declareInterfaceMember
     : annotationList NAME typeAnnotation                           # DeclareInterfaceFieldMember
-    | annotationList ASYNC? FUNCTION NAME funcSignature            # DeclareInterfaceMethodMember
+    | annotationList ASYNC? interfaceMemberKind NAME funcSignature # DeclareInterfaceMethodMember
+    ;
+
+interfaceMemberKind
+    : FUNCTION
+    | NAME
     ;
 
 // --- Extension Blocks ---

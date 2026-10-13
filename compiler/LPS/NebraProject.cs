@@ -785,13 +785,18 @@ public sealed class NebraProject(Func<ServerSettings>? settings = null)
                 .AppendLine(FormatType(result.Types, field.Type));
 
         foreach (var (name, method) in it.Methods)
-            sb.Append("    function ").Append(name).Append('(')
+            sb.Append("    ").Append(KeywordOf(it, name)).Append(' ').Append(name).Append('(')
                 .Append(FormatFunctionParamList(result, method))
                 .Append("): ")
                 .AppendLine(FormatType(result.Types, method.ReturnType));
 
         sb.Append("end");
         return sb.ToString();
+    }
+
+    private static string KeywordOf(InterfaceType it, string member)
+    {
+        return it.MethodNodes.TryGetValue(member, out var node) && node.IsMethod ? "method" : "function";
     }
 
     private string FormatClassBody(AnalysisResult result, ClassType ct)
