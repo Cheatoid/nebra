@@ -2,9 +2,11 @@ using System.IO.Pipelines;
 using OmniSharp.Extensions.LanguageServer.Client;
 using OmniSharp.Extensions.LanguageServer.Protocol;
 using OmniSharp.Extensions.LanguageServer.Protocol.Client;
+using OmniSharp.Extensions.LanguageServer.Protocol.Client.Capabilities;
 using OmniSharp.Extensions.LanguageServer.Protocol.Document;
 using OmniSharp.Extensions.LanguageServer.Protocol.Models;
 using OmniSharp.Extensions.LanguageServer.Protocol.Server;
+using OmniSharp.Extensions.LanguageServer.Protocol.Window;
 using OmniSharp.Extensions.LanguageServer.Protocol.Workspace;
 using OmniSharp.Extensions.LanguageServer.Server;
 
@@ -39,10 +41,14 @@ public sealed class LspSession : IAsyncDisposable
     public string Root { get; }
     public ILanguageClient Client { get; }
 
+    /// <summary>The work done progress the server has reported so far.</summary>
+    public ProgressRecorder Progress { get; }
+
     private LspSession(string root, Dictionary<string, MarkedSource> files, ILanguageServer server,
-        ILanguageClient client, DiagnosticsCollector diagnostics)
+        ILanguageClient client, DiagnosticsCollector diagnostics, ProgressRecorder progress)
     {
         Root = root;
+        Progress = progress;
         _files = files;
         _server = server;
         Client = client;
@@ -86,6 +92,7 @@ public sealed class LspSession : IAsyncDisposable
         var clientToServer = new Pipe();
         var serverToClient = new Pipe();
         var diagnostics = new DiagnosticsCollector();
+        var progress = new ProgressRecorder();
 
         var serverTask = LanguageServer.From(options =>
         {
@@ -101,7 +108,14 @@ public sealed class LspSession : IAsyncDisposable
                 .WithInput(serverToClient.Reader)
                 .WithOutput(clientToServer.Writer)
                 .WithRootUri(DocumentUri.FromFileSystemPath(root))
-                .OnPublishDiagnostics(diagnostics.Record);
+                .OnPublishDiagnostics(diagnostics.Record)
+                .OnWorkDoneProgressCreate(request =>
+                {
+                    progress.Accept(request);
+                    return Task.CompletedTask;
+                });
+
+            options.ClientCapabilities.Window = new WindowClientCapabilities { WorkDoneProgress = true };
 
             foreach (var folder in folders)
             {
@@ -110,7 +124,8 @@ public sealed class LspSession : IAsyncDisposable
         });
 
         await Task.WhenAll(serverTask, clientTask);
-        return new LspSession(root, parsed, serverTask.Result, clientTask.Result, diagnostics);
+        progress.Attach(clientTask.Result);
+        return new LspSession(root, parsed, serverTask.Result, clientTask.Result, diagnostics, progress);
     }
 
     public DocumentUri Uri(string path) => DocumentUri.FromFileSystemPath(FullPath(path));

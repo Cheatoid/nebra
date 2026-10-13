@@ -75,16 +75,20 @@ public sealed class WorkspaceSnapshot
     /// Compiles <paramref name="documents"/> with <paramref name="config"/>. A document whose text
     /// does not parse into a program is compiled from <paramref name="lastParsed"/> instead when
     /// that holds a version of it, so its importers keep resolving while it is being edited; only
-    /// its syntax errors are reported then.
+    /// its syntax errors are reported then. Cancelling <paramref name="cancellationToken"/> stops
+    /// the build between two passes with an <see cref="OperationCanceledException"/>.
     /// </summary>
     public static WorkspaceSnapshot Build(long version, Config config, IReadOnlyCollection<SourceDocument> documents,
-        IReadOnlyDictionary<string, string> lastParsed, bool isWorkspace = true)
+        IReadOnlyDictionary<string, string> lastParsed, bool isWorkspace = true,
+        CancellationToken cancellationToken = default, Action<string, int, int>? passStarting = null)
     {
         var timings = new List<(string, TimeSpan)>();
         var compiler = new NebraCompiler
         {
             Config = config,
-            PassCompleted = (pass, duration) => timings.Add((pass, duration))
+            PassCompleted = (pass, duration) => timings.Add((pass, duration)),
+            PassStarting = passStarting,
+            CancellationToken = cancellationToken
         };
         var started = System.Diagnostics.Stopwatch.GetTimestamp();
         var staleFiles = new HashSet<string>(PathComparer);
@@ -115,7 +119,7 @@ public sealed class WorkspaceSnapshot
         {
             compiler.Check();
         }
-        catch (Exception exception)
+        catch (Exception exception) when (exception is not OperationCanceledException)
         {
             failure = exception;
         }

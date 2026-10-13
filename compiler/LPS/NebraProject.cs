@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using System.Text;
+using System.Text.RegularExpressions;
 using Antlr4.Runtime;
 using Nebra.Compiler;
 using Nebra.Compiler.Passes;
@@ -11,6 +12,7 @@ using OmniSharp.Extensions.LanguageServer.Protocol;
 using OmniSharp.Extensions.LanguageServer.Protocol.Document;
 using OmniSharp.Extensions.LanguageServer.Protocol.Models;
 using OmniSharp.Extensions.LanguageServer.Protocol.Server;
+using OmniSharp.Extensions.LanguageServer.Protocol.Server.WorkDone;
 using OmniSharp.Extensions.LanguageServer.Protocol.Window;
 
 using NebraDiagnostic = Nebra.Diagnostics.Diagnostic;
@@ -40,11 +42,12 @@ public sealed class NebraProject(Func<ServerSettings>? settings = null)
     private readonly Dictionary<string, (long Version, Task<WorkspaceSnapshot> Build)> _documentSnapshots = new(PathComparer);
     private readonly SemaphoreSlim _publishGate = new(1, 1);
     private CancellationTokenSource? _pendingDiagnostics;
+    private CancellationTokenSource _superseded = new();
     private WorkspaceSnapshot? _snapshot;
     private bool _retired;
     private long _version;
 
-    private ILanguageServerFacade? _server;
+    private ILanguageServer? _server;
     private Config _config = new();
 
     private string? _rootPath;
@@ -82,7 +85,7 @@ public sealed class NebraProject(Func<ServerSettings>? settings = null)
         }
     }
 
-    public void SetServer(ILanguageServerFacade server)
+    public void SetServer(ILanguageServer server)
     {
         _server = server;
     }
@@ -105,7 +108,9 @@ public sealed class NebraProject(Func<ServerSettings>? settings = null)
 
     /// <summary>
     /// Returns the snapshot reflecting every change received so far, compiling it if the latest
-    /// one is out of date. Concurrent callers share one compilation.
+    /// one is out of date. Concurrent callers share one compilation. A change arriving while it
+    /// runs cancels it and the build starts over with that change, except for the first build,
+    /// which always completes so that features working from the latest snapshot have one.
     /// </summary>
     public async Task<WorkspaceSnapshot> GetSnapshotAsync(CancellationToken cancellationToken = default)
     {
@@ -118,21 +123,87 @@ public sealed class NebraProject(Func<ServerSettings>? settings = null)
         await _buildGate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            current = Volatile.Read(ref _snapshot);
-            var version = Interlocked.Read(ref _version);
-            if (current != null && current.Version == version)
+            while (true)
             {
-                return current;
-            }
+                var superseded = Volatile.Read(ref _superseded).Token;
+                current = Volatile.Read(ref _snapshot);
+                var version = Interlocked.Read(ref _version);
+                if (current != null && current.Version == version)
+                {
+                    return current;
+                }
 
-            var built = await Task.Run(() => BuildSnapshot(version), CancellationToken.None).ConfigureAwait(false);
-            Volatile.Write(ref _snapshot, built);
-            return built;
+                try
+                {
+                    var built = current == null
+                        ? await BuildFirstSnapshotAsync(version).ConfigureAwait(false)
+                        : await Task.Run(() => BuildSnapshot(version, superseded), CancellationToken.None).ConfigureAwait(false);
+                    Volatile.Write(ref _snapshot, built);
+                    return built;
+                }
+                catch (OperationCanceledException) when (superseded.IsCancellationRequested)
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                }
+            }
         }
         finally
         {
             _buildGate.Release();
         }
+    }
+
+    /// <summary>
+    /// Builds the project's first snapshot, which loads every library and compiles every file, and
+    /// shows the editor how far it got.
+    /// </summary>
+    private async Task<WorkspaceSnapshot> BuildFirstSnapshotAsync(long version)
+    {
+        using var progress = await BeginProgressAsync($"Loading {ProjectName}").ConfigureAwait(false);
+
+        return await Task.Run(() => BuildSnapshot(version, CancellationToken.None, (pass, index, count) =>
+        {
+            progress?.OnNext(new WorkDoneProgressReport
+            {
+                Message = $"Loading {ProjectName}: {Describe(pass)}",
+                Percentage = index * 100 / count
+            });
+        }), CancellationToken.None).ConfigureAwait(false);
+    }
+
+    private async Task<IWorkDoneObserver?> BeginProgressAsync(string message)
+    {
+        if (_server == null || !_server.WorkDoneManager.IsSupported) return null;
+
+        try
+        {
+            return await _server.WorkDoneManager.Create(new WorkDoneProgressBegin
+            {
+                Title = "Nebra",
+                Message = message,
+                Percentage = 0
+            }).ConfigureAwait(false);
+        }
+        catch (Exception exception)
+        {
+            _server.Window.LogWarning($"nebra: the editor refused a progress report: {exception.Message}");
+            return null;
+        }
+    }
+
+    private string ProjectName
+    {
+        get
+        {
+            if (_rootPath == null) return "files";
+            return _config.Name ?? Path.GetFileName(_rootPath.TrimEnd(Path.DirectorySeparatorChar));
+        }
+    }
+
+    /// <summary>Turns a pass name such as <c>ResolveLibs</c> into <c>resolve libs</c>.</summary>
+    private static string Describe(string pass)
+    {
+        return Regex.Replace(pass, "(?<=[a-z])(?=[A-Z])", " ").ToLowerInvariant();
     }
 
     /// <summary>
@@ -247,7 +318,7 @@ public sealed class NebraProject(Func<ServerSettings>? settings = null)
             _touched[path] = 0;
         }
 
-        Interlocked.Increment(ref _version);
+        Advance();
         _resolveCache.Clear();
         ScheduleDiagnostics();
     }
@@ -285,9 +356,16 @@ public sealed class NebraProject(Func<ServerSettings>? settings = null)
         }
     }
 
-    private void Invalidate(string path)
+    /// <summary>Moves to the next version and cancels the build of the one before it.</summary>
+    private void Advance()
     {
         Interlocked.Increment(ref _version);
+        Interlocked.Exchange(ref _superseded, new CancellationTokenSource()).Cancel();
+    }
+
+    private void Invalidate(string path)
+    {
+        Advance();
         _resolveCache.Clear();
         _touched[path] = 0;
         ScheduleDiagnostics();
@@ -299,7 +377,8 @@ public sealed class NebraProject(Func<ServerSettings>? settings = null)
         return path == null ? null : Path.GetFullPath(path);
     }
 
-    private WorkspaceSnapshot BuildSnapshot(long version)
+    private WorkspaceSnapshot BuildSnapshot(long version, CancellationToken cancellationToken,
+        Action<string, int, int>? passStarting = null)
     {
         var config = CreateBuildConfig();
         var documents = new Dictionary<string, SourceDocument>(PathComparer);
@@ -315,7 +394,8 @@ public sealed class NebraProject(Func<ServerSettings>? settings = null)
             documents[path] = new SourceDocument(path, open.Text, open.Uri);
         }
 
-        var snapshot = WorkspaceSnapshot.Build(version, config, documents.Values.ToList(), _lastParsed);
+        var snapshot = WorkspaceSnapshot.Build(version, config, documents.Values.ToList(), _lastParsed,
+            cancellationToken: cancellationToken, passStarting: passStarting);
         RememberParsed(snapshot, documents.Values);
         DropDocumentSnapshotsBefore(version);
 
@@ -404,7 +484,7 @@ public sealed class NebraProject(Func<ServerSettings>? settings = null)
     }
 
     /// <summary>
-    /// Publishes diagnostics once edits have paused for <see cref="DiagnosticsDelay"/>; a newer
+    /// Publishes diagnostics once edits have paused for the configured delay; a newer
     /// edit cancels the wait so a burst of keystrokes compiles once.
     /// </summary>
     private void ScheduleDiagnostics()

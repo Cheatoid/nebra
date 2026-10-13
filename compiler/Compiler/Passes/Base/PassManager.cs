@@ -101,6 +101,12 @@ public sealed class PassManager
     /// </summary>
     public Action<string, TimeSpan>? PassCompleted { get; set; }
 
+    /// <summary>Called before each pass with its name, its position in the run and the number of passes.</summary>
+    public Action<string, int, int>? PassStarting { get; set; }
+
+    /// <summary>Checked between passes; once cancelled, the run stops with an <see cref="OperationCanceledException"/>.</summary>
+    public CancellationToken CancellationToken { get; set; }
+
     /// <summary>
     /// Initializes a new instance of the PassManager class and registers the default passes.
     /// </summary>
@@ -214,8 +220,11 @@ public sealed class PassManager
             throw new InvalidOperationException("Pass order is not built. Please call BuildOrder before running the passes.");
         }
 
-        foreach (var passName in _passOrder)
+        for (var index = 0; index < _passOrder.Count; index++)
         {
+            var passName = _passOrder[index];
+            CancellationToken.ThrowIfCancellationRequested();
+
             if (_passes.TryGetValue(passName, out var pass))
             {
                 if (pass.NoErrors && diag.HasErrors)
@@ -223,6 +232,7 @@ public sealed class PassManager
                     return false;
                 }
 
+                PassStarting?.Invoke(passName, index, _passOrder.Count);
                 var started = System.Diagnostics.Stopwatch.GetTimestamp();
                 var succeeded = RunPass(pass, diag, pkgs, types, symAlloc, scopeAlloc, nodeAlloc, names, cache, config);
                 PassCompleted?.Invoke(passName, System.Diagnostics.Stopwatch.GetElapsedTime(started));

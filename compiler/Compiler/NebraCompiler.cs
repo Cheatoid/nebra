@@ -57,6 +57,12 @@ public class NebraCompiler
 
     /// <summary>Called after each pass of <see cref="Compile"/> or <see cref="Check"/> with its name and duration.</summary>
     public Action<string, TimeSpan>? PassCompleted { get; set; }
+
+    /// <summary>Called before each pass with its name, its position in the run and the number of passes.</summary>
+    public Action<string, int, int>? PassStarting { get; set; }
+
+    /// <summary>Stops <see cref="Compile"/> or <see cref="Check"/> between two passes once cancelled.</summary>
+    public CancellationToken CancellationToken { get; set; }
     
     /// <summary>
     /// Adds a source file to the compiler. The source file is preparsed and converted into the high-level intermediate
@@ -114,7 +120,12 @@ public class NebraCompiler
     /// </summary>
     public bool Check()
     {
-        var pm = new PassManager { PassCompleted = PassCompleted };
+        var pm = new PassManager
+        {
+            PassCompleted = PassCompleted,
+            PassStarting = PassStarting,
+            CancellationToken = CancellationToken
+        };
         pm.BuildOrder(PassManager.CheckPipeline);
 
         return pm.Run(Diagnostics, Packages.Values.ToList(), TypeUniverse, SymAlloc, ScopeAlloc, NodeAlloc, Names,
@@ -123,7 +134,12 @@ public class NebraCompiler
 
     public bool Compile()
     {
-        var pm = new PassManager { PassCompleted = PassCompleted };
+        var pm = new PassManager
+        {
+            PassCompleted = PassCompleted,
+            PassStarting = PassStarting,
+            CancellationToken = CancellationToken
+        };
         pm.BuildOrder(PassManager.CompilerPipeline);
 
         return pm.Run(Diagnostics, Packages.Values.ToList(), TypeUniverse, SymAlloc, ScopeAlloc, NodeAlloc, Names,

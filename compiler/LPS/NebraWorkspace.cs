@@ -25,7 +25,7 @@ public sealed class NebraWorkspace
     private readonly List<string> _folders = [];
     private Dictionary<string, NebraProject> _projects = new(PathComparer);
     private NebraProject? _looseFiles;
-    private ILanguageServerFacade? _server;
+    private ILanguageServer? _server;
     private bool _started;
     private ServerSettings _settings = new();
 
@@ -52,7 +52,7 @@ public sealed class NebraWorkspace
         Rediscover();
     }
 
-    public void SetServer(ILanguageServerFacade server)
+    public void SetServer(ILanguageServer server)
     {
         _server = server;
         foreach (var project in AllProjects()) project.SetServer(server);
