@@ -65,25 +65,23 @@ public sealed class CodeActionHandler(NebraWorkspace workspace) : CodeActionHand
             if (symbolName == null) continue;
 
             var candidates = workspace.FindExportingFiles(symbolName, result.FilePath);
-            foreach (var (modulePath, displayPath) in candidates)
+            foreach (var (targetPath, _) in candidates)
             {
-                var insertion = BuildImportInsertion(result, symbolName, displayPath, out var insertRange);
-                if (insertion == null) continue;
+                var importEdit = ImportEdits.AddImport(result, symbolName, targetPath);
+                if (importEdit == null) continue;
 
                 var edit = new WorkspaceEdit
                 {
                     Changes = new Dictionary<DocumentUri, IEnumerable<TextEdit>>
                     {
-                        [DocumentUri.Parse(result.Uri)] =
-                        [
-                            new TextEdit { Range = insertRange, NewText = insertion }
-                        ]
+                        [DocumentUri.Parse(result.Uri)] = [importEdit]
                     }
                 };
 
+                var module = ImportEdits.ModuleSpecifier(result.FilePath, targetPath, ImportEdits.SourceRoot(result));
                 actions.Add(new CommandOrCodeAction(new CodeAction
                 {
-                    Title = $"Import '{symbolName}' from '{displayPath}'",
+                    Title = $"Import '{symbolName}' from '{module}'",
                     Kind = CodeActionKind.QuickFix,
                     Diagnostics = new Container<Diagnostic>(diag),
                     Edit = edit,
@@ -226,44 +224,6 @@ public sealed class CodeActionHandler(NebraWorkspace workspace) : CodeActionHand
             if (lead > 0) return new string(' ', lead);
         }
         return "    ";
-    }
-
-    private static string? BuildImportInsertion(AnalysisResult result, string symbolName, string displayPath,
-        out OmniSharp.Extensions.LanguageServer.Protocol.Models.Range range)
-    {
-        range = new OmniSharp.Extensions.LanguageServer.Protocol.Models.Range(new Position(0, 0), new Position(0, 0));
-
-        foreach (var stmt in result.Hir.Body)
-        {
-            if (stmt is not ImportStmt import) continue;
-            if (import.Module.Name == displayPath && import.Kind == ImportKind.Named)
-            {
-                var names = import.Specifiers.Select(s => s.Alias?.Name ?? s.Name.Name).ToList();
-                if (names.Contains(symbolName)) return null;
-                names.Add(symbolName);
-                names.Sort(StringComparer.Ordinal);
-                var rebuilt = $"import {{ {string.Join(", ", names)} }} from \"{displayPath}\"\n";
-                range = new OmniSharp.Extensions.LanguageServer.Protocol.Models.Range(
-                    new Position(import.Span.StartLn - 1, 0),
-                    new Position(import.Span.EndLn, 0));
-                return rebuilt;
-            }
-        }
-
-        var insertLine = 0;
-        var lines = result.SourceText.Split('\n');
-        for (var i = 0; i < lines.Length; i++)
-        {
-            var t = lines[i].TrimStart();
-            if (t.StartsWith("--")) { insertLine = i + 1; continue; }
-            if (t.StartsWith("import ")) { insertLine = i + 1; continue; }
-            if (string.IsNullOrWhiteSpace(t)) continue;
-            break;
-        }
-
-        range = new OmniSharp.Extensions.LanguageServer.Protocol.Models.Range(
-            new Position(insertLine, 0), new Position(insertLine, 0));
-        return $"import {{ {symbolName} }} from \"{displayPath}\"\n";
     }
 
     private static string? ExtractQuotedName(string message)

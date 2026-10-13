@@ -538,6 +538,73 @@ public sealed class LspSession : IAsyncDisposable
             .ToList();
     }
 
+    /// <summary>The current text of <paramref name="path"/> as the session knows it.</summary>
+    public string Text(string path) => _files[path].Text;
+
+    /// <summary>
+    /// Applies the edits of <paramref name="edit"/> to the session's copy of each file and returns
+    /// the resulting text per changed file, without touching the server.
+    /// </summary>
+    public IReadOnlyDictionary<string, string> Apply(WorkspaceEdit? edit)
+    {
+        var changed = new Dictionary<string, string>(StringComparer.Ordinal);
+        if (edit?.Changes == null) return changed;
+
+        foreach (var (uri, edits) in edit.Changes)
+        {
+            var path = ToSourceLocation(uri, new Position(0, 0)).Path;
+            var text = _files.TryGetValue(path, out var source) ? source.Text : File.ReadAllText(FullPath(path));
+            changed[path] = ApplyEdits(text, edits);
+        }
+
+        return changed;
+    }
+
+    private static string ApplyEdits(string text, IEnumerable<TextEdit> edits)
+    {
+        foreach (var edit in edits.OrderByDescending(e => e.Range.Start.Line).ThenByDescending(e => e.Range.Start.Character))
+        {
+            var start = Offset(text, edit.Range.Start);
+            var end = Offset(text, edit.Range.End);
+            text = text[..start] + edit.NewText + text[end..];
+        }
+
+        return text;
+    }
+
+    private static int Offset(string text, Position position)
+    {
+        var offset = 0;
+        for (var line = 0; line < position.Line; line++)
+        {
+            var next = text.IndexOf('\n', offset);
+            if (next < 0) return text.Length;
+            offset = next + 1;
+        }
+
+        return Math.Min(offset + position.Character, text.Length);
+    }
+
+    /// <summary>The code actions offered for the range between two markers, or at one marker.</summary>
+    public async Task<IReadOnlyList<CodeAction>> CodeActionsAtAsync(string startMarker, string? endMarker = null,
+        IReadOnlyList<Diagnostic>? diagnostics = null, params CodeActionKind[] only)
+    {
+        var (path, start) = Marker(startMarker);
+        var end = endMarker == null ? start : Marker(endMarker).Position;
+        var result = await Client.TextDocument.RequestCodeAction(new CodeActionParams
+        {
+            TextDocument = new TextDocumentIdentifier(Uri(path)),
+            Range = new OmniSharp.Extensions.LanguageServer.Protocol.Models.Range(start, end),
+            Context = new CodeActionContext
+            {
+                Diagnostics = new Container<Diagnostic>(diagnostics ?? []),
+                Only = only.Length > 0 ? new Container<CodeActionKind>(only) : null
+            }
+        });
+
+        return (result ?? []).Where(item => item.IsCodeAction).Select(item => item.CodeAction!).ToList();
+    }
+
     public ValueTask DisposeAsync()
     {
         Client.Dispose();
