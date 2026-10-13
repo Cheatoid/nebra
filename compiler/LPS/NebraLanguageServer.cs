@@ -45,6 +45,7 @@ public static class NebraLanguageServer
             .WithHandler<ExecuteCompileCommandHandler>()
             .WithHandler<WatchedFilesHandler>()
             .WithHandler<ConfigurationHandler>()
+            .WithHandler<CodeLensHandler>()
             .WithHandler<WorkspaceSymbolHandler>()
             .WithHandler<DocumentHighlightHandler>()
             .WithHandler<TypeDefinitionHandler>()

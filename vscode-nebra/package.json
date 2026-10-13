@@ -77,6 +77,20 @@
         "category": "Nebra"
       }
     ],
+    "taskDefinitions": [
+      {
+        "type": "nebra",
+        "required": [
+          "task"
+        ],
+        "properties": {
+          "task": {
+            "type": "string",
+            "description": "The nebra command the task runs."
+          }
+        }
+      }
+    ],
     "configuration": {
       "title": "Nebra",
       "properties": {

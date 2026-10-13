@@ -21,6 +21,21 @@ function resolveCommand(name: string): string {
   return name;
 }
 
+async function runTests(executable: string, uri: string, filter: string | null, root: string): Promise<void> {
+  const file = vscode.Uri.parse(uri).fsPath;
+  const args = filter ? ["test", file, filter] : ["test", file];
+  const scope = vscode.workspace.getWorkspaceFolder(vscode.Uri.file(root)) ?? vscode.TaskScope.Workspace;
+  const task = new vscode.Task(
+    { type: "nebra", task: "test" },
+    scope,
+    filter ?? "tests",
+    "nebra",
+    new vscode.ProcessExecution(executable, args, { cwd: root }),
+  );
+  task.presentationOptions = { reveal: vscode.TaskRevealKind.Always, clear: true };
+  await vscode.tasks.executeTask(task);
+}
+
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
   const config = vscode.workspace.getConfiguration("nebra");
   const configured = config.get<string>("serverPath") || "";
@@ -56,7 +71,10 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         command: "nebra.compileFile",
         arguments: [targetUri],
       });
-    })
+    }),
+    vscode.commands.registerCommand("nebra.runTest", (uri: string, filter: string | null, root: string) =>
+      runTests(serverPath, uri, filter, root),
+    )
   );
 
   await client.start();
