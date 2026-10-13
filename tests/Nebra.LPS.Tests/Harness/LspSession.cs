@@ -364,6 +364,30 @@ public sealed class LspSession : IAsyncDisposable
         return (result ?? []).Select(call => call.To.Name).Order(StringComparer.Ordinal).ToList();
     }
 
+    public async Task<TypeHierarchyItem?> PrepareTypeHierarchyAsync(string marker)
+    {
+        var at = At(marker);
+        var result = await Client.TextDocument.RequestTypeHierarchyPrepare(new TypeHierarchyPrepareParams
+        {
+            TextDocument = at.TextDocument,
+            Position = at.Position
+        });
+
+        return result?.SingleOrDefault();
+    }
+
+    public async Task<IReadOnlyList<string>> SupertypesAsync(TypeHierarchyItem item)
+    {
+        var result = await Client.TextDocument.RequestTypeHierarchySupertypes(new TypeHierarchySupertypesParams { Item = item });
+        return (result ?? []).Select(type => type.Name).Order(StringComparer.Ordinal).ToList();
+    }
+
+    public async Task<IReadOnlyList<string>> SubtypesAsync(TypeHierarchyItem item)
+    {
+        var result = await Client.TextDocument.RequestTypeHierarchySubtypes(new TypeHierarchySubtypesParams { Item = item });
+        return (result ?? []).Select(type => type.Name).Order(StringComparer.Ordinal).ToList();
+    }
+
     /// <summary>Every inlay hint in <paramref name="path"/>, as position and label.</summary>
     public async Task<IReadOnlyList<(SourceLocation Location, string Label)>> InlayHintsAsync(string path)
     {

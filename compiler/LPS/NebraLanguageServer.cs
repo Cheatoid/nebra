@@ -53,6 +53,9 @@ public static class NebraLanguageServer
             .WithHandler<CallHierarchyPrepareHandler>()
             .WithHandler<CallHierarchyIncomingHandler>()
             .WithHandler<CallHierarchyOutgoingHandler>()
+            .WithHandler<TypeHierarchyPrepareHandler>()
+            .WithHandler<TypeHierarchySupertypesHandler>()
+            .WithHandler<TypeHierarchySubtypesHandler>()
             .OnInitialize((server, request, ct) =>
             {
                 workspace.Initialize(request.RootUri?.GetFileSystemPath());

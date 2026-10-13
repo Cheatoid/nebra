@@ -46,6 +46,9 @@ public sealed class WorkspaceSnapshot
     /// <summary>How long each phase of building this snapshot took, in order: parsing, every pass, indexing.</summary>
     public IReadOnlyList<(string Phase, TimeSpan Duration)> Timings { get; private init; } = [];
 
+    /// <summary>The type table every file of this snapshot shares.</summary>
+    public TypeTable Types { get; private init; } = null!;
+
     /// <summary>The paths of the source files compiled into this snapshot.</summary>
     public IEnumerable<string> SourcePaths => _documents.Keys;
 
@@ -125,7 +128,8 @@ public sealed class WorkspaceSnapshot
         return new WorkspaceSnapshot(version, failure, byPath, files, nodes, nodeFiles, symbols, diagnostics, staleFiles)
         {
             Timings = timings,
-            IsWorkspace = isWorkspace
+            IsWorkspace = isWorkspace,
+            Types = compiler.TypeUniverse
         };
     }
 
