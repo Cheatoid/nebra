@@ -305,6 +305,35 @@ public sealed class LspSession : IAsyncDisposable
             .ToList();
     }
 
+    public async Task<IReadOnlyList<FoldingRange>> FoldingRangesAsync(string path)
+    {
+        var result = await Client.TextDocument.RequestFoldingRange(new FoldingRangeRequestParam
+        {
+            TextDocument = new TextDocumentIdentifier(Uri(path))
+        });
+
+        return result?.ToList() ?? [];
+    }
+
+    /// <summary>The ranges a selection grows through from <paramref name="marker"/>, innermost first.</summary>
+    public async Task<IReadOnlyList<OmniSharp.Extensions.LanguageServer.Protocol.Models.Range>> SelectionChainAsync(string marker)
+    {
+        var at = At(marker);
+        var result = await Client.TextDocument.RequestSelectionRange(new SelectionRangeParams
+        {
+            TextDocument = at.TextDocument,
+            Positions = new Container<Position>(at.Position)
+        });
+
+        var chain = new List<OmniSharp.Extensions.LanguageServer.Protocol.Models.Range>();
+        for (var current = result?.FirstOrDefault(); current != null; current = current.Parent)
+        {
+            chain.Add(current.Range);
+        }
+
+        return chain;
+    }
+
     /// <summary>Every inlay hint in <paramref name="path"/>, as position and label.</summary>
     public async Task<IReadOnlyList<(SourceLocation Location, string Label)>> InlayHintsAsync(string path)
     {
