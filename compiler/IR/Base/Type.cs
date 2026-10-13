@@ -854,6 +854,9 @@ public sealed class TypeTable
         return typ;
     }
     
+    /// <summary>Every type registered in this table.</summary>
+    public IEnumerable<Type> All => _byID.Values;
+
     /// <summary>
     /// Tries to get the type with the specified ID from the type table. If the type with the specified ID exists in the
     /// type table, this method returns true and sets the output parameter to the type; otherwise, this method returns

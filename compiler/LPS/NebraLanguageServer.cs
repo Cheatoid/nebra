@@ -46,6 +46,7 @@ public static class NebraLanguageServer
             .WithHandler<WorkspaceSymbolHandler>()
             .WithHandler<DocumentHighlightHandler>()
             .WithHandler<TypeDefinitionHandler>()
+            .WithHandler<ImplementationHandler>()
             .OnInitialize((server, request, ct) =>
             {
                 workspace.Initialize(request.RootUri?.GetFileSystemPath());

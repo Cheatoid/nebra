@@ -287,6 +287,24 @@ public sealed class LspSession : IAsyncDisposable
             .ToList();
     }
 
+    public async Task<IReadOnlyList<SourceLocation>> ImplementationAsync(string marker)
+    {
+        var at = At(marker);
+        var result = await Client.TextDocument.RequestImplementation(new ImplementationParams
+        {
+            TextDocument = at.TextDocument,
+            Position = at.Position
+        });
+
+        return (result ?? new LocationOrLocationLinks())
+            .Select(link => link.IsLocation
+                ? ToSourceLocation(link.Location!.Uri, link.Location.Range.Start)
+                : ToSourceLocation(link.LocationLink!.TargetUri, link.LocationLink.TargetSelectionRange.Start))
+            .OrderBy(location => location.Path, StringComparer.Ordinal)
+            .ThenBy(location => location.Line)
+            .ToList();
+    }
+
     /// <summary>The highlights for the symbol at <paramref name="marker"/>, sorted by position.</summary>
     public async Task<IReadOnlyList<(SourceLocation Location, DocumentHighlightKind Kind)>> HighlightsAsync(string marker)
     {
