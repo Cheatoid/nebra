@@ -36,6 +36,7 @@ public sealed class NebraWorkspace
     private readonly ConcurrentDictionary<string, byte> _touched = new(PathComparer);
     private readonly Dictionary<string, string> _published = new(PathComparer);
     private readonly SemaphoreSlim _buildGate = new(1, 1);
+    private readonly Dictionary<string, (long Version, Task<WorkspaceSnapshot> Build)> _documentSnapshots = new(PathComparer);
     private readonly SemaphoreSlim _publishGate = new(1, 1);
     private CancellationTokenSource? _pendingDiagnostics;
     private WorkspaceSnapshot? _snapshot;
@@ -109,13 +110,87 @@ public sealed class NebraWorkspace
     /// The view of the document at <paramref name="uri"/> in the current snapshot, or null when it
     /// is not part of the compilation.
     /// </summary>
-    public async Task<AnalysisResult?> GetResultAsync(string uri, CancellationToken cancellationToken = default)
+    public async Task<AnalysisResult?> GetWorkspaceResultAsync(string uri, CancellationToken cancellationToken = default)
     {
         var path = PathOf(uri);
         if (path == null) return null;
 
         var snapshot = await GetSnapshotAsync(cancellationToken).ConfigureAwait(false);
         return snapshot.GetResult(path);
+    }
+
+    /// <summary>
+    /// The view of the document at <paramref name="uri"/> for a request about a position in it.
+    /// Taken from the workspace snapshot when that is current, and otherwise from a compilation of
+    /// just this document and what it imports, which costs a fraction of the whole workspace.
+    /// Features that reach across files use <see cref="GetWorkspaceResultAsync"/> instead.
+    /// </summary>
+    public async Task<AnalysisResult?> GetResultAsync(string uri, CancellationToken cancellationToken = default)
+    {
+        var path = PathOf(uri);
+        if (path == null) return null;
+        if (!_openDocuments.ContainsKey(path) && !File.Exists(path)) return null;
+
+        var version = Interlocked.Read(ref _version);
+        var workspace = Volatile.Read(ref _snapshot);
+        var fromWorkspace = workspace != null && workspace.Version == version ? workspace.GetResult(path) : null;
+        if (fromWorkspace != null) return fromWorkspace;
+
+        var snapshot = await GetDocumentSnapshotAsync(path, version).WaitAsync(cancellationToken).ConfigureAwait(false);
+        return snapshot.GetResult(path);
+    }
+
+    /// <summary>
+    /// The single-document snapshot of <paramref name="path"/> at <paramref name="version"/>,
+    /// shared by every request that asks for it before the next edit.
+    /// </summary>
+    private Task<WorkspaceSnapshot> GetDocumentSnapshotAsync(string path, long version)
+    {
+        lock (_documentSnapshots)
+        {
+            if (_documentSnapshots.TryGetValue(path, out var entry) && entry.Version == version)
+            {
+                return entry.Build;
+            }
+
+            var build = Task.Run(() => BuildDocumentSnapshot(path, version));
+            _documentSnapshots[path] = (version, build);
+            return build;
+        }
+    }
+
+    private WorkspaceSnapshot BuildDocumentSnapshot(string path, long version)
+    {
+        var config = CreateBuildConfig();
+        var document = _openDocuments.TryGetValue(path, out var open)
+            ? new SourceDocument(path, open.Text, open.Uri)
+            : new SourceDocument(path, File.ReadAllText(path));
+
+        var snapshot = WorkspaceSnapshot.Build(version, config, [document], _lastParsed, isWorkspace: false);
+        RememberParsed(snapshot, [document]);
+        return snapshot;
+    }
+
+    /// <summary>
+    /// A copy of the project configuration whose source overrides carry every open document, so a
+    /// build reads the editor's unsaved text even for files it only loads through an import.
+    /// </summary>
+    private Config CreateBuildConfig()
+    {
+        var config = _config.Clone();
+        config.SourceOverrides = _openDocuments.ToDictionary(entry => entry.Key, entry => entry.Value.Text, PathComparer);
+        return config;
+    }
+
+    private void RememberParsed(WorkspaceSnapshot snapshot, IEnumerable<SourceDocument> documents)
+    {
+        foreach (var document in documents)
+        {
+            if (!snapshot.IsStale(document.Path) && snapshot.GetResult(document.Path) != null)
+            {
+                _lastParsed[document.Path] = document.Text;
+            }
+        }
     }
 
     public void OnDocumentOpened(string uri, string text) => UpdateDocument(uri, text);
@@ -140,6 +215,21 @@ public sealed class NebraWorkspace
         Invalidate(path);
     }
 
+    /// <summary>
+    /// Forgets single-document snapshots a workspace snapshot has caught up with; requests at that
+    /// version or later are answered from the workspace.
+    /// </summary>
+    private void DropDocumentSnapshotsBefore(long version)
+    {
+        lock (_documentSnapshots)
+        {
+            foreach (var path in _documentSnapshots.Where(entry => entry.Value.Version <= version).Select(entry => entry.Key).ToList())
+            {
+                _documentSnapshots.Remove(path);
+            }
+        }
+    }
+
     private void Invalidate(string path)
     {
         Interlocked.Increment(ref _version);
@@ -156,7 +246,7 @@ public sealed class NebraWorkspace
 
     private WorkspaceSnapshot BuildSnapshot(long version)
     {
-        var config = _config.Clone();
+        var config = CreateBuildConfig();
         var documents = new Dictionary<string, SourceDocument>(PathComparer);
 
         foreach (var path in EnumerateProjectSources(config))
@@ -171,14 +261,8 @@ public sealed class NebraWorkspace
         }
 
         var snapshot = WorkspaceSnapshot.Build(version, config, documents.Values.ToList(), _lastParsed);
-
-        foreach (var (path, document) in documents)
-        {
-            if (!snapshot.IsStale(path) && snapshot.GetResult(path) != null)
-            {
-                _lastParsed[path] = document.Text;
-            }
-        }
+        RememberParsed(snapshot, documents.Values);
+        DropDocumentSnapshotsBefore(version);
 
         if (snapshot.Failure != null)
         {
@@ -850,7 +934,8 @@ public sealed class NebraWorkspace
 
     /// <summary>
     /// Every use of the symbol <paramref name="targetSym"/> across the workspace, including uses
-    /// in other files through an import of it.
+    /// in other files through an import of it. <paramref name="originResult"/> has to come from
+    /// <see cref="GetWorkspaceResultAsync"/>; a single-document snapshot only knows its own file.
     /// </summary>
     public List<Location> FindUsages(SymID targetSym, AnalysisResult originResult)
     {
@@ -1074,6 +1159,7 @@ public sealed class NebraWorkspace
     /// <summary>
     /// The source files of <paramref name="origin"/>'s snapshot whose text mentions
     /// <paramref name="symbolName"/>, which narrows a workspace-wide edit to the files it can touch.
+    /// <paramref name="origin"/> has to come from <see cref="GetWorkspaceResultAsync"/>.
     /// </summary>
     public static List<AnalysisResult> FilesMentioning(AnalysisResult origin, string symbolName)
     {

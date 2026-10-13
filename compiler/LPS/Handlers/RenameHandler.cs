@@ -11,7 +11,7 @@ public sealed class RenameHandler(NebraWorkspace workspace) : RenameHandlerBase
 {
     public override async Task<WorkspaceEdit?> Handle(RenameParams request, CancellationToken ct)
     {
-        var result = await workspace.GetResultAsync(request.TextDocument.Uri.ToString(), ct);
+        var result = await workspace.GetWorkspaceResultAsync(request.TextDocument.Uri.ToString(), ct);
         if (result == null) return null;
 
         var line = request.Position.Line + 1;

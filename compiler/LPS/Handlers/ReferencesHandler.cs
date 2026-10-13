@@ -10,7 +10,7 @@ public sealed class ReferencesHandler(NebraWorkspace workspace) : ReferencesHand
 {
     public override async Task<LocationContainer?> Handle(ReferenceParams request, CancellationToken ct)
     {
-        var result = await workspace.GetResultAsync(request.TextDocument.Uri.ToString(), ct);
+        var result = await workspace.GetWorkspaceResultAsync(request.TextDocument.Uri.ToString(), ct);
         if (result == null) return null;
 
         var line = request.Position.Line + 1;

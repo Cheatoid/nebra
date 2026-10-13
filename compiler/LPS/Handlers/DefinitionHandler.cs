@@ -40,7 +40,7 @@ public sealed class DefinitionHandler(NebraWorkspace workspace) : DefinitionHand
 
         if (IsOnDeclaration(nameRef, sym, result))
         {
-            var usages = workspace.FindUsages(nameRef.Sym, result);
+            var usages = await FindUsagesAcrossWorkspace(request, line, col, ct);
             if (usages.Count > 0)
             {
                 var links = usages.Select(l => new LocationOrLocationLink(l)).ToList();
@@ -103,6 +103,21 @@ public sealed class DefinitionHandler(NebraWorkspace workspace) : DefinitionHand
             Uri = DocumentUri.FromFileSystemPath(file),
             Range = NebraWorkspace.SpanToRange(declaration.Span)
         });
+    }
+
+    /// <summary>
+    /// The uses of the declaration under the cursor in every file. Symbols are only comparable
+    /// within one snapshot, so the name is looked up again in the workspace snapshot rather than
+    /// carried over from the single-document one.
+    /// </summary>
+    private async Task<List<Location>> FindUsagesAcrossWorkspace(DefinitionParams request, int line, int col, CancellationToken ct)
+    {
+        var result = await workspace.GetWorkspaceResultAsync(request.TextDocument.Uri.ToString(), ct);
+        var nameRef = result == null ? null : NodeFinder.FindNameRef(result.Hir, line, col);
+        if (result == null || nameRef == null || nameRef.Sym == SymID.Invalid)
+            return [];
+
+        return workspace.FindUsages(nameRef.Sym, result);
     }
 
     private static bool IsOnDeclaration(NameRef nameRef, Symbol sym, AnalysisResult result)

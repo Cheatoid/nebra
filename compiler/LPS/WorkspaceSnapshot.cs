@@ -36,6 +36,16 @@ public sealed class WorkspaceSnapshot
     /// <summary>The exception a pass threw while building, if any; the snapshot then holds what was produced before it.</summary>
     public Exception? Failure { get; }
 
+    /// <summary>
+    /// Whether this snapshot covers the whole workspace. A snapshot of a single document holds that
+    /// document and what it imports, which answers questions about positions in it but not about
+    /// who else uses a symbol.
+    /// </summary>
+    public bool IsWorkspace { get; private init; }
+
+    /// <summary>How long each phase of building this snapshot took, in order: parsing, every pass, indexing.</summary>
+    public IReadOnlyList<(string Phase, TimeSpan Duration)> Timings { get; private init; } = [];
+
     /// <summary>The paths of the source files compiled into this snapshot.</summary>
     public IEnumerable<string> SourcePaths => _documents.Keys;
 
@@ -62,9 +72,15 @@ public sealed class WorkspaceSnapshot
     /// its syntax errors are reported then.
     /// </summary>
     public static WorkspaceSnapshot Build(long version, Config config, IReadOnlyCollection<SourceDocument> documents,
-        IReadOnlyDictionary<string, string> lastParsed)
+        IReadOnlyDictionary<string, string> lastParsed, bool isWorkspace = true)
     {
-        var compiler = new NebraCompiler { Config = config };
+        var timings = new List<(string, TimeSpan)>();
+        var compiler = new NebraCompiler
+        {
+            Config = config,
+            PassCompleted = (pass, duration) => timings.Add((pass, duration))
+        };
+        var started = System.Diagnostics.Stopwatch.GetTimestamp();
         var staleFiles = new HashSet<string>(PathComparer);
         var byPath = new Dictionary<string, SourceDocument>(PathComparer);
 
@@ -86,6 +102,8 @@ public sealed class WorkspaceSnapshot
             }
         }
 
+        timings.Add(("Parse", System.Diagnostics.Stopwatch.GetElapsedTime(started)));
+
         Exception? failure = null;
         try
         {
@@ -96,12 +114,19 @@ public sealed class WorkspaceSnapshot
             failure = exception;
         }
 
+        started = System.Diagnostics.Stopwatch.GetTimestamp();
         var files = CollectFiles(compiler);
         var (nodes, nodeFiles) = IndexNodes(files.Values.Select(entry => entry.File));
         var symbols = IndexSymbols(compiler);
         var diagnostics = GroupDiagnostics(compiler.Diagnostics, staleFiles);
 
-        return new WorkspaceSnapshot(version, failure, byPath, files, nodes, nodeFiles, symbols, diagnostics, staleFiles);
+        timings.Add(("Index", System.Diagnostics.Stopwatch.GetElapsedTime(started)));
+
+        return new WorkspaceSnapshot(version, failure, byPath, files, nodes, nodeFiles, symbols, diagnostics, staleFiles)
+        {
+            Timings = timings,
+            IsWorkspace = isWorkspace
+        };
     }
 
     /// <summary>

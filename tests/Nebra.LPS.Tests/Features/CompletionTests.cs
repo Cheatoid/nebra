@@ -107,5 +107,20 @@ public sealed class CompletionTests
         Assert.Contains("greet", labels);
         Assert.Contains("farewell", labels);
     }
-}
 
+    [Fact]
+    public async Task ImportBracesOfferExportsTheImportedFileHasNotSavedYet()
+    {
+        await using var session = await LspSession.StartAsync(
+            ("src/lib.neb", "export function greet(): string\n    return \"hi\"\nend\n"),
+            ("src/main.neb", "import { {|cursor|} } from \"lib\"\n"));
+
+        await session.OpenAsync("src/lib.neb");
+        await session.OpenAsync("src/main.neb");
+        session.SendChange("src/lib.neb", "export function greet(): string\n    return \"hi\"\nend\n\nexport function farewell(): string\n    return \"bye\"\nend\n", 2);
+
+        var labels = await session.CompletionLabelsAsync("cursor");
+
+        Assert.Contains("farewell", labels);
+    }
+}

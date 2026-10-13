@@ -181,6 +181,23 @@ public sealed class LspSession : IAsyncDisposable
     }
 
     /// <summary>
+    /// Replaces the content of an open document without waiting for anything, so the next request
+    /// arrives before the server has recompiled the workspace - the moment a user is typing in.
+    /// </summary>
+    public void SendChange(string path, string markedText, int version)
+    {
+        var source = MarkedSource.Parse(markedText);
+        _files[path] = source;
+
+        Client.TextDocument.DidChangeTextDocument(new DidChangeTextDocumentParams
+        {
+            TextDocument = new OptionalVersionedTextDocumentIdentifier { Uri = Uri(path), Version = version },
+            ContentChanges = new Container<TextDocumentContentChangeEvent>(
+                new TextDocumentContentChangeEvent { Text = source.Text })
+        });
+    }
+
+    /// <summary>
     /// Replaces the content of an open document and waits for the diagnostics published for it.
     /// </summary>
     public async Task<IReadOnlyList<Diagnostic>> ChangeAsync(string path, string markedText, int version)

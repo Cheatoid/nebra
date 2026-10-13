@@ -60,4 +60,21 @@ public sealed class HoverTests
         Assert.NotNull(hover);
         Assert.Contains("name: string", hover);
     }
+
+    [Fact]
+    public async Task HoverSeesUnsavedChangesInAnImportedFile()
+    {
+        await using var session = await LspSession.StartAsync(
+            ("src/lib.neb", "export function greet(name: string): string\n    return \"hi \" .. name\nend\n"),
+            ("src/main.neb", "import { greet } from \"lib\"\n\nprint({|call|}greet(\"ada\"))\n"));
+
+        await session.OpenAsync("src/lib.neb");
+        await session.OpenAsync("src/main.neb");
+        session.SendChange("src/lib.neb", "export function greet(name: string, punctuation: string = \"!\"): string\n    return \"hi \" .. name .. punctuation\nend\n", 2);
+
+        var hover = await session.HoverAsync("call");
+
+        Assert.NotNull(hover);
+        Assert.Contains("punctuation", hover);
+    }
 }
