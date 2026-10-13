@@ -27,6 +27,7 @@ public sealed class DiagnosticsTests
         var error = Assert.Single(diagnostics);
         Assert.Equal(DiagnosticSeverity.Error, error.Severity);
         Assert.Equal(session.Marker("name").Position, error.Range.Start);
+        Assert.Equal(new Position(0, 19), error.Range.End);
     }
 
     [Fact]

@@ -538,7 +538,7 @@ public sealed class NebraWorkspace
     {
         return new OmniSharp.Extensions.LanguageServer.Protocol.Models.Range(
             new Position(Math.Max(0, span.StartLn - 1), Math.Max(0, span.StartCol - 1)),
-            new Position(Math.Max(0, span.EndLn - 1), Math.Max(0, span.EndCol))
+            new Position(Math.Max(0, span.EndLn - 1), Math.Max(0, span.EndCol - 1))
         );
     }
 

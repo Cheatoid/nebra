@@ -68,7 +68,7 @@ public sealed class TextSpan(string? file, int startLn, int startCol, int endLn,
     /// <returns>The text span created from the given ANTLR token.</returns>
     public static TextSpan Of(IToken token, string? file = null)
     {
-        return new TextSpan(file, token.Line, token.Column + 1, token.Line, token.Column + token.Text?.Length ?? 0 + 1);
+        return new TextSpan(file, token.Line, token.Column + 1, token.Line, token.Column + (token.Text?.Length ?? 0) + 1);
     }
     
     /// <summary>
