@@ -66,7 +66,7 @@ public sealed class ResolveImportsPass() : Pass(PassName, PassScope.PerBuild)
             var byPath = new Dictionary<string, PreparsedFile>(StringComparer.OrdinalIgnoreCase);
             foreach (var file in pkg.Files)
             {
-                if (file.Filename == null) continue;
+                if (string.IsNullOrEmpty(file.Filename)) continue;
                 byPath.TryAdd(Path.GetFullPath(file.Filename), file);
             }
 
