@@ -73,6 +73,30 @@ public static class NodeFinder
             .FirstOrDefault();
     }
 
+    /// <summary>Every name written inside <paramref name="statement"/>, bound to a symbol or not.</summary>
+    public static List<NameRef> CollectNames(Stmt statement)
+    {
+        var refs = new List<NameRef>();
+        CollectFromStmt(statement, refs);
+        return refs;
+    }
+
+    /// <summary><paramref name="statement"/> and every node nested inside it.</summary>
+    public static IEnumerable<Node> Subtree(Stmt statement)
+    {
+        var registry = new Dictionary<NodeID, Node>();
+        RegisterStmt(statement, registry);
+        return registry.Values;
+    }
+
+    /// <summary><paramref name="expression"/> and every node nested inside it.</summary>
+    public static IEnumerable<Node> Subtree(Expr expression)
+    {
+        var registry = new Dictionary<NodeID, Node>();
+        RegisterExpr(expression, registry);
+        return registry.Values;
+    }
+
     public static Dictionary<NodeID, Node> BuildNodeRegistry(IRScript script)
     {
         var reg = new Dictionary<NodeID, Node>();

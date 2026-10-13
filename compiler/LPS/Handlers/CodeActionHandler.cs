@@ -29,6 +29,7 @@ public sealed class CodeActionHandler(NebraWorkspace workspace) : CodeActionHand
             CollectImportFixes(result, request, actions);
             CollectImplementMembersFixes(result, request, actions);
             CollectOrganizeImports(result, actions);
+            CollectRefactorings(result, request, actions);
 
             foreach (var diagnostic in request.Context.Diagnostics ?? [])
                 actions.AddRange(QuickFixes.For(result, workspace.LatestSnapshot, diagnostic).Select(fix => new CommandOrCodeAction(fix)));
@@ -51,6 +52,18 @@ public sealed class CodeActionHandler(NebraWorkspace workspace) : CodeActionHand
 
     public override Task<CodeAction> Handle(CodeAction request, CancellationToken ct)
         => Task.FromResult(request);
+
+    private void CollectRefactorings(AnalysisResult result, CodeActionParams request, List<CommandOrCodeAction> actions)
+    {
+        CodeAction?[] refactorings =
+        [
+            ExtractVariable.Offer(result, request.Range),
+            ExtractFunction.Offer(workspace, result, request.Range),
+            InlineVariable.Offer(result, request.Range.Start)
+        ];
+
+        actions.AddRange(refactorings.OfType<CodeAction>().Select(action => new CommandOrCodeAction(action)));
+    }
 
     private static void CollectOrganizeImports(AnalysisResult result, List<CommandOrCodeAction> actions)
     {
