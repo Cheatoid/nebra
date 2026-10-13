@@ -305,6 +305,21 @@ public sealed class LspSession : IAsyncDisposable
             .ToList();
     }
 
+    /// <summary>Every inlay hint in <paramref name="path"/>, as position and label.</summary>
+    public async Task<IReadOnlyList<(SourceLocation Location, string Label)>> InlayHintsAsync(string path)
+    {
+        var lines = _files[path].Text.Split('\n').Length;
+        var result = await Client.TextDocument.RequestInlayHints(new InlayHintParams
+        {
+            TextDocument = new TextDocumentIdentifier(Uri(path)),
+            Range = new OmniSharp.Extensions.LanguageServer.Protocol.Models.Range(0, 0, lines, 0)
+        });
+
+        return (result ?? new InlayHintContainer())
+            .Select(hint => (new SourceLocation(path, hint.Position.Line, hint.Position.Character), hint.Label.String ?? string.Empty))
+            .ToList();
+    }
+
     /// <summary>The highlights for the symbol at <paramref name="marker"/>, sorted by position.</summary>
     public async Task<IReadOnlyList<(SourceLocation Location, DocumentHighlightKind Kind)>> HighlightsAsync(string marker)
     {

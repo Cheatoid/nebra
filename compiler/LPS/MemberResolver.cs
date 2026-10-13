@@ -95,6 +95,33 @@ public static class MemberResolver
     }
 
     /// <summary>
+    /// Returns the signature of the method <paramref name="memberName"/> of
+    /// <paramref name="receiverType"/>, or null when it has no such method.
+    /// </summary>
+    public static FunctionType? FindMethod(Type receiverType, string memberName)
+    {
+        foreach (var owner in MemberOwners(receiverType))
+        {
+            switch (owner)
+            {
+                case ClassType classType when classType.Methods.TryGetValue(memberName, out var method):
+                    return method;
+                case ClassType classType when classType.StaticMethods.TryGetValue(memberName, out var staticMethod):
+                    return staticMethod;
+                case InterfaceType interfaceType when interfaceType.Methods.TryGetValue(memberName, out var interfaceMethod):
+                    return interfaceMethod;
+            }
+
+            if (owner.ExtensionMethods.TryGetValue(memberName, out var extension))
+            {
+                return extension;
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>
     /// Enumerates the types that can contribute a member to <paramref name="type"/>, nearest
     /// first: the type itself, its base classes, then every interface it implements or extends.
     /// </summary>
