@@ -28,6 +28,7 @@ public sealed class CodeActionHandler(NebraWorkspace workspace) : CodeActionHand
         {
             CollectImportFixes(result, request, actions);
             CollectImplementMembersFixes(result, request, actions);
+            CollectOrganizeImports(result, actions);
         }
 
         actions.Add(new CommandOrCodeAction(new CodeAction
@@ -47,6 +48,30 @@ public sealed class CodeActionHandler(NebraWorkspace workspace) : CodeActionHand
 
     public override Task<CodeAction> Handle(CodeAction request, CancellationToken ct)
         => Task.FromResult(request);
+
+    private static void CollectOrganizeImports(AnalysisResult result, List<CommandOrCodeAction> actions)
+    {
+        var edits = OrganizeImports.Compute(result);
+        if (edits.Count == 0) return;
+
+        actions.Add(new CommandOrCodeAction(new CodeAction
+        {
+            Title = "Organize imports",
+            Kind = CodeActionKind.SourceOrganizeImports,
+            Edit = SingleFileEdit(result, edits)
+        }));
+    }
+
+    private static WorkspaceEdit SingleFileEdit(AnalysisResult result, IEnumerable<TextEdit> edits)
+    {
+        return new WorkspaceEdit
+        {
+            Changes = new Dictionary<DocumentUri, IEnumerable<TextEdit>>
+            {
+                [DocumentUri.Parse(result.Uri)] = edits.ToList()
+            }
+        };
+    }
 
     /// <summary>
     /// For each <c>ErrUndeclaredSymbol</c> diagnostic in the requested range, search
@@ -260,7 +285,8 @@ public sealed class CodeActionHandler(NebraWorkspace workspace) : CodeActionHand
         return new CodeActionRegistrationOptions
         {
             DocumentSelector = TextDocumentSelector.ForLanguage("nebra"),
-            CodeActionKinds = new Container<CodeActionKind>(CodeActionKind.QuickFix, CodeActionKind.Source),
+            CodeActionKinds = new Container<CodeActionKind>(CodeActionKind.QuickFix, CodeActionKind.Source,
+                CodeActionKind.SourceOrganizeImports, CodeActionKind.RefactorExtract, CodeActionKind.RefactorInline),
             ResolveProvider = false
         };
     }
