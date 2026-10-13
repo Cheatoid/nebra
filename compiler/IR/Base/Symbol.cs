@@ -127,12 +127,21 @@ public sealed class Symbol(SymID id, SymbolKind kind, string name, ScopeID owner
 /// The symbol arena is a data structure that stores all the symbols in the IR. It is used to manage the symbols and to
 /// provide efficient lookup and retrieval of symbols during semantic analysis and code generation. 
 /// </summary>
-public sealed class SymbolArena(IDAlloc<SymID>? idAlloc = null)
+public sealed class SymbolArena(IDAlloc<SymID>? idAlloc = null, SymbolArena? library = null)
 {
     /// <summary>
     /// The underlying dictionary that maps symbol IDs to symbols. 
     /// </summary>
     public Dictionary<SymID, Symbol> ByID { get; } = new();
+
+    /// <summary>
+    /// The arena of the libraries every package of a build shares. Symbols this arena does not
+    /// hold are looked up there, so a library is bound once instead of once per package.
+    /// </summary>
+    public SymbolArena? Library { get; } = library;
+
+    /// <summary>The symbols of this arena followed by those of <see cref="Library"/>.</summary>
+    public IEnumerable<KeyValuePair<SymID, Symbol>> Visible => Library == null ? ByID : ByID.Concat(Library.ByID);
     
     private readonly IDAlloc<SymID> _idAlloc = idAlloc ?? new IDAlloc<SymID>();
     
@@ -171,7 +180,9 @@ public sealed class SymbolArena(IDAlloc<SymID>? idAlloc = null)
             symbol = sym;
             return true;
         }
-        
+
+        if (Library != null) return Library.GetByID(id, out symbol);
+
         symbol = null!;
         return false;
     }
@@ -194,7 +205,9 @@ public sealed class SymbolArena(IDAlloc<SymID>? idAlloc = null)
             symbol = sym;
             return true;
         }
-        
+
+        if (Library != null) return Library.GetByName(name, scope, out symbol);
+
         symbol = null!;
         return false;
     }
@@ -216,6 +229,6 @@ public sealed class SymbolArena(IDAlloc<SymID>? idAlloc = null)
             return true;
         }
 
-        return false;
+        return Library != null && Library.SetType(id, type);
     }
 }

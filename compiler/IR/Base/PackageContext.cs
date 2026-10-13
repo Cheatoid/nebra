@@ -35,4 +35,11 @@ public sealed class PackageContext(string path, SymbolArena syms, ScopeGraph sco
     /// The root scope ID of this package.
     /// </summary>
     public ScopeID Root { get; } = root;
+
+    /// <summary>
+    /// True for the package holding the declaration libraries of a build. Every other package
+    /// sees its top-level declarations as if they were its own, through <see cref="SymbolArena.Library"/>
+    /// and <see cref="ScopeGraph.Library"/>.
+    /// </summary>
+    public bool IsLibrary { get; init; }
 }

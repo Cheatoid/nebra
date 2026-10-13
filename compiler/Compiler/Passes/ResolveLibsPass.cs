@@ -147,23 +147,25 @@ public sealed class ResolveLibsPass() : Pass(PassName, PassScope.PerBuild)
     }
 
     /// <summary>
-    /// Lowers the declaration source once per target package so each gets
-    /// its own private IR; the parse itself comes from <see cref="ParseTreeCache"/>. NameRef/TypeRef nodes are mutated in-place during
-    /// later passes (assigning <c>Sym</c>, <c>ResolvedType</c> etc.); sharing a
-    /// single IR across packages would race those writes between contexts.
+    /// Lowers a declaration source into the build's library package, once; every other package
+    /// sees its declarations through that package. A file some package compiles as its own
+    /// source cannot be shared that way without that package seeing it twice, so it is lowered
+    /// into each of the other packages instead, each getting its own IR because later passes
+    /// mutate it in place. The parse itself comes from <see cref="ParseTreeCache"/>.
     /// </summary>
     private static void LoadDeclSource(PassContext context, string filePath, string source, HashSet<string>? disabled)
     {
-        var pkgsMissingFile = context.Pkgs
-            .Where(p => p.Files.All(f => f.Filename != filePath))
-            .ToList();
-        if (pkgsMissingFile.Count == 0) return;
+        var library = context.Pkgs.FirstOrDefault(p => p.IsLibrary);
+        var ownedAsSource = context.Pkgs.Any(p => !p.IsLibrary && p.Files.Any(f => f.Filename == filePath));
 
-        var diag = context.Diag;
+        var targets = library != null && !ownedAsSource
+            ? [library]
+            : context.Pkgs.Where(p => !p.IsLibrary && p.Files.All(f => f.Filename != filePath)).ToList();
+
         var tree = ParseTreeCache.Parse(source);
-        foreach (var pkg in pkgsMissingFile)
+        foreach (var pkg in targets.Where(p => p.Files.All(f => f.Filename != filePath)))
         {
-            var visitor = new IRVisitor(filePath, context.NodeAlloc, diag, context.Config);
+            var visitor = new IRVisitor(filePath, context.NodeAlloc, context.Diag, context.Config);
             var ir = visitor.Visit(tree);
             if (ir is not IRScript script) continue;
 

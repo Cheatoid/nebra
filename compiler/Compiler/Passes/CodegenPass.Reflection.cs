@@ -173,7 +173,7 @@ public sealed partial class CodegenPass
     private static string ReflectNamespace(PassContext ctx, PackageContext pkg)
     {
         var leaf = System.IO.Path.GetFileNameWithoutExtension(pkg.Path.TrimEnd('/', '\\'));
-        var isRoot = ReferenceEquals(pkg, ctx.Pkgs.FirstOrDefault());
+        var isRoot = pkg.IsLibrary || ReferenceEquals(pkg, ctx.RootPackage);
         return isRoot ? ctx.Config.Name ?? (string.IsNullOrEmpty(leaf) ? "main" : leaf)
                       : string.IsNullOrEmpty(leaf) ? "main" : leaf;
     }

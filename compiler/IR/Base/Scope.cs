@@ -99,15 +99,23 @@ public sealed class ScopeGraph
     private readonly Dictionary<NodeID, ScopeID> _nodeScope = new();
 
     /// <summary>
+    /// The scope graph of the libraries every package of a build shares. Its root scope counts
+    /// as part of this graph's root: a name declared there is found, overloaded and clashed with
+    /// exactly as if the library had been bound into this package.
+    /// </summary>
+    public ScopeGraph? Library { get; }
+
+    /// <summary>
     /// Creates a new scope graph with the specified diagnostics bag and scope ID allocator. The scope graph is
     /// initialized with a newly created root scope.
     /// </summary>
     /// <param name="diag"></param>
     /// <param name="scopeAlloc"></param>
-    public ScopeGraph(DiagnosticsBag diag, IDAlloc<ScopeID> scopeAlloc)
+    public ScopeGraph(DiagnosticsBag diag, IDAlloc<ScopeID> scopeAlloc, ScopeGraph? library = null)
     {
         _diag = diag;
         _scopeAlloc = scopeAlloc;
+        Library = library;
         Root = NewScope();
     }
 
@@ -152,7 +160,7 @@ public sealed class ScopeGraph
             return true;
         }
 
-        return false;
+        return Library != null && Library.EnclosingScope(node, out scope);
     }
 
     /// <summary>
@@ -187,7 +195,7 @@ public sealed class ScopeGraph
             return false;
         }
 
-        if (sc.GetSymbols(name, out var existingSyms))
+        if (SymbolsIn(sc, name) is { } existingSyms)
         {
             if (newSymbol.Kind == SymbolKind.Function)
             {
@@ -227,20 +235,17 @@ public sealed class ScopeGraph
     /// <returns>true if a symbol with the specified name exists in the specified scope and the output parameter contains its unique ID; otherwise, false.</returns>
     public bool LookupOnlyCurrent(ScopeID scope, string name, out SymID sym)
     {
-        if (!_byID.TryGetValue(scope, out var sc))
+        if (!TryGetScope(scope, out var sc))
         {
             _diag.Report(TextSpan.Empty, DiagnosticCode.ErrLookingUpInNonExistingScope, name, scope);
             sym = SymID.Invalid;
             return false;
         }
 
-        if (sc.GetSymbols(name, out var syms))
+        if (SymbolsIn(sc, name) is { Count: > 0 } syms)
         {
-            if (syms.Count > 0)
-            {
-                sym = syms[0];
-                return true;
-            }
+            sym = syms[0];
+            return true;
         }
 
         sym = SymID.Invalid;
@@ -266,7 +271,7 @@ public sealed class ScopeGraph
                 return true;
             }
 
-            if (!_byID.TryGetValue(currentScope, out var sc))
+            if (!TryGetScope(currentScope, out var sc))
             {
                 _diag.Report(TextSpan.Empty, DiagnosticCode.ErrLookingUpInNonExistingScope, name, currentScope);
                 sym = SymID.Invalid;
@@ -295,9 +300,9 @@ public sealed class ScopeGraph
         var currentScope = scope;
         while (currentScope != ScopeID.Invalid)
         {
-            if (_byID.TryGetValue(currentScope, out var sc))
+            if (TryGetScope(currentScope, out var sc))
             {
-                if (sc.GetSymbols(name, out var currentSyms) && currentSyms.Count > 0)
+                if (SymbolsIn(sc, name) is { Count: > 0 } currentSyms)
                 {
                     return currentSyms;
                 }
@@ -324,7 +329,7 @@ public sealed class ScopeGraph
     public bool ParentScope(ScopeID scope, out ScopeID parent)
     {
         parent = ScopeID.Invalid;
-        if (!_byID.TryGetValue(scope, out var sc))
+        if (!TryGetScope(scope, out var sc))
         {
             _diag.Report(TextSpan.Empty, DiagnosticCode.ErrLookingUpInNonExistingScope, scope);
             return false;
@@ -332,6 +337,31 @@ public sealed class ScopeGraph
 
         parent = sc.Parent;
         return true;
+    }
+
+    private bool TryGetScope(ScopeID id, out Scope scope)
+    {
+        if (_byID.TryGetValue(id, out scope!)) return true;
+        return Library != null && Library.TryGetScope(id, out scope);
+    }
+
+    /// <summary>
+    /// The symbols declared under <paramref name="name"/> in <paramref name="scope"/>, or null
+    /// when there are none. For the root scope these include the library root's, after this
+    /// graph's own, in the order binding both into one scope used to produce.
+    /// </summary>
+    private List<SymID>? SymbolsIn(Scope scope, string name)
+    {
+        var own = scope.GetSymbols(name, out var syms) ? syms : null;
+        if (scope.ID != Root || Library == null) return own;
+
+        var shared = Library.TryGetScope(Library.Root, out var libraryRoot) && libraryRoot.GetSymbols(name, out var librarySyms)
+            ? librarySyms
+            : null;
+
+        if (own == null) return shared;
+        if (shared == null) return own;
+        return [..own, ..shared];
     }
 }
 

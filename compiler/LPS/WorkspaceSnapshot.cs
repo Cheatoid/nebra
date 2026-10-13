@@ -264,8 +264,8 @@ public sealed class WorkspaceSnapshot
 
     /// <summary>
     /// Maps every file in the compilation to the package it was compiled in. A source file is
-    /// keyed to its own package; a library file loaded into several packages is keyed to the
-    /// first that holds it.
+    /// keyed to its own package; a library file to the shared library package, or to the first
+    /// package holding a copy of it when it could not be shared.
     /// </summary>
     private static Dictionary<string, (PackageContext Package, PreparsedFile File)> CollectFiles(NebraCompiler compiler)
     {
@@ -280,7 +280,7 @@ public sealed class WorkspaceSnapshot
             }
         }
 
-        foreach (var package in compiler.Packages.Values)
+        foreach (var package in compiler.AllPackages)
         {
             foreach (var file in package.Files)
             {
@@ -318,7 +318,7 @@ public sealed class WorkspaceSnapshot
     {
         var symbols = new Dictionary<SymID, (PackageContext Package, Symbol Symbol)>();
 
-        foreach (var package in compiler.Packages.Values)
+        foreach (var package in compiler.AllPackages)
         {
             foreach (var (id, symbol) in package.Syms.ByID)
             {

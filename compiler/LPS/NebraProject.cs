@@ -1462,6 +1462,16 @@ public sealed class NebraProject(Func<ServerSettings>? settings = null)
         _server?.Window.ShowMessage(new ShowMessageParams { Type = type, Message = message });
     }
 
+    /// <summary>
+    /// Whether <paramref name="symbol"/> is declared in <paramref name="scope"/>; the package's
+    /// root scope also holds what the shared libraries declare at their top level.
+    /// </summary>
+    private static bool IsDeclaredIn(AnalysisResult result, Symbol symbol, ScopeID scope)
+    {
+        if (symbol.Owner == scope) return true;
+        return scope == result.Package.Root && result.Scopes.Library is { } library && symbol.Owner == library.Root;
+    }
+
     public List<Symbol> CollectVisibleSymbols(AnalysisResult result, ScopeID scopeId)
     {
         var symbols = new List<Symbol>();
@@ -1470,9 +1480,9 @@ public sealed class NebraProject(Func<ServerSettings>? settings = null)
 
         while (currentScope != ScopeID.Invalid)
         {
-            foreach (var (id, sym) in result.Syms.ByID)
+            foreach (var (id, sym) in result.Syms.Visible)
             {
-                if (sym.Owner == currentScope && seen.Add(sym.Name))
+                if (IsDeclaredIn(result, sym, currentScope) && seen.Add(sym.Name))
                     symbols.Add(sym);
             }
 

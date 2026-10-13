@@ -66,7 +66,7 @@ public class ResolveTypeRefsPass() : Pass(PassName, PassScope.PerBuild)
     private string ReflectNamespace(PackageContext pkg)
     {
         var leaf = System.IO.Path.GetFileNameWithoutExtension(pkg.Path.TrimEnd('/', '\\'));
-        var isRoot = ReferenceEquals(pkg, _ctx.Pkgs.FirstOrDefault());
+        var isRoot = pkg.IsLibrary || ReferenceEquals(pkg, _ctx.RootPackage);
         return isRoot ? _ctx.Config.Name ?? (string.IsNullOrEmpty(leaf) ? "main" : leaf)
                       : string.IsNullOrEmpty(leaf) ? "main" : leaf;
     }

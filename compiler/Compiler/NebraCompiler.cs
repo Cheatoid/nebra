@@ -50,6 +50,25 @@ public class NebraCompiler
     public NameMap Names { get; } = new();
 
     /// <summary>
+    /// The package the declaration libraries are loaded into, once for the whole build. Every
+    /// package added with <see cref="AddSource(string, string)"/> looks up what it does not
+    /// declare itself here.
+    /// </summary>
+    public PackageContext Library { get; }
+
+    /// <summary>The packages a build runs over: <see cref="Library"/> first, then every source package.</summary>
+    public List<PackageContext> AllPackages => [Library, ..Packages.Values];
+
+    public NebraCompiler()
+    {
+        var scopes = new ScopeGraph(Diagnostics, ScopeAlloc);
+        Library = new PackageContext("<libraries>", new SymbolArena(SymAlloc), scopes, TypeUniverse, scopes.Root)
+        {
+            IsLibrary = true
+        };
+    }
+
+    /// <summary>
     /// The configuration for the compiler. This controls language-level behavior such as the concat operator,
     /// index base, string interpolation, etc.
     /// </summary>
@@ -101,8 +120,8 @@ public class NebraCompiler
         }
         else
         {
-            var sc = new ScopeGraph(Diagnostics, ScopeAlloc);
-            var newPkg = new PackageContext(filename, new SymbolArena(SymAlloc), sc, TypeUniverse, sc.Root);
+            var sc = new ScopeGraph(Diagnostics, ScopeAlloc, Library.Scopes);
+            var newPkg = new PackageContext(filename, new SymbolArena(SymAlloc, Library.Syms), sc, TypeUniverse, sc.Root);
             newPkg.Files.Add(file);
             Packages[file.Filename ?? string.Empty] = newPkg;
         }
@@ -128,7 +147,7 @@ public class NebraCompiler
         };
         pm.BuildOrder(PassManager.CheckPipeline);
 
-        return pm.Run(Diagnostics, Packages.Values.ToList(), TypeUniverse, SymAlloc, ScopeAlloc, NodeAlloc, Names,
+        return pm.Run(Diagnostics, AllPackages, TypeUniverse, SymAlloc, ScopeAlloc, NodeAlloc, Names,
             Cache, Config);
     }
 
@@ -142,7 +161,7 @@ public class NebraCompiler
         };
         pm.BuildOrder(PassManager.CompilerPipeline);
 
-        return pm.Run(Diagnostics, Packages.Values.ToList(), TypeUniverse, SymAlloc, ScopeAlloc, NodeAlloc, Names,
+        return pm.Run(Diagnostics, AllPackages, TypeUniverse, SymAlloc, ScopeAlloc, NodeAlloc, Names,
             Cache, Config);
     }
 

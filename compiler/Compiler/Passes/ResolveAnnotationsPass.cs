@@ -149,7 +149,7 @@ public sealed class ResolveAnnotationsPass() : Pass(PassName, PassScope.PerBuild
 
         var pm = new PassManager();
         pm.BuildOrder(PassManager.AnnotationFilePipeline);
-        var ok = pm.Run(subCompiler.Diagnostics, subCompiler.Packages.Values.ToList(),
+        var ok = pm.Run(subCompiler.Diagnostics, subCompiler.AllPackages,
             subCompiler.TypeUniverse, subCompiler.SymAlloc, subCompiler.ScopeAlloc,
             subCompiler.NodeAlloc, subCompiler.Names, subCompiler.Cache, subCompiler.Config);
 
