@@ -29,6 +29,9 @@ public sealed class CodeActionHandler(NebraWorkspace workspace) : CodeActionHand
             CollectImportFixes(result, request, actions);
             CollectImplementMembersFixes(result, request, actions);
             CollectOrganizeImports(result, actions);
+
+            foreach (var diagnostic in request.Context.Diagnostics ?? [])
+                actions.AddRange(QuickFixes.For(result, workspace.LatestSnapshot, diagnostic).Select(fix => new CommandOrCodeAction(fix)));
         }
 
         actions.Add(new CommandOrCodeAction(new CodeAction
