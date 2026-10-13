@@ -155,6 +155,17 @@ public sealed class InferTypesPass() : Pass(PassName, PassScope.PerBuild)
     }
 
     /// <summary>
+    /// Adds <paramref name="item"/> unless <paramref name="list"/> holds it already. Classes and
+    /// interfaces are shared by name between packages while every package resolves its own copy
+    /// of a library's declarations, so the same relation is resolved once per package; adding it
+    /// each time would grow the list with the package count and every lookup walking it with it.
+    /// </summary>
+    private static void AddOnce<T>(List<T> list, T item)
+    {
+        if (!list.Contains(item)) list.Add(item);
+    }
+
+    /// <summary>
     /// Orders packages so that an importer always follows its targets. Uses
     /// the <c>import_resolved:&lt;file&gt;:&lt;module&gt;</c> cache entries
     /// laid down by <see cref="ResolveImportsPass"/> to discover edges. Cycles
@@ -780,7 +791,7 @@ public sealed class InferTypesPass() : Pass(PassName, PassScope.PerBuild)
             if (iface.Sym == SymID.Invalid) continue;
             var ifaceTyp = LookupSymbolType(pc, iface.Sym);
             if (ifaceTyp != TypID.Invalid && pc.Types.GetByID(ifaceTyp, out var it) && it is InterfaceType ifaceType)
-                classType.Interfaces.Add(ifaceType);
+                AddOnce(classType.Interfaces, ifaceType);
             else if (ifaceTyp != TypID.Invalid)
                 pc.Diag.Report(iface.Span, Diagnostics.DiagnosticCode.ErrImplementsNonInterface, iface.Name);
         }
@@ -1428,7 +1439,7 @@ public sealed class InferTypesPass() : Pass(PassName, PassScope.PerBuild)
                     pc.Diag.Report(baseIface.Span, Diagnostics.DiagnosticCode.ErrCyclicInheritance,
                         id.Name.Name, baseIface.Name);
                 else
-                    ifaceType.BaseInterfaces.Add(baseIfaceType);
+                    AddOnce(ifaceType.BaseInterfaces, baseIfaceType);
             }
         }
 
