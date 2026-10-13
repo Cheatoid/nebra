@@ -13,7 +13,7 @@ public sealed class WatchedFilesHandler(NebraWorkspace workspace) : DidChangeWat
 {
     public override Task<Unit> Handle(DidChangeWatchedFilesParams request, CancellationToken ct)
     {
-        workspace.OnFilesChanged(request.Changes.Select(change => change.Uri.ToString()));
+        workspace.OnFilesChanged(request.Changes.Select(change => (change.Uri.ToString(), change.Type != FileChangeType.Deleted)));
         return Unit.Task;
     }
 

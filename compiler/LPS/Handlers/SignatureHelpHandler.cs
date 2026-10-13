@@ -243,7 +243,7 @@ public sealed class SignatureHelpHandler(NebraWorkspace workspace) : SignatureHe
         var annotation = FindEnclosingAnnotation(result.Hir, line, col);
         if (annotation == null) return null;
 
-        var meta = workspace.GetAnnotationMeta(annotation.Name.Name);
+        var meta = workspace.GetAnnotationMeta(result.FilePath, annotation.Name.Name);
         if (meta == null) return null;
 
         var paramInfos = new List<ParameterInformation>();

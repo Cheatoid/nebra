@@ -16,11 +16,15 @@ public sealed class WorkspaceSymbolHandler(NebraWorkspace workspace) : Workspace
 
     public override async Task<Container<WorkspaceSymbol>?> Handle(WorkspaceSymbolParams request, CancellationToken ct)
     {
-        var snapshot = await workspace.GetSnapshotAsync(ct);
         var query = request.Query ?? string.Empty;
         var matches = new List<(int Rank, WorkspaceSymbol Symbol)>();
+        var results = new List<AnalysisResult>();
+        foreach (var project in workspace.AllProjects())
+        {
+            results.AddRange((await project.GetSnapshotAsync(ct)).SourceResults());
+        }
 
-        foreach (var result in snapshot.SourceResults())
+        foreach (var result in results)
         {
             var uri = DocumentUri.Parse(result.Uri);
             foreach (var (symbol, container) in Flatten(SymbolCollector.Collect(result), null))

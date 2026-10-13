@@ -102,7 +102,7 @@ public sealed class CompletionHandler(NebraWorkspace workspace) : CompletionHand
             }
 
             var visible = symbols.Select(sym => sym.Name).ToHashSet(StringComparer.Ordinal);
-            items.AddRange(AutoImportCompletion.Items(result, workspace.LatestSnapshot, request.Position, typeContext, visible));
+            items.AddRange(AutoImportCompletion.Items(result, workspace.LatestSnapshotFor(result.FilePath), request.Position, typeContext, visible));
         }
         else
         {
@@ -725,7 +725,7 @@ public sealed class CompletionHandler(NebraWorkspace workspace) : CompletionHand
         while (i > 0 && (char.IsLetterOrDigit(lineText[i - 1]) || lineText[i - 1] == '_')) i--;
         if (i <= 0 || lineText[i - 1] != '@') return null;
 
-        var metas = workspace.GetAnnotationMetas();
+        var metas = workspace.GetAnnotationMetas(result.FilePath);
         if (metas.Count == 0) return null;
 
         var items = new List<CompletionItem>();

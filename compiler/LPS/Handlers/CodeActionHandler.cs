@@ -32,7 +32,7 @@ public sealed class CodeActionHandler(NebraWorkspace workspace) : CodeActionHand
             CollectRefactorings(result, request, actions);
 
             foreach (var diagnostic in request.Context.Diagnostics ?? [])
-                actions.AddRange(QuickFixes.For(result, workspace.LatestSnapshot, diagnostic).Select(fix => new CommandOrCodeAction(fix)));
+                actions.AddRange(QuickFixes.For(result, workspace.LatestSnapshotFor(result.FilePath), diagnostic).Select(fix => new CommandOrCodeAction(fix)));
         }
 
         actions.Add(new CommandOrCodeAction(new CodeAction

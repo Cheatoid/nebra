@@ -95,7 +95,7 @@ public sealed class TypeHierarchySupertypesHandler(NebraWorkspace workspace) : T
 {
     public override async Task<Container<TypeHierarchyItem>?> Handle(TypeHierarchySupertypesParams request, CancellationToken ct)
     {
-        var snapshot = await workspace.GetSnapshotAsync(ct);
+        var snapshot = await workspace.GetSnapshotAsync(request.Item.Uri.ToString(), ct);
         var types = snapshot.Types.All.ToList();
         var type = TypeHierarchyItems.Find(types, request.Item);
         return type == null ? null : TypeHierarchyItems.Items(TypeHierarchyItems.Supertypes(type));
@@ -106,7 +106,7 @@ public sealed class TypeHierarchySubtypesHandler(NebraWorkspace workspace) : Typ
 {
     public override async Task<Container<TypeHierarchyItem>?> Handle(TypeHierarchySubtypesParams request, CancellationToken ct)
     {
-        var snapshot = await workspace.GetSnapshotAsync(ct);
+        var snapshot = await workspace.GetSnapshotAsync(request.Item.Uri.ToString(), ct);
         var types = snapshot.Types.All.ToList();
         var type = TypeHierarchyItems.Find(types, request.Item);
         return type == null ? null : TypeHierarchyItems.Items(TypeHierarchyItems.Subtypes(types, type));

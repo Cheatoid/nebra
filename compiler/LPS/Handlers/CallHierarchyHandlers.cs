@@ -87,7 +87,7 @@ public sealed class CallHierarchyIncomingHandler(NebraWorkspace workspace) : Cal
 {
     public override async Task<Container<CallHierarchyIncomingCall>?> Handle(CallHierarchyIncomingCallsParams request, CancellationToken ct)
     {
-        var snapshot = await workspace.GetSnapshotAsync(ct);
+        var snapshot = await workspace.GetSnapshotAsync(request.Item.Uri.ToString(), ct);
         var graph = CallGraph.Build(snapshot);
         var callee = CallHierarchyItems.Find(graph, request.Item);
         if (callee == null) return null;
@@ -112,7 +112,7 @@ public sealed class CallHierarchyOutgoingHandler(NebraWorkspace workspace) : Cal
 {
     public override async Task<Container<CallHierarchyOutgoingCall>?> Handle(CallHierarchyOutgoingCallsParams request, CancellationToken ct)
     {
-        var snapshot = await workspace.GetSnapshotAsync(ct);
+        var snapshot = await workspace.GetSnapshotAsync(request.Item.Uri.ToString(), ct);
         var graph = CallGraph.Build(snapshot);
         var caller = CallHierarchyItems.Find(graph, request.Item);
         if (caller == null) return null;

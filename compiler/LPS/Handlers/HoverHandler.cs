@@ -134,7 +134,7 @@ public sealed class HoverHandler(NebraWorkspace workspace) : HoverHandlerBase
         var annotation = FindAnnotationAt(result.Hir, line, col);
         if (annotation != null)
         {
-            var info = workspace.GetAnnotationInfo(annotation.Name.Name);
+            var info = workspace.GetAnnotationInfo(request.TextDocument.Uri.ToString(), annotation.Name.Name);
             var display = info ?? $"@{annotation.Name.Name}";
             return new Hover
             {

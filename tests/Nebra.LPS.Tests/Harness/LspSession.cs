@@ -54,7 +54,17 @@ public sealed class LspSession : IAsyncDisposable
     /// to a fresh project directory and starts a server over it. A <c>nebra.toml</c> is added
     /// unless one is supplied.
     /// </summary>
-    public static async Task<LspSession> StartAsync(params (string Path, string Text)[] files)
+    public static Task<LspSession> StartAsync(params (string Path, string Text)[] files)
+    {
+        return StartAsync([], files);
+    }
+
+    /// <summary>
+    /// Like <see cref="StartAsync(ValueTuple{string, string}[])"/>, but reports
+    /// <paramref name="folders"/> (relative to the session root) as the editor's workspace folders
+    /// instead of the root itself. No <c>nebra.toml</c> is added at the root then.
+    /// </summary>
+    public static async Task<LspSession> StartAsync(IReadOnlyList<string> folders, params (string Path, string Text)[] files)
     {
         await Warmup;
 
@@ -68,7 +78,7 @@ public sealed class LspSession : IAsyncDisposable
             WriteFile(root, path, source.Text);
         }
 
-        if (!parsed.ContainsKey("nebra.toml"))
+        if (folders.Count == 0 && !parsed.ContainsKey("nebra.toml"))
         {
             WriteFile(root, "nebra.toml", DefaultConfig);
         }
@@ -92,6 +102,11 @@ public sealed class LspSession : IAsyncDisposable
                 .WithOutput(clientToServer.Writer)
                 .WithRootUri(DocumentUri.FromFileSystemPath(root))
                 .OnPublishDiagnostics(diagnostics.Record);
+
+            foreach (var folder in folders)
+            {
+                options.WithWorkspaceFolder(DocumentUri.FromFileSystemPath(System.IO.Path.Combine(root, folder)), folder);
+            }
         });
 
         await Task.WhenAll(serverTask, clientTask);
@@ -638,7 +653,7 @@ public sealed class LspSession : IAsyncDisposable
 
         var workspace = new NebraWorkspace();
         workspace.Initialize(root);
-        await workspace.GetSnapshotAsync();
+        await workspace.GetSnapshotAsync(System.IO.Path.Combine(root, "src/main.neb"));
 
         Directory.Delete(root, true);
     }
