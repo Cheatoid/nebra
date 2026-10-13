@@ -95,6 +95,23 @@ public sealed class Config
     public string ProjectRoot { get; set; } = Environment.CurrentDirectory;
 
     /// <summary>
+    /// File contents that take precedence over what is on disk, keyed by full path, so a host such
+    /// as the language server can compile text the editor has not saved yet. Not part of the file
+    /// format.
+    /// </summary>
+    [Tomlyn.Serialization.TomlIgnore]
+    public IReadOnlyDictionary<string, string> SourceOverrides { get; set; } = new Dictionary<string, string>();
+
+    /// <summary>
+    /// Reads the source at <paramref name="path"/>, preferring <see cref="SourceOverrides"/> over
+    /// the file on disk.
+    /// </summary>
+    public string ReadSource(string path)
+    {
+        return SourceOverrides.TryGetValue(Path.GetFullPath(path), out var text) ? text : File.ReadAllText(path);
+    }
+
+    /// <summary>
     /// When true, the project ships only <c>.d.neb</c> declaration files (a "types-only"
     /// package — like a TypeScript <c>@types/*</c> shim). <c>nebra build</c>, <c>compile</c>,
     /// <c>run</c> and <c>test</c> become graceful no-ops; <c>nebra docs</c> still generates.
@@ -291,6 +308,7 @@ public sealed class Config
             GenerateDeclarations = GenerateDeclarations,
             Source = Source,
             ProjectRoot = ProjectRoot,
+            SourceOverrides = SourceOverrides,
             TypesOnly = TypesOnly,
             Globals = [..Globals],
             Annotations = [..Annotations],

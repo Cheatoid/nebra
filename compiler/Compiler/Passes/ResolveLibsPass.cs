@@ -136,7 +136,7 @@ public sealed class ResolveLibsPass() : Pass(PassName, PassScope.PerBuild)
         string source;
         try
         {
-            source = File.ReadAllText(filePath);
+            source = context.Config.ReadSource(filePath);
         }
         catch
         {
@@ -148,7 +148,7 @@ public sealed class ResolveLibsPass() : Pass(PassName, PassScope.PerBuild)
 
     /// <summary>
     /// Lowers the declaration source once per target package so each gets
-    /// its own private IR; the parse itself comes from <see cref="DeclarationParseCache"/>. NameRef/TypeRef nodes are mutated in-place during
+    /// its own private IR; the parse itself comes from <see cref="ParseTreeCache"/>. NameRef/TypeRef nodes are mutated in-place during
     /// later passes (assigning <c>Sym</c>, <c>ResolvedType</c> etc.); sharing a
     /// single IR across packages would race those writes between contexts.
     /// </summary>
@@ -160,7 +160,7 @@ public sealed class ResolveLibsPass() : Pass(PassName, PassScope.PerBuild)
         if (pkgsMissingFile.Count == 0) return;
 
         var diag = context.Diag;
-        var tree = DeclarationParseCache.Parse(source);
+        var tree = ParseTreeCache.Parse(source);
         foreach (var pkg in pkgsMissingFile)
         {
             var visitor = new IRVisitor(filePath, context.NodeAlloc, diag, context.Config);

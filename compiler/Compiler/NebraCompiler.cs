@@ -54,6 +54,9 @@ public class NebraCompiler
     /// index base, string interpolation, etc.
     /// </summary>
     public Config Config { get; set; } = new();
+
+    /// <summary>Called after each pass of <see cref="Compile"/> or <see cref="Check"/> with its name and duration.</summary>
+    public Action<string, TimeSpan>? PassCompleted { get; set; }
     
     /// <summary>
     /// Adds a source file to the compiler. The source file is preparsed and converted into the high-level intermediate
@@ -111,7 +114,7 @@ public class NebraCompiler
     /// </summary>
     public bool Check()
     {
-        var pm = new PassManager();
+        var pm = new PassManager { PassCompleted = PassCompleted };
         pm.BuildOrder(PassManager.CheckPipeline);
 
         return pm.Run(Diagnostics, Packages.Values.ToList(), TypeUniverse, SymAlloc, ScopeAlloc, NodeAlloc, Names,
@@ -120,7 +123,7 @@ public class NebraCompiler
 
     public bool Compile()
     {
-        var pm = new PassManager();
+        var pm = new PassManager { PassCompleted = PassCompleted };
         pm.BuildOrder(PassManager.CompilerPipeline);
 
         return pm.Run(Diagnostics, Packages.Values.ToList(), TypeUniverse, SymAlloc, ScopeAlloc, NodeAlloc, Names,
@@ -134,20 +137,12 @@ public class NebraCompiler
     /// <returns>true if the preparsing was successful, false otherwise.</returns>
     private bool Preparse(PreparsedFile file)
     {
-        var inputStream = new AntlrInputStream(file.Content);
-        var lexer = new NebraLexer(inputStream);
-        lexer.RemoveErrorListeners();
-        lexer.AddErrorListener(new DiagnosticsSymbolErrorListener(Diagnostics, file.Filename));
-        var tokenStream = new CommonTokenStream(lexer);
-        var parser = new NebraParser(tokenStream);
-        parser.RemoveErrorListeners();
-        parser.AddErrorListener(new DiagnosticsTokenErrorListener(Diagnostics, file.Filename));
         var visitor = new IRVisitor(file.Filename, NodeAlloc, Diagnostics, Config);
 
         Node? ir;
         try
         {
-            ir = visitor.Visit(parser.script());
+            ir = visitor.Visit(ParseReportingErrors(file));
         }
         catch (Exception)
         {
@@ -169,6 +164,30 @@ public class NebraCompiler
         file.Hir = script;
         Nebra.Doc.DocBinder.Bind(script, file.Content);
         return true;
+    }
+
+    /// <summary>
+    /// Parses <paramref name="file"/> with its syntax errors reported, or reuses the tree of an
+    /// identical text that parsed cleanly before, which has no errors to report.
+    /// </summary>
+    private NebraParser.ScriptContext ParseReportingErrors(PreparsedFile file)
+    {
+        if (ParseTreeCache.TryGetClean(file.Content, out var cached))
+        {
+            return cached;
+        }
+
+        var reportedBefore = Diagnostics.Diagnostics.Count;
+        var lexer = new NebraLexer(new AntlrInputStream(file.Content));
+        lexer.RemoveErrorListeners();
+        lexer.AddErrorListener(new DiagnosticsSymbolErrorListener(Diagnostics, file.Filename));
+        var parser = new NebraParser(new CommonTokenStream(lexer));
+        parser.RemoveErrorListeners();
+        parser.AddErrorListener(new DiagnosticsTokenErrorListener(Diagnostics, file.Filename));
+
+        var tree = parser.script();
+        ParseTreeCache.Add(file.Content, tree, Diagnostics.Diagnostics.Count > reportedBefore);
+        return tree;
     }
 
     /// <summary>

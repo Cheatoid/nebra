@@ -96,6 +96,12 @@ public sealed class PassManager
     private readonly List<string> _passOrder = [];
 
     /// <summary>
+    /// Called after each pass with its name and how long it ran. Lets a caller profile a build
+    /// without the passes knowing about it.
+    /// </summary>
+    public Action<string, TimeSpan>? PassCompleted { get; set; }
+
+    /// <summary>
     /// Initializes a new instance of the PassManager class and registers the default passes.
     /// </summary>
     public PassManager()
@@ -217,22 +223,13 @@ public sealed class PassManager
                     return false;
                 }
 
-                switch (pass.Scope)
+                var started = System.Diagnostics.Stopwatch.GetTimestamp();
+                var succeeded = RunPass(pass, diag, pkgs, types, symAlloc, scopeAlloc, nodeAlloc, names, cache, config);
+                PassCompleted?.Invoke(passName, System.Diagnostics.Stopwatch.GetElapsedTime(started));
+
+                if (!succeeded)
                 {
-                    case PassScope.PerFile:
-                        if (pkgs.Any(pkg => pkg.Files.Select(file => new PassContext(diag, pkgs, pkg, file, types, symAlloc, scopeAlloc, nodeAlloc, names, cache, config)).Any(ctx => !pass.Run(ctx))))
-                        {
-                            return false;
-                        }
-                        break;
-                    case PassScope.PerBuild:
-                        if (!pass.Run(new PassContext(diag, pkgs, types, symAlloc, scopeAlloc, nodeAlloc, names, cache, config)))
-                        {
-                            return false;
-                        }
-                        break;
-                    default:
-                        throw new ArgumentOutOfRangeException("Invalid pass scope: " + pass.Scope);
+                    return false;
                 }
             }
             else
@@ -242,5 +239,21 @@ public sealed class PassManager
         }
         
         return true;
+    }
+
+    private static bool RunPass(Pass pass, DiagnosticsBag diag, List<PackageContext> pkgs, TypeTable types,
+        IDAlloc<SymID> symAlloc, IDAlloc<ScopeID> scopeAlloc, IDAlloc<NodeID> nodeAlloc, NameMap names,
+        Dictionary<string, object> cache, Configuration.Config config)
+    {
+        switch (pass.Scope)
+        {
+            case PassScope.PerFile:
+                return pkgs.All(pkg => pkg.Files.All(file =>
+                    pass.Run(new PassContext(diag, pkgs, pkg, file, types, symAlloc, scopeAlloc, nodeAlloc, names, cache, config))));
+            case PassScope.PerBuild:
+                return pass.Run(new PassContext(diag, pkgs, types, symAlloc, scopeAlloc, nodeAlloc, names, cache, config));
+            default:
+                throw new ArgumentOutOfRangeException("Invalid pass scope: " + pass.Scope);
+        }
     }
 }

@@ -230,17 +230,11 @@ public sealed class ModuleResolver(Config config)
         if (targetPkg == null) return null;
 
         string source;
-        try { source = File.ReadAllText(filePath); }
+        try { source = config.ReadSource(filePath); }
         catch { return null; }
 
-        var inputStream = new AntlrInputStream(source);
-        var lexer = new NebraLexer(inputStream);
-        lexer.RemoveErrorListeners();
-        var tokenStream = new CommonTokenStream(lexer);
-        var parser = new NebraParser(tokenStream);
-        parser.RemoveErrorListeners();
         var visitor = new IRVisitor(filePath, nodeAlloc, diag, config);
-        var ir = visitor.Visit(parser.script());
+        var ir = visitor.Visit(ParseTreeCache.Parse(source));
 
         if (ir is not IRScript script) return null;
 
