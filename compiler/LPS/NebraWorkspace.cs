@@ -27,6 +27,15 @@ public sealed class NebraWorkspace
     private NebraProject? _looseFiles;
     private ILanguageServerFacade? _server;
     private bool _started;
+    private ServerSettings _settings = new();
+
+    /// <summary>The settings the editor sent last; defaults until it sends any.</summary>
+    public ServerSettings Settings => Volatile.Read(ref _settings);
+
+    public void UpdateSettings(ServerSettings settings)
+    {
+        Volatile.Write(ref _settings, settings);
+    }
 
     /// <summary>Starts with <paramref name="folders"/>, or with <paramref name="rootPath"/> when the editor sent no folders.</summary>
     public void Initialize(string? rootPath, IEnumerable<string>? folders = null)
@@ -235,7 +244,7 @@ public sealed class NebraWorkspace
 
     private NebraProject CreateProject(string? root)
     {
-        var project = new NebraProject();
+        var project = new NebraProject(() => Settings);
         project.Initialize(root);
         if (_server != null) project.SetServer(_server);
         if (_started) project.Start();

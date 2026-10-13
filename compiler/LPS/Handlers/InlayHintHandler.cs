@@ -18,6 +18,7 @@ public sealed class InlayHintHandler(NebraWorkspace workspace) : InlayHintsHandl
         var result = await workspace.GetResultAsync(request.TextDocument.Uri.ToString(), ct);
         if (result == null) return null;
 
+        var settings = workspace.Settings;
         var hints = new List<InlayHint>();
         foreach (var node in NodeFinder.BuildNodeRegistry(result.Hir).Values)
         {
@@ -25,16 +26,16 @@ public sealed class InlayHintHandler(NebraWorkspace workspace) : InlayHintsHandl
 
             switch (node)
             {
-                case LocalDecl local:
+                case LocalDecl local when settings.InlayTypeHints:
                     hints.AddRange(TypeHints(result, local));
                     break;
-                case FunctionCallExpr call:
+                case FunctionCallExpr call when settings.InlayParameterHints:
                     hints.AddRange(ParameterHints(Signature(result, call.Callee), call.Arguments));
                     break;
-                case MethodCallExpr call:
+                case MethodCallExpr call when settings.InlayParameterHints:
                     hints.AddRange(ParameterHints(MethodSignature(result, call), call.Arguments));
                     break;
-                case NewExpr creation:
+                case NewExpr creation when settings.InlayParameterHints:
                     hints.AddRange(ParameterHints(ConstructorSignature(result, creation), creation.Arguments));
                     break;
             }

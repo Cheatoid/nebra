@@ -24,13 +24,9 @@ namespace Nebra.LPS;
 /// one - with its open documents, its snapshots and the diagnostics it publishes.
 /// <see cref="NebraWorkspace"/> routes every request to the project a file belongs to.
 /// </summary>
-public sealed class NebraProject
+public sealed class NebraProject(Func<ServerSettings>? settings = null)
 {
-    /// <summary>
-    /// How long diagnostics wait for typing to pause before the workspace is recompiled for them.
-    /// Requests do not wait: they compile the latest state on demand.
-    /// </summary>
-    private static readonly TimeSpan DiagnosticsDelay = TimeSpan.FromMilliseconds(120);
+    private readonly Func<ServerSettings> _settings = settings ?? (() => new ServerSettings());
 
     private static readonly StringComparer PathComparer = StringComparer.OrdinalIgnoreCase;
 
@@ -422,7 +418,7 @@ public sealed class NebraProject
     {
         try
         {
-            await Task.Delay(DiagnosticsDelay, cancellationToken).ConfigureAwait(false);
+            await Task.Delay(_settings().DiagnosticsDelay, cancellationToken).ConfigureAwait(false);
             var snapshot = await GetSnapshotAsync(cancellationToken).ConfigureAwait(false);
             await PublishDiagnosticsAsync(snapshot, cancellationToken).ConfigureAwait(false);
         }

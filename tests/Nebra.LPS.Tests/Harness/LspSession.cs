@@ -565,6 +565,15 @@ public sealed class LspSession : IAsyncDisposable
             .ToList();
     }
 
+    /// <summary>Pushes new <c>nebra</c> settings to the server, the way an editor does when the user edits them.</summary>
+    public void ChangeSettings(Newtonsoft.Json.Linq.JObject nebra)
+    {
+        Client.Workspace.DidChangeConfiguration(new DidChangeConfigurationParams
+        {
+            Settings = new Newtonsoft.Json.Linq.JObject { ["nebra"] = nebra }
+        });
+    }
+
     /// <summary>The current text of <paramref name="path"/> as the session knows it.</summary>
     public string Text(string path) => _files[path].Text;
 

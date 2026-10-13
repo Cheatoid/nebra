@@ -94,6 +94,22 @@
           ],
           "default": "off",
           "description": "Trace communication between VS Code and the Nebra language server."
+        },
+        "nebra.inlayHints.types": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show the inferred type of locals declared without an annotation."
+        },
+        "nebra.inlayHints.parameterNames": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show parameter names before the arguments of a call."
+        },
+        "nebra.diagnostics.delay": {
+          "type": "number",
+          "default": 120,
+          "minimum": 0,
+          "description": "Milliseconds the language server waits after typing stops before it updates diagnostics."
         }
       }
     }

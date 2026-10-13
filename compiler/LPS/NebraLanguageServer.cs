@@ -44,6 +44,7 @@ public static class NebraLanguageServer
             .WithHandler<CodeActionHandler>()
             .WithHandler<ExecuteCompileCommandHandler>()
             .WithHandler<WatchedFilesHandler>()
+            .WithHandler<ConfigurationHandler>()
             .WithHandler<WorkspaceSymbolHandler>()
             .WithHandler<DocumentHighlightHandler>()
             .WithHandler<TypeDefinitionHandler>()
@@ -61,6 +62,7 @@ public static class NebraLanguageServer
             {
                 var folders = request.WorkspaceFolders?.Select(folder => folder.Uri.GetFileSystemPath()).OfType<string>();
                 workspace.Initialize(request.RootUri?.GetFileSystemPath(), folders);
+                workspace.UpdateSettings(ServerSettings.From(request.InitializationOptions as Newtonsoft.Json.Linq.JToken));
                 workspace.SetServer(server);
                 return Task.CompletedTask;
             })
