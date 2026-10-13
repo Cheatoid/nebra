@@ -5,6 +5,7 @@ using OmniSharp.Extensions.LanguageServer.Protocol.Client;
 using OmniSharp.Extensions.LanguageServer.Protocol.Document;
 using OmniSharp.Extensions.LanguageServer.Protocol.Models;
 using OmniSharp.Extensions.LanguageServer.Protocol.Server;
+using OmniSharp.Extensions.LanguageServer.Protocol.Workspace;
 using OmniSharp.Extensions.LanguageServer.Server;
 
 namespace Nebra.LPS.Tests.Harness;
@@ -178,6 +179,30 @@ public sealed class LspSession : IAsyncDisposable
     public Task<IReadOnlyList<Diagnostic>> PublishedDiagnostics(string path)
     {
         return _diagnostics.WaitForAny(Uri(path)).WaitAsync(DiagnosticsTimeout);
+    }
+
+    /// <summary>
+    /// Changes files on disk behind the editor's back - writing the given text, or deleting the
+    /// file when it is null - and reports it the way an editor's file watcher does.
+    /// </summary>
+    public void ChangeOnDisk(params (string Path, string? Text)[] changes)
+    {
+        var events = new List<FileEvent>();
+        foreach (var (path, text) in changes)
+        {
+            var existed = File.Exists(FullPath(path));
+            if (text == null)
+            {
+                File.Delete(FullPath(path));
+                events.Add(new FileEvent { Uri = Uri(path), Type = FileChangeType.Deleted });
+                continue;
+            }
+
+            WriteFile(Root, path, text);
+            events.Add(new FileEvent { Uri = Uri(path), Type = existed ? FileChangeType.Changed : FileChangeType.Created });
+        }
+
+        Client.Workspace.DidChangeWatchedFiles(new DidChangeWatchedFilesParams { Changes = new Container<FileEvent>(events) });
     }
 
     /// <summary>

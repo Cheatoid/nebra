@@ -63,8 +63,7 @@ public sealed class NebraWorkspace
         {
             var configPath = Path.Combine(rootPath, "nebra.toml");
             var loaded = Config.LoadFromFile(configPath);
-            if (loaded != null) _config = loaded;
-            else _config.ProjectRoot = Path.GetFullPath(rootPath);
+            _config = loaded ?? new Config { ProjectRoot = Path.GetFullPath(rootPath) };
         }
     }
 
@@ -196,6 +195,32 @@ public sealed class NebraWorkspace
     public void OnDocumentOpened(string uri, string text) => UpdateDocument(uri, text);
 
     public void OnDocumentChanged(string uri, string text) => UpdateDocument(uri, text);
+
+    /// <summary>
+    /// Handles files changed outside the editor. A changed <c>nebra.toml</c> reloads the
+    /// configuration; any other change only invalidates the snapshot, since every build reads the
+    /// files it does not have open from disk anyway.
+    /// </summary>
+    public void OnFilesChanged(IEnumerable<string> uris)
+    {
+        var paths = uris.Select(PathOf).OfType<string>().ToList();
+        if (paths.Count == 0) return;
+
+        if (paths.Any(path => Path.GetFileName(path).Equals("nebra.toml", StringComparison.OrdinalIgnoreCase)))
+        {
+            Initialize(_rootPath);
+        }
+
+        foreach (var path in paths.Where(path => !_openDocuments.ContainsKey(path)))
+        {
+            _lastParsed.TryRemove(path, out _);
+            _touched[path] = 0;
+        }
+
+        Interlocked.Increment(ref _version);
+        _resolveCache.Clear();
+        ScheduleDiagnostics();
+    }
 
     public void OnDocumentClosed(string uri)
     {

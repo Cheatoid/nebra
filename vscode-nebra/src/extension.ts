@@ -35,7 +35,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   const clientOptions: LanguageClientOptions = {
     documentSelector: [{ scheme: "file", language: "nebra" }],
     synchronize: {
-      fileEvents: vscode.workspace.createFileSystemWatcher("**/*.{neb,d.neb}"),
+      fileEvents: vscode.workspace.createFileSystemWatcher("**/{*.neb,nebra.toml}"),
     },
     outputChannelName: "Nebra Language Server",
   };
