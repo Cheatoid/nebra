@@ -61,6 +61,11 @@ public static class NebraLanguageServer
                 workspace.Initialize(request.RootUri?.GetFileSystemPath());
                 workspace.SetServer(server);
                 return Task.CompletedTask;
+            })
+            .OnStarted((server, ct) =>
+            {
+                workspace.Start();
+                return Task.CompletedTask;
             });
     }
 }

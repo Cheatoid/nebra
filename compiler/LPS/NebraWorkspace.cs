@@ -70,6 +70,15 @@ public sealed class NebraWorkspace
     public void SetServer(ILanguageServerFacade server)
     {
         _server = server;
+    }
+
+    /// <summary>
+    /// Publishes the first round of diagnostics. Called once the client has completed the
+    /// initialization handshake: a notification sent before that may be dropped, and a file
+    /// recorded as published would not be sent again until its diagnostics change.
+    /// </summary>
+    public void Start()
+    {
         ScheduleDiagnostics();
     }
 
