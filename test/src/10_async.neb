@@ -58,6 +58,30 @@ async function viaAny(box: any): string
     return value
 end
 
+class CallbackSource
+    function fetch(key: string, cb: (string) -> nil): nil
+        cb("value:" .. key)
+    end
+end
+
+interface CallbackRemote
+    function fetch(key: string, cb: (string) -> nil): nil
+end
+
+class CallbackMirror implements CallbackRemote
+    function fetch(key: string, cb: (string) -> nil): nil
+        cb("mirror:" .. key)
+    end
+end
+
+async function awaitCallbackMethod(source: CallbackSource): string
+    return await source:fetch("a")
+end
+
+async function awaitCallbackInterface(remote: CallbackRemote): string
+    return await remote:fetch("b")
+end
+
 export function run(): nil
     section("async / await")
 
@@ -94,4 +118,12 @@ export function run(): nil
     local mut got8: string = ""
     viaAny(fetcher, function(r: string): nil got8 = r end)
     expectEq("await through an any-typed receiver", got8, "x-dyn")
+    local mut got9: string = ""
+    awaitCallbackMethod(new CallbackSource(), function(r: string): nil got9 = r end)
+    expectEq("await on a callback-last method", got9, "value:a")
+
+    local mut got10: string = ""
+    awaitCallbackInterface(new CallbackMirror(), function(r: string): nil got10 = r end)
+    expectEq("await on a callback-last interface method", got10, "mirror:b")
+
 end

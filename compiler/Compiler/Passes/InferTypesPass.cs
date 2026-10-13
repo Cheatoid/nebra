@@ -2367,7 +2367,7 @@ public sealed class InferTypesPass() : Pass(PassName, PassScope.PerBuild)
             var mc = (MethodCallExpr)inner;
             var recvTyp = StripNil(pc, SynthesizeExpr(pc, mc.Object));
             argTypes = mc.Arguments.Select(a => SynthesizeExpr(pc, a)).ToList();
-            InferMethodCall(pc, mc);
+            InferMethodCall(pc, mc, continuationSupplied: true);
             if (pc.Pkg!.Types.GetByID(recvTyp, out var recvType))
             {
                 fnType = ResolveMethodOnType(pc, recvType, mc.MethodName.Name)
@@ -3000,7 +3000,20 @@ public sealed class InferTypesPass() : Pass(PassName, PassScope.PerBuild)
     /// table whose field takes neither is the footgun this warns about: Lua still passes the
     /// receiver, so every declared parameter is shifted by one.
     /// </summary>
-    private TypID InferMethodCall(PassContext pc, MethodCallExpr mc)
+    /// <summary>
+    /// For a call made through <c>await</c>, the arguments together with the continuation the
+    /// async driver appends: a callback-last function is awaited without its callback, so when
+    /// exactly that trailing function parameter is missing it counts as supplied.
+    /// </summary>
+    private static List<TypID> WithContinuation(FunctionType function, List<TypID> arguments, bool continuationSupplied)
+    {
+        if (!continuationSupplied || function.IsAsync || function.ParamTypes.Count != arguments.Count + 1)
+            return arguments;
+
+        return function.ParamTypes[^1] is FunctionType continuation ? [..arguments, continuation.ID] : arguments;
+    }
+
+    private TypID InferMethodCall(PassContext pc, MethodCallExpr mc, bool continuationSupplied = false)
     {
         var objTyp = SynthesizeExpr(pc, mc.Object);
         EnsureNotNil(pc, mc.Object.Span, objTyp);
@@ -3035,7 +3048,7 @@ public sealed class InferTypesPass() : Pass(PassName, PassScope.PerBuild)
                     ? new List<TypID>(argTypes.Count + 1) { objTyp }
                     : new List<TypID>(argTypes.Count);
                 pickedArgs.AddRange(argTypes);
-                CheckCallArguments(pc, mc.Span, picked, pickedArgs);
+                CheckCallArguments(pc, mc.Span, picked, WithContinuation(picked, pickedArgs, continuationSupplied));
                 return picked.ReturnType.ID;
             }
         }
@@ -3050,7 +3063,7 @@ public sealed class InferTypesPass() : Pass(PassName, PassScope.PerBuild)
                 mc.ExtensionTargetType = extTarget!.ID;
                 var extArgs = new List<TypID>(argTypes.Count + 1) { objTyp };
                 extArgs.AddRange(argTypes);
-                CheckCallArguments(pc, mc.Span, extFn, extArgs);
+                CheckCallArguments(pc, mc.Span, extFn, WithContinuation(extFn, extArgs, continuationSupplied));
                 return extFn.ReturnType.ID;
             }
 
@@ -3077,7 +3090,7 @@ public sealed class InferTypesPass() : Pass(PassName, PassScope.PerBuild)
             ? new List<TypID>(argTypes.Count + 1) { objTyp }
             : new List<TypID>(argTypes.Count);
         fullArgs.AddRange(argTypes);
-        CheckCallArguments(pc, mc.Span, methodFn, fullArgs);
+        CheckCallArguments(pc, mc.Span, methodFn, WithContinuation(methodFn, fullArgs, continuationSupplied));
 
         return methodFn.ReturnType.ID;
     }
