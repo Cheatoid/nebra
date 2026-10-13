@@ -334,6 +334,36 @@ public sealed class LspSession : IAsyncDisposable
         return chain;
     }
 
+    public async Task<CallHierarchyItem?> PrepareCallHierarchyAsync(string marker)
+    {
+        var at = At(marker);
+        var result = await Client.TextDocument.RequestCallHierarchyPrepare(new CallHierarchyPrepareParams
+        {
+            TextDocument = at.TextDocument,
+            Position = at.Position
+        });
+
+        return result?.SingleOrDefault();
+    }
+
+    /// <summary>The callers of <paramref name="item"/> by name, each with the start of every call it makes.</summary>
+    public async Task<IReadOnlyList<(string Caller, IReadOnlyList<SourceLocation> Calls)>> IncomingCallsAsync(CallHierarchyItem item)
+    {
+        var result = await Client.TextDocument.RequestCallHierarchyIncoming(new CallHierarchyIncomingCallsParams { Item = item });
+        return (result ?? [])
+            .Select(call => (call.From.Name, (IReadOnlyList<SourceLocation>)call.FromRanges
+                .Select(range => ToSourceLocation(call.From.Uri, range.Start)).ToList()))
+            .OrderBy(call => call.Name, StringComparer.Ordinal)
+            .ToList();
+    }
+
+    /// <summary>The callees of <paramref name="item"/> by name.</summary>
+    public async Task<IReadOnlyList<string>> OutgoingCallsAsync(CallHierarchyItem item)
+    {
+        var result = await Client.TextDocument.RequestCallHierarchyOutgoing(new CallHierarchyOutgoingCallsParams { Item = item });
+        return (result ?? []).Select(call => call.To.Name).Order(StringComparer.Ordinal).ToList();
+    }
+
     /// <summary>Every inlay hint in <paramref name="path"/>, as position and label.</summary>
     public async Task<IReadOnlyList<(SourceLocation Location, string Label)>> InlayHintsAsync(string path)
     {

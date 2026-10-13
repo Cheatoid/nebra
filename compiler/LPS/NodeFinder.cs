@@ -49,21 +49,28 @@ public static class NodeFinder
     /// </summary>
     public static TextSpan DeclaredNameSpan(Node decl, string name)
     {
+        return DeclaredName(decl, name)?.Span ?? decl.Span;
+    }
+
+    /// <summary>
+    /// Returns the name <paramref name="decl"/> introduces as <paramref name="name"/>: the first
+    /// occurrence of that name inside the declaration, or null when it does not write it.
+    /// </summary>
+    public static NameRef? DeclaredName(Node decl, string name)
+    {
         if (decl is not Stmt stmt)
         {
-            return decl.Span;
+            return null;
         }
 
         var refs = new List<NameRef>();
         CollectFromStmt(stmt, refs);
 
-        var declared = refs
+        return refs
             .Where(nameRef => nameRef.Name == name)
             .OrderBy(nameRef => nameRef.Span.StartLn)
             .ThenBy(nameRef => nameRef.Span.StartCol)
             .FirstOrDefault();
-
-        return declared?.Span ?? decl.Span;
     }
 
     public static Dictionary<NodeID, Node> BuildNodeRegistry(IRScript script)

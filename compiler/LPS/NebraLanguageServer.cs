@@ -50,6 +50,9 @@ public static class NebraLanguageServer
             .WithHandler<InlayHintHandler>()
             .WithHandler<FoldingRangeHandler>()
             .WithHandler<SelectionRangeHandler>()
+            .WithHandler<CallHierarchyPrepareHandler>()
+            .WithHandler<CallHierarchyIncomingHandler>()
+            .WithHandler<CallHierarchyOutgoingHandler>()
             .OnInitialize((server, request, ct) =>
             {
                 workspace.Initialize(request.RootUri?.GetFileSystemPath());
