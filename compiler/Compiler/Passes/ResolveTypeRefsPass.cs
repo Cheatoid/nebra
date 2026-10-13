@@ -125,6 +125,7 @@ public class ResolveTypeRefsPass() : Pass(PassName, PassScope.PerBuild)
 
         var classType = pkg.Types.ClassOf(decl.Name.Name, isAbstract: decl.IsAbstract);
         classType.ReflectionId = $"{ReflectNamespace(pkg)}::{decl.Name.Name}";
+        classType.DeclaredAt ??= decl.Name;
         pkg.Syms.SetType(decl.Name.Sym, classType.ID);
         MaterializeTypeParams(pkg, decl.TypeParams, $"class:{decl.Name.Name}", classType.TypeParams, ScopeOfDecl(decl.ID));
     }
@@ -137,6 +138,7 @@ public class ResolveTypeRefsPass() : Pass(PassName, PassScope.PerBuild)
 
         var interfaceType = pkg.Types.InterfaceOf(decl.Name.Name);
         interfaceType.ReflectionId = $"{ReflectNamespace(pkg)}::{decl.Name.Name}";
+        interfaceType.DeclaredAt ??= decl.Name;
         pkg.Syms.SetType(decl.Name.Sym, interfaceType.ID);
         MaterializeTypeParams(pkg, decl.TypeParams, $"iface:{decl.Name.Name}", interfaceType.TypeParams, ScopeOfDecl(decl.ID));
     }
@@ -227,6 +229,7 @@ public class ResolveTypeRefsPass() : Pass(PassName, PassScope.PerBuild)
 
         var enumType = pkg.Types.EnumOf(decl.Name.Name, members, baseType);
         enumType.ReflectionId = $"{ReflectNamespace(pkg)}::{decl.Name.Name}";
+        enumType.DeclaredAt ??= decl.Name;
         pkg.Syms.SetType(decl.Name.Sym, enumType.ID);
     }
     

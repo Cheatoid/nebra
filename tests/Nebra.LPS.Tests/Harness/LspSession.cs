@@ -271,6 +271,40 @@ public sealed class LspSession : IAsyncDisposable
             .ToList();
     }
 
+    public async Task<IReadOnlyList<SourceLocation>> TypeDefinitionAsync(string marker)
+    {
+        var at = At(marker);
+        var result = await Client.TextDocument.RequestTypeDefinition(new TypeDefinitionParams
+        {
+            TextDocument = at.TextDocument,
+            Position = at.Position
+        });
+
+        return (result ?? new LocationOrLocationLinks())
+            .Select(link => link.IsLocation
+                ? ToSourceLocation(link.Location!.Uri, link.Location.Range.Start)
+                : ToSourceLocation(link.LocationLink!.TargetUri, link.LocationLink.TargetSelectionRange.Start))
+            .ToList();
+    }
+
+    /// <summary>The highlights for the symbol at <paramref name="marker"/>, sorted by position.</summary>
+    public async Task<IReadOnlyList<(SourceLocation Location, DocumentHighlightKind Kind)>> HighlightsAsync(string marker)
+    {
+        var at = At(marker);
+        var (path, _) = Marker(marker);
+        var result = await Client.TextDocument.RequestDocumentHighlight(new DocumentHighlightParams
+        {
+            TextDocument = at.TextDocument,
+            Position = at.Position
+        });
+
+        return (result ?? new DocumentHighlightContainer())
+            .Select(highlight => (new SourceLocation(path, highlight.Range.Start.Line, highlight.Range.Start.Character), highlight.Kind))
+            .OrderBy(highlight => highlight.Item1.Line)
+            .ThenBy(highlight => highlight.Item1.Character)
+            .ToList();
+    }
+
     public async Task<IReadOnlyList<SourceLocation>> ReferencesAsync(string marker, bool includeDeclaration)
     {
         var at = At(marker);

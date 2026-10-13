@@ -61,6 +61,40 @@ public static class MemberResolver
     }
 
     /// <summary>
+    /// Returns the type a use of the member <paramref name="memberName"/> of
+    /// <paramref name="receiverType"/> produces: a field's type, a getter's result, a method's
+    /// return type. Null when the type has no such member.
+    /// </summary>
+    public static Type? FindType(Type receiverType, string memberName)
+    {
+        foreach (var owner in MemberOwners(receiverType))
+        {
+            switch (owner)
+            {
+                case ClassType classType when classType.InstanceFields.TryGetValue(memberName, out var field):
+                    return field.Type;
+                case ClassType classType when classType.Getters.TryGetValue(memberName, out var getter):
+                    return getter.ReturnType;
+                case ClassType classType when classType.Methods.TryGetValue(memberName, out var method):
+                    return method.ReturnType;
+                case ClassType classType when classType.StaticMethods.TryGetValue(memberName, out var staticMethod):
+                    return staticMethod.ReturnType;
+                case InterfaceType interfaceType when interfaceType.Fields.TryGetValue(memberName, out var interfaceField):
+                    return interfaceField.Type;
+                case InterfaceType interfaceType when interfaceType.Methods.TryGetValue(memberName, out var interfaceMethod):
+                    return interfaceMethod.ReturnType;
+            }
+
+            if (owner.ExtensionMethods.TryGetValue(memberName, out var extension))
+            {
+                return extension.ReturnType;
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>
     /// Enumerates the types that can contribute a member to <paramref name="type"/>, nearest
     /// first: the type itself, its base classes, then every interface it implements or extends.
     /// </summary>

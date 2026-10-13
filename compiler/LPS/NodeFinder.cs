@@ -23,7 +23,17 @@ public static class NodeFinder
         return best;
     }
 
+    /// <summary>Every name in <paramref name="script"/> that is bound to a symbol.</summary>
     public static List<NameRef> CollectAllNameRefs(IRScript script)
+    {
+        return CollectAllNames(script).Where(nameRef => nameRef.Sym != SymID.Invalid).ToList();
+    }
+
+    /// <summary>
+    /// Every name in <paramref name="script"/>, including member names - fields, methods,
+    /// accessors - which are not bound to symbols but resolved through their receiver's type.
+    /// </summary>
+    public static List<NameRef> CollectAllNames(IRScript script)
     {
         var refs = new List<NameRef>();
         CollectFromStmtList(script.Body, refs);
@@ -840,7 +850,7 @@ public static class NodeFinder
 
     private static void AddRef(NameRef? nr, List<NameRef> refs)
     {
-        if (nr != null && nr.Sym != SymID.Invalid) refs.Add(nr);
+        if (nr != null) refs.Add(nr);
     }
 
     private static void CollectFromStmt(Stmt stmt, List<NameRef> refs)

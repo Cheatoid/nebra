@@ -170,4 +170,30 @@ public sealed class NavigationTests
             ],
             references);
     }
+
+    [Fact]
+    public async Task TypeDefinitionOfAVariableJumpsToItsClass()
+    {
+        await using var session = await LspSession.StartAsync(
+            ("src/shapes.neb", "export class {|decl|}Square\n    side: number = 2\nend\n"),
+            ("src/main.neb", "import { Square } from \"shapes\"\n\nlocal square = new Square()\nprint({|use|}square.side)\n"));
+
+        await session.OpenAsync("src/main.neb");
+        var targets = await session.TypeDefinitionAsync("use");
+
+        Assert.Equal([session.Location("decl")], targets);
+    }
+
+    [Fact]
+    public async Task TypeDefinitionOfAMethodCallJumpsToTheTypeItReturns()
+    {
+        await using var session = await LspSession.StartAsync(
+            ("src/main.neb",
+                "class {|decl|}Point\n    x: number = 0\nend\n\nclass Factory\n    function make(): Point?\n        return new Point()\n    end\nend\n\nlocal factory = new Factory()\nprint(factory:{|use|}make())\n"));
+
+        await session.OpenAsync("src/main.neb");
+        var targets = await session.TypeDefinitionAsync("use");
+
+        Assert.Equal([session.Location("decl")], targets);
+    }
 }

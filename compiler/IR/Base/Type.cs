@@ -82,6 +82,12 @@ public class Type(TypeKind kind)
     public string? ReflectionId { get; set; }
 
     /// <summary>
+    /// The name a class, interface or enum was declared under, carrying its span and file; null
+    /// for every other type. Lets tooling go from a type to its declaration.
+    /// </summary>
+    public NameRef? DeclaredAt { get; set; }
+
+    /// <summary>
     /// Resolves an extension method named <paramref name="name"/> visible on
     /// <paramref name="objType"/> — checking the type itself, its base classes, and its
     /// implemented/extended interfaces. Returns the self-prefixed signature and the type the
