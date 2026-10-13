@@ -351,6 +351,16 @@ public sealed class LspSession : IAsyncDisposable
             .ToList();
     }
 
+    /// <summary>The workspace symbols matching <paramref name="query"/>, in the order the server ranked them.</summary>
+    public async Task<IReadOnlyList<(string Name, SymbolKind Kind, string? Container, SourceLocation Location)>> WorkspaceSymbolsAsync(string query)
+    {
+        var result = await Client.TextDocument.RequestWorkspaceSymbols(new WorkspaceSymbolParams { Query = query });
+        return (result ?? [])
+            .Select(symbol => (symbol.Name, symbol.Kind, symbol.ContainerName,
+                ToSourceLocation(symbol.Location.Location!.Uri, symbol.Location.Location.Range.Start)))
+            .ToList();
+    }
+
     public async Task<SemanticTokens?> SemanticTokensAsync(string path)
     {
         return await Client.TextDocument.RequestSemanticTokensFull(new SemanticTokensParams

@@ -43,6 +43,7 @@ public static class NebraLanguageServer
             .WithHandler<CodeActionHandler>()
             .WithHandler<ExecuteCompileCommandHandler>()
             .WithHandler<WatchedFilesHandler>()
+            .WithHandler<WorkspaceSymbolHandler>()
             .OnInitialize((server, request, ct) =>
             {
                 workspace.Initialize(request.RootUri?.GetFileSystemPath());
