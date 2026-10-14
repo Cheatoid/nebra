@@ -63,13 +63,7 @@ public class ResolveTypeRefsPass() : Pass(PassName, PassScope.PerBuild)
     /// The reflection namespace for a package: the root project uses its configured name; every other
     /// package (dependency) uses its directory leaf, so same-named types across packages get distinct ids.
     /// </summary>
-    private string ReflectNamespace(PackageContext pkg)
-    {
-        var leaf = System.IO.Path.GetFileNameWithoutExtension(pkg.Path.TrimEnd('/', '\\'));
-        var isRoot = pkg.IsLibrary || ReferenceEquals(pkg, _ctx.RootPackage);
-        return isRoot ? _ctx.Config.Name ?? (string.IsNullOrEmpty(leaf) ? "main" : leaf)
-                      : string.IsNullOrEmpty(leaf) ? "main" : leaf;
-    }
+    private string ReflectNamespace(PackageContext pkg) => ReflectionRegistry.Namespace(pkg, _ctx.RootPackage, _ctx.Config);
 
     /// <summary>
     /// Pre-pass: walk top-level statements and create the EnumType for every EnumDecl so that NamedTypeRefs

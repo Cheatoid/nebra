@@ -532,4 +532,26 @@ public enum DiagnosticCode
     ErrSymbolWrongSide = 0x6002,
 
     #endregion
+
+    #region Reflection
+
+    [Level(DiagnosticLevel.Warning)]
+    [Category(DiagnosticCategory.Semantic)]
+    [Format("Reflection is turned off, so `reflect.{0}` finds nothing")]
+    [Help("set `mode` in the [reflection] section of nebra.toml to \"all\" or \"annotated\"")]
+    WarnReflectionDisabled = 0x7001,
+
+    [Level(DiagnosticLevel.Warning)]
+    [Category(DiagnosticCategory.Semantic)]
+    [Format("No declaration is reflected under '{0}'")]
+    [Help("reflection ids have the form `<module>::<Name>`")]
+    WarnUnknownReflectionId = 0x7002,
+
+    [Level(DiagnosticLevel.Warning)]
+    [Category(DiagnosticCategory.Semantic)]
+    [Format("'{0}' is not recorded for reflection: the [reflection] mode is \"annotated\" and it is not marked @reflectable")]
+    [Help("mark its declaration with @reflectable")]
+    WarnNotReflected = 0x7003,
+
+    #endregion
 }

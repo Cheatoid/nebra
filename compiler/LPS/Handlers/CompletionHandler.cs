@@ -31,6 +31,10 @@ public sealed class CompletionHandler(NebraWorkspace workspace) : CompletionHand
             var line = request.Position.Line + 1;
             var col = request.Position.Character + 1;
 
+            var reflectionItems = TryReflectionIdCompletion(result, request.Position);
+            if (reflectionItems != null)
+                return new CompletionList(reflectionItems);
+
             var metaItems = workspace.ProjectFor(result.FilePath).IsAnnotationFile(result.FilePath)
                 ? TryAnnotationMetaCompletion(result, request.Position)
                 : null;
@@ -740,6 +744,37 @@ public sealed class CompletionHandler(NebraWorkspace workspace) : CompletionHand
         return AnnotationCatalog.All(result)
             .Where(entry => AnnotationCatalog.AppliesTo(entry, target))
             .Select(AnnotationItem)
+            .ToList();
+    }
+
+    /// <summary>
+    /// Completes the id inside <c>reflect.get("...")</c>, <c>reflect.ref("...")</c> and
+    /// <c>reflect.implementorsOf("...")</c> with the ids the project's declarations are registered
+    /// under, replacing what was typed of the id so far.
+    /// </summary>
+    private List<CompletionItem>? TryReflectionIdCompletion(AnalysisResult result, Position pos)
+    {
+        var lines = result.SourceText.Split('\n');
+        if (pos.Line < 0 || pos.Line >= lines.Length) return null;
+
+        var text = lines[pos.Line].TrimEnd('\r');
+        var argument = ReflectionInfo.IdArgumentAt(text[..Math.Min(pos.Character, text.Length)]);
+        if (argument == null) return null;
+
+        var start = new Position(pos.Line, pos.Character - argument.Value.Typed.Length);
+        return ReflectionInfo.Candidates(ReflectionInfo.Registry(workspace, result), argument.Value.Method)
+            .Select(entry => new CompletionItem
+            {
+                Label = entry.Id,
+                Kind = CompletionItemKind.Reference,
+                Detail = $"{entry.Kind} {entry.Name}",
+                FilterText = entry.Id,
+                TextEdit = new TextEditOrInsertReplaceEdit(new TextEdit
+                {
+                    Range = new OmniSharp.Extensions.LanguageServer.Protocol.Models.Range(start, pos),
+                    NewText = entry.Id
+                })
+            })
             .ToList();
     }
 

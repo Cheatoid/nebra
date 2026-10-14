@@ -144,6 +144,9 @@ public sealed class WorkspaceSnapshot
             Annotations = compiler.Cache.TryGetValue(AnnotationRegistry.CacheKey, out var registry) && registry is AnnotationRegistry annotations
                 ? annotations
                 : new AnnotationRegistry(),
+            Reflection = compiler.Cache.TryGetValue(ReflectionRegistry.CacheKey, out var reflection) && reflection is ReflectionRegistry reflected
+                ? reflected
+                : new ReflectionRegistry([]),
             Expansions = compiler.Cache.TryGetValue(AnnotationExpansion.CacheKey, out var recorded) && recorded is List<AnnotationExpansion> expansions
                 ? expansions
                 : [],
@@ -224,6 +227,9 @@ public sealed class WorkspaceSnapshot
 
     /// <summary>The annotations the build knew: the project's own and those of its dependencies.</summary>
     public AnnotationRegistry Annotations { get; private init; } = new();
+
+    /// <summary>The declarations the build describes to runtime reflection, by id.</summary>
+    public ReflectionRegistry Reflection { get; private init; } = new([]);
 
     /// <summary>What every annotation applied in the build expanded to.</summary>
     public IReadOnlyList<AnnotationExpansion> Expansions { get; private init; } = [];

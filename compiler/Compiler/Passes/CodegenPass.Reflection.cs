@@ -90,7 +90,7 @@ public sealed partial class CodegenPass
             case FunctionDecl { NamePath.Count: 1, MethodName: null } fd when IsReflectable(ctx, fd.Annotations):
                 WriteBlock(gen, FunctionMeta(ctx, pkg, fd));
                 break;
-            case LocalDecl ld:
+            case LocalDecl ld when IsReflectable(ctx, ld.Annotations):
                 foreach (var v in ld.Variables) WriteBlock(gen, VariableMeta(ctx, pkg, v));
                 break;
         }
@@ -155,13 +155,7 @@ public sealed partial class CodegenPass
         gen.NewLine();
     }
 
-    private static bool IsReflectable(PassContext ctx, List<Annotation> annotations) =>
-        ctx.Config.Reflection.Mode switch
-        {
-            ReflectionMode.All => true,
-            ReflectionMode.Annotated => annotations.Any(a => a.Name.Name == "reflectable"),
-            _ => false
-        };
+    private static bool IsReflectable(PassContext ctx, List<Annotation> annotations) => ReflectionRegistry.IsRecorded(ctx.Config, annotations);
 
     /// <summary>Id for a declaration defined in the file currently being emitted (function/variable).</summary>
     private string ReflectId(PassContext ctx, string name) => $"{_reflectNamespace}::{name}";
@@ -170,13 +164,7 @@ public sealed partial class CodegenPass
     private string NamedId(Type t) => t.ReflectionId ?? $"{_reflectNamespace}::{NamedTypeName(t) ?? "?"}";
 
     /// <summary>The reflection namespace for a package (root uses its config name, deps their dir leaf).</summary>
-    private static string ReflectNamespace(PassContext ctx, PackageContext pkg)
-    {
-        var leaf = System.IO.Path.GetFileNameWithoutExtension(pkg.Path.TrimEnd('/', '\\'));
-        var isRoot = pkg.IsLibrary || ReferenceEquals(pkg, ctx.RootPackage);
-        return isRoot ? ctx.Config.Name ?? (string.IsNullOrEmpty(leaf) ? "main" : leaf)
-                      : string.IsNullOrEmpty(leaf) ? "main" : leaf;
-    }
+    private static string ReflectNamespace(PassContext ctx, PackageContext pkg) => ReflectionRegistry.Namespace(pkg, ctx.RootPackage, ctx.Config);
 
     private string? ClassMeta(PassContext ctx, PackageContext pkg, ClassDecl cd)
     {
