@@ -46,6 +46,7 @@ public static class NebraLanguageServer
             .WithHandler<WatchedFilesHandler>()
             .WithHandler<ConfigurationHandler>()
             .WithHandler<CodeLensHandler>()
+            .OnRequest<SideMarkersParams, List<SideMarker>>(SideMarkers.Method, (request, ct) => SideMarkers.HandleAsync(workspace, request, ct))
             .WithHandler<WorkspaceSymbolHandler>()
             .WithHandler<DocumentHighlightHandler>()
             .WithHandler<TypeDefinitionHandler>()

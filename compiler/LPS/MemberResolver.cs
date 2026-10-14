@@ -122,6 +122,31 @@ public static class MemberResolver
     }
 
     /// <summary>
+    /// Returns the type that declares the member <paramref name="memberName"/> of
+    /// <paramref name="receiverType"/>: the receiver itself, a base class or an interface,
+    /// nearest first. Null when none of them has the member.
+    /// </summary>
+    public static Type? FindOwner(Type receiverType, string memberName)
+    {
+        return MemberOwners(receiverType).FirstOrDefault(owner => Declares(owner, memberName));
+    }
+
+    private static bool Declares(Type owner, string memberName)
+    {
+        return owner switch
+        {
+            ClassType classType => classType.InstanceFields.ContainsKey(memberName)
+                || classType.Methods.ContainsKey(memberName)
+                || classType.StaticMethods.ContainsKey(memberName)
+                || classType.Getters.ContainsKey(memberName)
+                || classType.Setters.ContainsKey(memberName),
+            InterfaceType interfaceType => interfaceType.Fields.ContainsKey(memberName)
+                || interfaceType.Methods.ContainsKey(memberName),
+            _ => false
+        };
+    }
+
+    /// <summary>
     /// Enumerates the types that can contribute a member to <paramref name="type"/>, nearest
     /// first: the type itself, its base classes, then every interface it implements or extends.
     /// </summary>

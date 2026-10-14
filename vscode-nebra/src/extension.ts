@@ -1,5 +1,6 @@
 import { execFileSync } from "child_process";
 import * as vscode from "vscode";
+import { SideMarkerDecorator } from "./sideMarkers";
 import {
   LanguageClient,
   LanguageClientOptions,
@@ -78,6 +79,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   );
 
   await client.start();
+  context.subscriptions.push(new SideMarkerDecorator(client));
 }
 
 export async function deactivate(): Promise<void> {
