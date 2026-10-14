@@ -12,12 +12,23 @@ public class ResolveTypeRefsPass() : Pass(PassName, PassScope.PerBuild)
     public const string PassName = "ResolveTypeRefs";
 
     private PassContext _ctx = null!;
+
+    /// <summary>The name of the <c>declare module</c> each declaration in one is a member of.</summary>
+    private readonly Dictionary<NodeID, string> _declaringModule = new();
     private PackageContext _pkg = null!;
     private ScopeID _currentScope = ScopeID.Invalid;
 
     public override bool Run(PassContext context)
     {
         _ctx = context;
+        _declaringModule.Clear();
+        foreach (var module in context.Pkgs.SelectMany(package => package.Files).SelectMany(file => file.Hir.Body).OfType<DeclareModuleDecl>())
+        {
+            foreach (var member in module.Members)
+            {
+                _declaringModule[member.ID] = module.ModuleName.Name;
+            }
+        }
 
         foreach (var pkg in context.Pkgs)
         {
@@ -60,10 +71,15 @@ public class ResolveTypeRefsPass() : Pass(PassName, PassScope.PerBuild)
     }
 
     /// <summary>
-    /// The reflection namespace for a package: the root project uses its configured name; every other
-    /// package (dependency) uses its directory leaf, so same-named types across packages get distinct ids.
+    /// The reflection namespace for a package: the module path of its file, so same-named types in
+    /// different files get distinct ids. See <see cref="ReflectionRegistry.Namespace"/>.
     /// </summary>
-    private string ReflectNamespace(PackageContext pkg) => ReflectionRegistry.Namespace(pkg, _ctx.RootPackage, _ctx.Config);
+    private string ReflectNamespace(PackageContext pkg, Decl declaration, NameRef declared)
+    {
+        return _declaringModule.TryGetValue(declaration.ID, out var module)
+            ? module
+            : ReflectionRegistry.Namespace(_ctx, declared.Span.File, pkg.IsLibrary);
+    }
 
     /// <summary>
     /// Pre-pass: walk top-level statements and create the EnumType for every EnumDecl so that NamedTypeRefs
@@ -118,7 +134,7 @@ public class ResolveTypeRefsPass() : Pass(PassName, PassScope.PerBuild)
         if (sym.Type != TypID.Invalid) return;
 
         var classType = pkg.Types.ClassOf(decl.Name.Name, isAbstract: decl.IsAbstract);
-        classType.ReflectionId = $"{ReflectNamespace(pkg)}::{decl.Name.Name}";
+        classType.ReflectionId = $"{ReflectNamespace(pkg, decl, decl.Name)}::{decl.Name.Name}";
         classType.DeclaredAt ??= decl.Name;
         pkg.Syms.SetType(decl.Name.Sym, classType.ID);
         MaterializeTypeParams(pkg, decl.TypeParams, $"class:{decl.Name.Name}", classType.TypeParams, ScopeOfDecl(decl.ID));
@@ -131,7 +147,7 @@ public class ResolveTypeRefsPass() : Pass(PassName, PassScope.PerBuild)
         if (sym.Type != TypID.Invalid) return;
 
         var interfaceType = pkg.Types.InterfaceOf(decl.Name.Name);
-        interfaceType.ReflectionId = $"{ReflectNamespace(pkg)}::{decl.Name.Name}";
+        interfaceType.ReflectionId = $"{ReflectNamespace(pkg, decl, decl.Name)}::{decl.Name.Name}";
         interfaceType.DeclaredAt ??= decl.Name;
         pkg.Syms.SetType(decl.Name.Sym, interfaceType.ID);
         MaterializeTypeParams(pkg, decl.TypeParams, $"iface:{decl.Name.Name}", interfaceType.TypeParams, ScopeOfDecl(decl.ID));
@@ -222,7 +238,7 @@ public class ResolveTypeRefsPass() : Pass(PassName, PassScope.PerBuild)
         }
 
         var enumType = pkg.Types.EnumOf(decl.Name.Name, members, baseType);
-        enumType.ReflectionId = $"{ReflectNamespace(pkg)}::{decl.Name.Name}";
+        enumType.ReflectionId = $"{ReflectNamespace(pkg, decl, decl.Name)}::{decl.Name.Name}";
         enumType.DeclaredAt ??= decl.Name;
         pkg.Syms.SetType(decl.Name.Sym, enumType.ID);
     }

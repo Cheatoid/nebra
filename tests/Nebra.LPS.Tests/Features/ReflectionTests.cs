@@ -25,20 +25,20 @@ public sealed class ReflectionTests
 
         var labels = await session.CompletionLabelsAsync("id");
 
-        Assert.Contains("app::Player", labels);
-        Assert.Contains("app::Item", labels);
+        Assert.Contains("main::Player", labels);
+        Assert.Contains("main::Item", labels);
     }
 
     [Fact]
     public async Task AnIdThatNamesNothingIsReported()
     {
-        await using var session = await LspSession.StartAsync(("nebra.toml", Config("all")), ("src/main.neb", Types + "print(reflect.get(\"app::Plyer\"), reflect.get(\"app::Player\"))\n"));
+        await using var session = await LspSession.StartAsync(("nebra.toml", Config("all")), ("src/main.neb", Types + "print(reflect.get(\"main::Plyer\"), reflect.get(\"main::Player\"))\n"));
 
         var diagnostics = await session.OpenAsync("src/main.neb");
 
         var warning = Assert.Single(diagnostics);
         Assert.Equal("WarnUnknownReflectionId", warning.Code?.String);
-        Assert.Contains("app::Plyer", warning.Message);
+        Assert.Contains("main::Plyer", warning.Message);
     }
 
     [Fact]
@@ -53,8 +53,8 @@ public sealed class ReflectionTests
         Assert.Contains("Player", warning.Message);
 
         var labels = await session.CompletionLabelsAsync("id");
-        Assert.Contains("app::Item", labels);
-        Assert.DoesNotContain("app::Player", labels);
+        Assert.Contains("main::Item", labels);
+        Assert.DoesNotContain("main::Player", labels);
     }
 
     [Fact]
@@ -78,12 +78,41 @@ public sealed class ReflectionTests
     [Fact]
     public async Task HoverOverAnIdShowsWhatItNames()
     {
-        await using var session = await LspSession.StartAsync(("nebra.toml", Config("all")), ("src/main.neb", Types + "print(reflect.get({|id|}\"app::Player\"))\n"));
+        await using var session = await LspSession.StartAsync(("nebra.toml", Config("all")), ("src/main.neb", Types + "print(reflect.get({|id|}\"main::Player\"))\n"));
         await session.OpenAsync("src/main.neb");
 
         var hover = await session.HoverAsync("id");
 
         Assert.Contains("class Player", hover);
-        Assert.Contains("Registered as `app::Player`", hover);
+        Assert.Contains("Registered as `main::Player`", hover);
+    }
+
+    [Fact]
+    public async Task IdsFollowTheModulePathOfTheirFile()
+    {
+        await using var session = await LspSession.StartAsync(
+            ("nebra.toml", Config("all")),
+            ("src/Client/Index.neb", "class Hud\nend\n\nprint(reflect.get(\"{|id|}\"))\n"),
+            ("src/Server/Index.neb", "class Hud\nend\n\nprint(1)\n"));
+
+        await session.OpenAsync("src/Client/Index.neb");
+        var labels = await session.CompletionLabelsAsync("id");
+
+        Assert.Contains("Client/Index::Hud", labels);
+        Assert.Contains("Server/Index::Hud", labels);
+    }
+
+    [Fact]
+    public async Task ATypeOfADependencyIsNamedAfterTheModuleItIsDeclaredIn()
+    {
+        await using var session = await LspSession.StartAsync(
+            ("nebra.toml", Config("all")),
+            ("nebra_modules/widgets/nebra.toml", "name = \"widgets\"\nversion = \"0.1.0\"\ntarget = \"5.4\"\nsource = \"src\"\noutput = \"out\"\n"),
+            ("nebra_modules/widgets/src/widgets.d.neb", "declare module \"ui/Button\"\n    class Button\n    end\nend\n"),
+            ("src/main.neb", "import { Button } from \"ui/Button\"\n\nprint(reflect.{|of|}Of(Button))\n"));
+
+        await session.OpenAsync("src/main.neb");
+
+        Assert.Contains("ui/Button::Button", await session.HoverAsync("of") ?? "");
     }
 }

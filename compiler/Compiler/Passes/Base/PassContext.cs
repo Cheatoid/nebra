@@ -31,12 +31,6 @@ public sealed class PassContext(DiagnosticsBag diag, List<PackageContext> pkgs, 
     /// and the pass does not need to access the current package context.
     /// </summary>
     public PackageContext? Pkg { get; } = pkg;
-
-    /// <summary>
-    /// The project's own first package, the one a build is named after. The shared library
-    /// package is never it, even though it comes first in <see cref="Pkgs"/>.
-    /// </summary>
-    public PackageContext? RootPackage => Pkgs.FirstOrDefault(package => !package.IsLibrary);
     
     /// <summary>
     /// The current file being processed. This can be null, if the pass is executed on the whole build at once, and the

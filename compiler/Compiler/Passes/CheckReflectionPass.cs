@@ -19,7 +19,7 @@ public sealed class CheckReflectionPass() : Pass(PassName, PassScope.PerBuild, n
 
     public override bool Run(PassContext context)
     {
-        var registry = ReflectionRegistry.Collect(context.Pkgs, context.Config);
+        var registry = ReflectionRegistry.Collect(context);
         context.Cache[ReflectionRegistry.CacheKey] = registry;
 
         foreach (var package in context.Pkgs.Where(package => !package.IsLibrary))

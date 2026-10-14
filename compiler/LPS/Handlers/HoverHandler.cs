@@ -27,11 +27,11 @@ public sealed class HoverHandler(NebraWorkspace workspace) : HoverHandlerBase
         var annotationHover = AnnotationHover(result, request.Position.Line, request.Position.Character);
         if (annotationHover != null) return annotationHover;
 
-        var reflected = ReflectionInfo.EntryAt(ReflectionInfo.Registry(workspace, result), result, line, col);
+        var reflected = ReflectionInfo.TargetAt(ReflectionInfo.Registry(workspace, result), result, line, col);
         var reflectedNode = reflected == null ? null : NodeFinder.Find(result.Hir, line, col);
         if (reflected != null && reflectedNode != null)
         {
-            return Create(ReflectionInfo.Describe(reflected), reflectedNode.Span);
+            return Create(ReflectionInfo.Describe(reflected.Value.Id, reflected.Value.Entry), reflectedNode.Span);
         }
 
         var declaredMember = MemberDeclarationAt(result, line, col);

@@ -42,8 +42,12 @@ public static partial class ReflectionInfo
         return registry.Entries.Where(entry => entry.Recorded && (method != "implementorsOf" || entry.Kind == "interface"));
     }
 
-    /// <summary>The registry entry a call of <c>reflect</c> refers to, when the cursor is on its id or on <c>Of</c>.</summary>
-    public static ReflectionEntry? EntryAt(ReflectionRegistry registry, AnalysisResult result, int line, int col)
+    /// <summary>
+    /// The id a call of <c>reflect</c> refers to when the cursor is on its id or on <c>Of</c>,
+    /// with the registry entry of the project's own declaration under it; none for a type a
+    /// dependency declares, whose own build registers it.
+    /// </summary>
+    public static (string Id, ReflectionEntry? Entry)? TargetAt(ReflectionRegistry registry, AnalysisResult result, int line, int col)
     {
         if (NodeFinder.FindEnclosingCall(result.Hir, line, col) is not FunctionCallExpr
             {
@@ -55,17 +59,25 @@ public static partial class ReflectionInfo
 
         if (IdMethods.Contains(method.Name) && call.Arguments is [StringLiteralExpr id, ..] && Contains(id, line, col))
         {
-            return registry.Find(id.Value);
+            var entry = registry.Find(id.Value);
+            return entry == null ? null : (id.Value, entry);
         }
 
         if (method.Name == "Of" && call.Arguments is [NameExpr subject] && Contains(method, line, col)
             && result.Syms.GetByID(subject.Name.Sym, out var symbol) && result.Types.GetByID(symbol.Type, out var type)
             && type.ReflectionId != null)
         {
-            return registry.Find(type.ReflectionId);
+            return (type.ReflectionId, registry.Find(type.ReflectionId));
         }
 
         return null;
+    }
+
+    public static string Describe(string id, ReflectionEntry? entry)
+    {
+        return entry == null
+            ? $"Resolves to `{id}`, registered by the package that declares it."
+            : Describe(entry);
     }
 
     public static string Describe(ReflectionEntry entry)

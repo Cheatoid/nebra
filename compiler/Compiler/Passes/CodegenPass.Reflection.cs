@@ -163,8 +163,8 @@ public sealed partial class CodegenPass
     /// <summary>Id for a named type, from its stored <see cref="Type.ReflectionId"/> (defining-package aware).</summary>
     private string NamedId(Type t) => t.ReflectionId ?? $"{_reflectNamespace}::{NamedTypeName(t) ?? "?"}";
 
-    /// <summary>The reflection namespace for a package (root uses its config name, deps their dir leaf).</summary>
-    private static string ReflectNamespace(PassContext ctx, PackageContext pkg) => ReflectionRegistry.Namespace(pkg, ctx.RootPackage, ctx.Config);
+    /// <summary>The reflection namespace for a package: the module path of its file, see <see cref="ReflectionRegistry.Namespace"/>.</summary>
+    private static string ReflectNamespace(PassContext ctx, PackageContext pkg, PreparsedFile file) => ReflectionRegistry.Namespace(ctx, file.Filename, pkg.IsLibrary);
 
     private string? ClassMeta(PassContext ctx, PackageContext pkg, ClassDecl cd)
     {

@@ -17,7 +17,7 @@ public sealed class ReflectionModeTests
         Assert.True(compiler.Compile(), string.Join("\n", compiler.Diagnostics.Diagnostics));
 
         var lua = compiler.Packages.Values.SelectMany(package => package.Files).Single(file => !file.IsDeclarationFile).GeneratedLua!;
-        Assert.Contains("app::shown", lua);
-        Assert.DoesNotContain("app::secret", lua);
+        Assert.Contains("main::shown", lua);
+        Assert.DoesNotContain("main::secret", lua);
     }
 }

@@ -37,7 +37,7 @@ public sealed partial class CodegenPass() : Pass(PassName, PassScope.PerBuild, t
         var exportedNames = new List<ExportName>();
         CollectExportNames(ctx, pkg, file.Hir.Body, exportedNames);
 
-        _reflectNamespace = ReflectNamespace(ctx, pkg);
+        _reflectNamespace = ReflectNamespace(ctx, pkg, file);
         EmitReflectionPrelude(ctx, gen);
 
         EmitStmtList(ctx, pkg, gen, file.Hir.Body);
