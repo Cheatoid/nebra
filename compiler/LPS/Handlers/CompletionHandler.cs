@@ -710,65 +710,79 @@ public sealed class CompletionHandler(NebraWorkspace workspace) : CompletionHand
     }
 
     /// <summary>
-    /// Detects whether the cursor is in an annotation context (after <c>@</c>) and returns
-    /// completion items for known annotation names discovered from <c>Config.Annotations</c>.
+    /// Completes an annotation name right after <c>@</c>, offering only the annotations that may
+    /// be put on the declaration below, and the arguments inside <c>@Name(...)</c>: the
+    /// parameters not given yet, or the sides for <c>@side</c>.
     /// </summary>
-    private List<CompletionItem>? TryAnnotationCompletion(AnalysisResult result,
-        Position pos)
+    private static List<CompletionItem>? TryAnnotationCompletion(AnalysisResult result, Position pos)
     {
-        var lines = result.SourceText.Split('\n');
-        if (pos.Line < 0 || pos.Line >= lines.Length) return null;
-        var lineText = lines[pos.Line].TrimEnd('\r');
-        var cursor = Math.Min(pos.Character, lineText.Length);
-
-        var i = cursor;
-        while (i > 0 && (char.IsLetterOrDigit(lineText[i - 1]) || lineText[i - 1] == '_')) i--;
-        if (i <= 0 || lineText[i - 1] != '@') return null;
-
-        var metas = workspace.GetAnnotationMetas(result.FilePath);
-        if (metas.Count == 0) return null;
-
-        var items = new List<CompletionItem>();
-        foreach (var meta in metas)
+        var call = AnnotationCatalog.CallAt(result.SourceText, pos.Line, pos.Character);
+        if (call != null)
         {
-            var paramLabels = meta.Parameters.Select(p =>
-            {
-                var s = $"{p.Name}: {p.TypeName}";
-                return p.Required ? s : s + "?";
-            });
-            var paramDisplay = meta.Parameters.Count == 0 ? "" : "(" + string.Join(", ", paramLabels) + ")";
-
-            string insertText;
-            InsertTextFormat insertFormat;
-            if (meta.Parameters.Count == 0)
-            {
-                insertText = meta.Name;
-                insertFormat = InsertTextFormat.PlainText;
-            }
-            else
-            {
-                var snippetArgs = meta.Parameters
-                    .Select((p, i) => $"{p.Name} = ${{{i + 1}:{DefaultSnippetValue(p)}}}");
-                insertText = $"{meta.Name}({string.Join(", ", snippetArgs)})";
-                insertFormat = InsertTextFormat.Snippet;
-            }
-
-            items.Add(new CompletionItem
-            {
-                Label = meta.Name,
-                Kind = CompletionItemKind.Function,
-                Detail = $"(annotation) @{meta.Name}{paramDisplay}",
-                Documentation = new StringOrMarkupContent(new MarkupContent
-                {
-                    Kind = MarkupKind.Markdown,
-                    Value = $"```nebra\n{NebraWorkspace.FormatAnnotationSignature(meta)}\n```"
-                }),
-                InsertText = insertText,
-                InsertTextFormat = insertFormat,
-            });
+            return AnnotationArgumentItems(result, call.Value.Name, call.Value.Arguments);
         }
 
-        return items;
+        var lines = result.SourceText.Split('\n');
+        if (pos.Line < 0 || pos.Line >= lines.Length) return null;
+
+        var lineText = lines[pos.Line].TrimEnd('\r');
+        var start = Math.Min(pos.Character, lineText.Length);
+        while (start > 0 && (char.IsLetterOrDigit(lineText[start - 1]) || lineText[start - 1] == '_')) start--;
+        if (start <= 0 || lineText[start - 1] != '@') return null;
+
+        var target = AnnotationCatalog.TargetAt(result, pos.Line + 1);
+        return AnnotationCatalog.All(result)
+            .Where(entry => AnnotationCatalog.AppliesTo(entry, target))
+            .Select(AnnotationItem)
+            .ToList();
+    }
+
+    private static CompletionItem AnnotationItem(AnnotationEntry entry)
+    {
+        var required = entry.Parameters.Where(parameter => parameter.Required).ToList();
+        var snippet = entry.TakesNames || required.Count == 0
+            ? entry.Name
+            : $"{entry.Name}({string.Join(", ", required.Select((parameter, index) => $"{parameter.Name} = ${{{index + 1}:{DefaultSnippetValue(parameter)}}}"))})";
+
+        var documentation = $"```nebra\n{AnnotationCatalog.Signature(entry)}\n```\n\nApplies to {AnnotationCatalog.TargetsText(entry)}";
+        if (!string.IsNullOrEmpty(entry.Documentation)) documentation += $"\n\n{entry.Documentation}";
+
+        return new CompletionItem
+        {
+            Label = entry.Name,
+            Kind = CompletionItemKind.Function,
+            Detail = AnnotationCatalog.Signature(entry),
+            Documentation = new StringOrMarkupContent(new MarkupContent { Kind = MarkupKind.Markdown, Value = documentation }),
+            InsertText = snippet,
+            InsertTextFormat = snippet == entry.Name ? InsertTextFormat.PlainText : InsertTextFormat.Snippet
+        };
+    }
+
+    private static List<CompletionItem>? AnnotationArgumentItems(AnalysisResult result, string name, List<string> arguments)
+    {
+        var entry = AnnotationCatalog.Find(result, name);
+        if (entry == null) return null;
+
+        if (entry.TakesNames)
+        {
+            return new[] { "client", "server", "shared" }
+                .Where(side => !arguments.Contains(side))
+                .Select(side => new CompletionItem { Label = side, Kind = CompletionItemKind.EnumMember })
+                .ToList();
+        }
+
+        var given = arguments.Select(argument => argument.Split('=')[0].Trim()).ToHashSet(StringComparer.Ordinal);
+        return entry.Parameters
+            .Where(parameter => !given.Contains(parameter.Name))
+            .Select(parameter => new CompletionItem
+            {
+                Label = parameter.Name,
+                Kind = CompletionItemKind.Property,
+                Detail = AnnotationCatalog.Parameter(parameter),
+                InsertText = $"{parameter.Name} = ${{1:{DefaultSnippetValue(parameter)}}}",
+                InsertTextFormat = InsertTextFormat.Snippet
+            })
+            .ToList();
     }
 
     private static string DefaultSnippetValue(Nebra.Compiler.Annotations.AnnotationParamSpec p)

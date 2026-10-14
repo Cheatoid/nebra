@@ -1,4 +1,5 @@
 using System.Text;
+using Nebra.Compiler.Annotations;
 using Nebra.Configuration;
 using Nebra.Doc;
 using Nebra.IR;
@@ -81,6 +82,39 @@ public sealed class HoverRenderer(AnalysisResult result, NebraWorkspace workspac
     public string ForMemberDeclaration(Type owner, string name)
     {
         return ForMember(owner, name) ?? $"```nebra\n{name}\n```";
+    }
+
+    /// <summary>
+    /// The hover for an annotation: how it is written, what it may be put on, where it is
+    /// defined, what its file says about it and, when it was applied here, what it expanded to.
+    /// </summary>
+    public static string ForAnnotation(AnnotationEntry entry, AnnotationExpansion? expansion)
+    {
+        var markdown = new StringBuilder();
+        markdown.Append("```nebra\n").Append(AnnotationCatalog.Signature(entry)).Append("\n```");
+        markdown.Append("\n\nApplies to ").Append(AnnotationCatalog.TargetsText(entry));
+
+        if (entry.SourcePath == null)
+        {
+            markdown.Append(" · built into the compiler");
+        }
+        else
+        {
+            var link = OmniSharp.Extensions.LanguageServer.Protocol.DocumentUri.FromFileSystemPath(entry.SourcePath);
+            markdown.Append(" · defined in [").Append(Path.GetFileName(entry.SourcePath)).Append("](").Append(link).Append(')');
+        }
+
+        if (!string.IsNullOrEmpty(entry.Documentation))
+        {
+            markdown.Append("\n\n---\n\n").Append(entry.Documentation);
+        }
+
+        if (expansion != null)
+        {
+            markdown.Append("\n\n---\n\n**Expands to:**\n\n```nebra\n").Append(IrPrinter.Print(expansion.Result)).Append("\n```");
+        }
+
+        return markdown.ToString();
     }
 
     public string ForExpression(TypID type)

@@ -170,6 +170,7 @@ public sealed class ApplyAnnotationsPass()
                 if (IRLuaCodec.IsList(result))
                 {
                     var stmtList = codec.DecodeStmtList(result, ctx.NodeAlloc, ann.Span);
+                    RecordExpansion(ctx, ann, current, stmtList);
                     produced = stmtList;
                     var next = stmtList.OfType<Decl>().FirstOrDefault(d => TargetKindForDecl(d) == targetKind);
                     if (next == null && annotations.Count > 1)
@@ -191,6 +192,7 @@ public sealed class ApplyAnnotationsPass()
                         break;
                     }
 
+                    RecordExpansion(ctx, ann, current, [newDecl]);
                     current = newDecl;
                     produced = [current];
                 }
@@ -217,6 +219,20 @@ public sealed class ApplyAnnotationsPass()
         }
 
         return produced;
+    }
+
+    private static void RecordExpansion(PassContext ctx, Annotation annotation, Decl target, List<Stmt> result)
+    {
+        if (!ctx.Cache.TryGetValue(AnnotationExpansion.CacheKey, out var existing) || existing is not List<AnnotationExpansion> expansions)
+        {
+            expansions = [];
+            ctx.Cache[AnnotationExpansion.CacheKey] = expansions;
+        }
+
+        lock (expansions)
+        {
+            expansions.Add(new AnnotationExpansion(annotation, target, [..result]));
+        }
     }
 
     /// <summary>

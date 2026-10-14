@@ -174,12 +174,6 @@ public sealed class NebraWorkspace
     public List<Symbol> CollectVisibleSymbols(AnalysisResult result, ScopeID scopeId)
         => ProjectFor(result.FilePath).CollectVisibleSymbols(result, scopeId);
 
-    public List<AnnotationMeta> GetAnnotationMetas(string path) => ProjectFor(path).GetAnnotationMetas();
-
-    public AnnotationMeta? GetAnnotationMeta(string path, string annotationName) => ProjectFor(path).GetAnnotationMeta(annotationName);
-
-    public string? GetAnnotationInfo(string path, string annotationName) => ProjectFor(path).GetAnnotationInfo(annotationName);
-
     public void ShowMessage(MessageType type, string message)
     {
         _server?.Window.ShowMessage(new ShowMessageParams { Type = type, Message = message });
@@ -192,8 +186,6 @@ public sealed class NebraWorkspace
 
     public static List<AnalysisResult> FilesMentioning(AnalysisResult origin, string symbolName)
         => NebraProject.FilesMentioning(origin, symbolName);
-
-    public static string FormatAnnotationSignature(AnnotationMeta meta) => NebraProject.FormatAnnotationSignature(meta);
 
     /// <summary>
     /// Finds the project roots - every folder, and every directory beneath one holding a

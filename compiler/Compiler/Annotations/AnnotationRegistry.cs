@@ -65,23 +65,13 @@ public sealed class AnnotationDefinition(
 }
 
 /// <summary>
-/// Compile-free counterpart of <see cref="AnnotationDefinition"/> used by the
-/// LSP. Carries only the metadata (target + params) needed for IntelliSense
-/// and arg validation; never holds compiled Lua. Built by
-/// <c>ResolveAnnotationsPass.LoadMetaFromFile</c> directly from the source
-/// file's AST.
+/// What applying one annotation to a declaration produced: the declaration as the annotation
+/// received it and the statements it was replaced with. Recorded so tooling can show what an
+/// annotation expands to.
 /// </summary>
-public sealed class AnnotationMeta(
-    string name,
-    HashSet<AnnotationTargetKind> targets,
-    List<AnnotationParamSpec> parameters,
-    string sourcePath)
+public sealed record AnnotationExpansion(Nebra.IR.Annotation Annotation, Nebra.IR.Decl Target, IReadOnlyList<Nebra.IR.Stmt> Result)
 {
-    public string Name { get; } = name;
-    public HashSet<AnnotationTargetKind> Targets { get; } = targets;
-    public AnnotationTargetKind PrimaryTarget => Targets.FirstOrDefault();
-    public List<AnnotationParamSpec> Parameters { get; } = parameters;
-    public string SourcePath { get; } = sourcePath;
+    public const string CacheKey = "AnnotationExpansions";
 }
 
 /// <summary>

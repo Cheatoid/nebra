@@ -230,128 +230,51 @@ public sealed class SignatureHelpHandler(NebraWorkspace workspace) : SignatureHe
     }
 
     /// <summary>
-    /// Provides signature help for annotation invocations. Walks the HIR for an
-    /// <see cref="Annotation"/> whose argument list contains the cursor, looks
-    /// the annotation up in <see cref="NebraWorkspace.GetAnnotationMeta"/>, and
-    /// renders the <c>meta.params</c> spec as a <see cref="SignatureInformation"/>.
-    /// Returns <c>null</c> when the cursor isn't inside an annotation call.
+    /// Signature help inside <c>@Name(...)</c>: the annotation's parameters, with the one being
+    /// written highlighted. Read from the source, because applied annotations no longer appear
+    /// in the analysed program.
     /// </summary>
-    private SignatureHelp? TryAnnotationSignatureHelp(AnalysisResult result, OmniSharp.Extensions.LanguageServer.Protocol.Models.Position pos)
+    private static SignatureHelp? TryAnnotationSignatureHelp(AnalysisResult result, OmniSharp.Extensions.LanguageServer.Protocol.Models.Position pos)
     {
-        var line = pos.Line + 1;
-        var col = pos.Character + 1;
-        var annotation = FindEnclosingAnnotation(result.Hir, line, col);
-        if (annotation == null) return null;
+        var call = AnnotationCatalog.CallAt(result.SourceText, pos.Line, pos.Character);
+        if (call == null) return null;
 
-        var meta = workspace.GetAnnotationMeta(result.FilePath, annotation.Name.Name);
-        if (meta == null) return null;
+        var entry = AnnotationCatalog.Find(result, call.Value.Name);
+        if (entry == null) return null;
 
-        var paramInfos = new List<ParameterInformation>();
-        foreach (var p in meta.Parameters)
-        {
-            var label = $"{p.Name}: {p.TypeName}";
-            if (!p.Required)
-                label += " = " + (p.DefaultValue?.ToString() ?? "nil");
-            paramInfos.Add(new ParameterInformation
-            {
-                Label = new ParameterInformationLabel(label)
-            });
-        }
+        var parameters = entry.Parameters
+            .Select(parameter => new ParameterInformation { Label = new ParameterInformationLabel(AnnotationCatalog.Parameter(parameter)) })
+            .ToList();
 
-        var paramStr = string.Join(", ", paramInfos.Select(p => p.Label.Label));
-        var label2 = $"@{meta.Name}({paramStr})";
-
-        var activeParam = ActiveAnnotationParam(annotation, pos);
+        var documentation = $"Applies to {AnnotationCatalog.TargetsText(entry)}";
+        if (!string.IsNullOrEmpty(entry.Documentation)) documentation += $"\n\n{entry.Documentation}";
 
         return new SignatureHelp
         {
             Signatures = new Container<SignatureInformation>(new SignatureInformation
             {
-                Label = label2,
-                Parameters = new Container<ParameterInformation>(paramInfos),
-                Documentation = new StringOrMarkupContent(new MarkupContent
-                {
-                    Kind = MarkupKind.Markdown,
-                    Value = $"target: `{string.Join(" | ", meta.Targets)}`  \nsource: `{System.IO.Path.GetFileName(meta.SourcePath)}`"
-                })
+                Label = AnnotationCatalog.Signature(entry),
+                Parameters = new Container<ParameterInformation>(parameters),
+                Documentation = new StringOrMarkupContent(new MarkupContent { Kind = MarkupKind.Markdown, Value = documentation })
             }),
             ActiveSignature = 0,
-            ActiveParameter = Math.Min(activeParam, Math.Max(0, paramInfos.Count - 1))
+            ActiveParameter = ActiveParameter(entry, call.Value.Arguments)
         };
     }
 
-    /// <summary>
-    /// Determines the active parameter index inside an annotation call. If the
-    /// argument under the cursor uses named syntax (<c>message = …</c>), match
-    /// by name; otherwise fall back to counting commas.
-    /// </summary>
-    private static int ActiveAnnotationParam(Annotation ann, OmniSharp.Extensions.LanguageServer.Protocol.Models.Position pos)
+    /// <summary>The parameter the argument being written fills: named by it, or by its position.</summary>
+    private static int ActiveParameter(AnnotationEntry entry, List<string> arguments)
     {
-        var line = pos.Line + 1;
-        var col = pos.Character + 1;
-        for (var i = 0; i < ann.Args.Count; i++)
-        {
-            var arg = ann.Args[i];
-            if (arg.Span.StartLn <= line && line <= arg.Span.EndLn &&
-                (line != arg.Span.StartLn || col >= arg.Span.StartCol) &&
-                (line != arg.Span.EndLn || col <= arg.Span.EndCol + 1))
-            {
-                return i;
-            }
-        }
-        return ann.Args.Count;
-    }
+        if (entry.TakesNames || entry.Parameters.Count == 0) return 0;
 
-    private static Annotation? FindEnclosingAnnotation(IRScript hir, int line, int col)
-    {
-        Annotation? Check(List<Annotation> anns)
+        var current = arguments[^1].Split('=');
+        if (current.Length > 1)
         {
-            foreach (var a in anns)
-            {
-                if (a.Span.StartLn <= line && line <= a.Span.EndLn &&
-                    (line != a.Span.StartLn || col >= a.Span.StartCol) &&
-                    (line != a.Span.EndLn || col <= a.Span.EndCol + 1))
-                    return a;
-            }
-            return null;
+            var named = entry.Parameters.ToList().FindIndex(parameter => parameter.Name == current[0].Trim());
+            if (named >= 0) return named;
         }
 
-        foreach (var stmt in hir.Body)
-        {
-            var decl = stmt switch
-            {
-                ExportStmt ex => ex.Declaration,
-                Decl d => d,
-                _ => null
-            };
-            if (decl == null) continue;
-
-            Annotation? found = decl switch
-            {
-                FunctionDecl fd => Check(fd.Annotations),
-                LocalFunctionDecl lfd => Check(lfd.Annotations),
-                LocalDecl ld => Check(ld.Annotations),
-                ClassDecl cd => Check(cd.Annotations),
-                EnumDecl ed => Check(ed.Annotations),
-                InterfaceDecl id => Check(id.Annotations),
-                _ => null
-            };
-            if (found != null) return found;
-
-            if (decl is ClassDecl cls)
-            {
-                foreach (var f in cls.Fields) { found = Check(f.Annotations); if (found != null) return found; }
-                foreach (var m in cls.Methods) { found = Check(m.Annotations); if (found != null) return found; }
-            }
-            if (decl is InterfaceDecl iface)
-            {
-                foreach (var f in iface.Fields) { found = Check(f.Annotations); if (found != null) return found; }
-                foreach (var m in iface.Methods) { found = Check(m.Annotations); if (found != null) return found; }
-            }
-            if (decl is EnumDecl en)
-                foreach (var m in en.Members) { found = Check(m.Annotations); if (found != null) return found; }
-        }
-        return null;
+        return Math.Min(arguments.Count - 1, entry.Parameters.Count - 1);
     }
 
     private static int CountActiveParam(string sourceText, OmniSharp.Extensions.LanguageServer.Protocol.Models.Position pos)

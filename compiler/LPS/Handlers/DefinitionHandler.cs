@@ -16,6 +16,16 @@ public sealed class DefinitionHandler(NebraWorkspace workspace) : DefinitionHand
         var line = request.Position.Line + 1;
         var col = request.Position.Character + 1;
 
+        var annotationFile = AnnotationFileAt(result, request.Position);
+        if (annotationFile != null)
+        {
+            return new LocationOrLocationLinks(new Location
+            {
+                Uri = DocumentUri.FromFileSystemPath(annotationFile),
+                Range = new OmniSharp.Extensions.LanguageServer.Protocol.Models.Range(new Position(0, 0), new Position(0, 0))
+            });
+        }
+
         var importTarget = TryResolveImportPath(result, request.Position);
         if (importTarget != null)
         {
@@ -118,6 +128,13 @@ public sealed class DefinitionHandler(NebraWorkspace workspace) : DefinitionHand
             return [];
 
         return workspace.FindUsages(nameRef.Sym, result);
+    }
+
+    /// <summary>The file defining the annotation whose name is under the cursor; null for built-in annotations.</summary>
+    private static string? AnnotationFileAt(AnalysisResult result, Position position)
+    {
+        var found = AnnotationCatalog.NameAt(result.SourceText, position.Line, position.Character);
+        return found == null ? null : AnnotationCatalog.Find(result, found.Value.Name)?.SourcePath;
     }
 
     private static bool IsOnDeclaration(NameRef nameRef, Symbol sym, AnalysisResult result)

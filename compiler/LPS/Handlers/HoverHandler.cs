@@ -24,6 +24,9 @@ public sealed class HoverHandler(NebraWorkspace workspace) : HoverHandlerBase
         var col = request.Position.Character + 1;
         var renderer = new HoverRenderer(result, workspace);
 
+        var annotationHover = AnnotationHover(result, request.Position.Line, request.Position.Character);
+        if (annotationHover != null) return annotationHover;
+
         var declaredMember = MemberDeclarationAt(result, line, col);
         if (declaredMember != null)
         {
@@ -41,19 +44,37 @@ public sealed class HoverHandler(NebraWorkspace workspace) : HoverHandlerBase
         var memberHover = nameRef == null ? null : MemberHover(result, renderer, hoveredNode, nameRef);
         if (memberHover != null) return memberHover;
 
-        var annotation = FindAnnotationAt(result.Hir, line, col);
-        if (annotation != null)
-        {
-            var info = workspace.GetAnnotationInfo(uri, annotation.Name.Name) ?? $"@{annotation.Name.Name}";
-            return Create($"```nebra\n{info}\n```", annotation.Span);
-        }
-
         if (hoveredNode is Expr expr && expr.Type != TypID.Invalid)
         {
             return Create(renderer.ForExpression(expr.Type), expr.Span);
         }
 
         return null;
+    }
+
+    /// <summary>
+    /// The hover for an annotation name under the cursor, with what it expanded to when the
+    /// build applied it at exactly this place.
+    /// </summary>
+    private static Hover? AnnotationHover(AnalysisResult result, int line, int character)
+    {
+        var found = AnnotationCatalog.NameAt(result.SourceText, line, character);
+        if (found == null) return null;
+
+        var (name, start) = found.Value;
+        var entry = AnnotationCatalog.Find(result, name);
+        if (entry == null) return null;
+
+        var expansion = result.Snapshot.Expansions.FirstOrDefault(candidate =>
+            string.Equals(candidate.Annotation.Span.File, result.FilePath, StringComparison.OrdinalIgnoreCase)
+            && candidate.Annotation.Name.Span.StartLn == line + 1
+            && candidate.Annotation.Name.Span.StartCol == start + 1);
+
+        return new Hover
+        {
+            Contents = new MarkedStringsOrMarkupContent(new MarkupContent { Kind = MarkupKind.Markdown, Value = HoverRenderer.ForAnnotation(entry, expansion) }),
+            Range = new OmniSharp.Extensions.LanguageServer.Protocol.Models.Range(line, start - 1, line, start + name.Length)
+        };
     }
 
     private static Hover? MemberHover(AnalysisResult result, HoverRenderer renderer, Node? hoveredNode, NameRef nameRef)
@@ -135,59 +156,6 @@ public sealed class HoverHandler(NebraWorkspace workspace) : HoverHandlerBase
             Contents = new MarkedStringsOrMarkupContent(new MarkupContent { Kind = MarkupKind.Markdown, Value = markdown }),
             Range = NebraWorkspace.SpanToRange(span)
         };
-    }
-
-    private static Annotation? FindAnnotationAt(IRScript hir, int line, int col)
-    {
-        Annotation? Check(List<Annotation> anns)
-        {
-            foreach (var a in anns)
-            {
-                if (a.Span.StartLn <= line && a.Span.EndLn >= line
-                    && a.Span.StartCol <= col && a.Span.EndCol >= col)
-                    return a;
-            }
-            return null;
-        }
-
-        foreach (var stmt in hir.Body)
-        {
-            var decl = stmt switch
-            {
-                ExportStmt ex => ex.Declaration,
-                Decl d => d,
-                _ => null,
-            };
-            if (decl == null) continue;
-
-            Annotation? found = decl switch
-            {
-                FunctionDecl fd => Check(fd.Annotations),
-                LocalFunctionDecl lfd => Check(lfd.Annotations),
-                LocalDecl ld => Check(ld.Annotations),
-                ClassDecl cd => Check(cd.Annotations),
-                EnumDecl ed => Check(ed.Annotations),
-                InterfaceDecl id => Check(id.Annotations),
-                _ => null,
-            };
-            if (found != null) return found;
-
-            if (decl is ClassDecl cls)
-            {
-                foreach (var f in cls.Fields) { found = Check(f.Annotations); if (found != null) return found; }
-                foreach (var m in cls.Methods) { found = Check(m.Annotations); if (found != null) return found; }
-            }
-            if (decl is EnumDecl en)
-            {
-                foreach (var m in en.Members) { found = Check(m.Annotations); if (found != null) return found; }
-            }
-            if (decl is InterfaceDecl iface)
-            {
-                foreach (var f in iface.Fields) { found = Check(f.Annotations); if (found != null) return found; }
-                foreach (var m in iface.Methods) { found = Check(m.Annotations); if (found != null) return found; }
-            }
-        }
-        return null;
     }
 
     protected override HoverRegistrationOptions CreateRegistrationOptions(

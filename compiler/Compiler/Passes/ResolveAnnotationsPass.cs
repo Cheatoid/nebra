@@ -184,37 +184,6 @@ public sealed class ResolveAnnotationsPass() : Pass(PassName, PassScope.PerBuild
         return new AnnotationLoad(new AnnotationDefinition(annotationName, targets, parameters, file.GeneratedLua, path), problems);
     }
 
-    /// <summary>
-    /// Parses just the <c>annotation = { … }</c> meta block of an annotation file
-    /// from disk and returns the lightweight <see cref="AnnotationMeta"/> the
-    /// LSP needs for IntelliSense (completion, signature help, hover, arg
-    /// validation). Does <b>not</b> sub-compile the file or invoke <c>apply</c>;
-    /// designed to be cheap enough to call on every workspace open.
-    /// </summary>
-    public static AnnotationMeta? LoadMetaFromFile(string filePath, Configuration.Config config, IDAlloc<NodeID> nodeAlloc, DiagnosticsBag diag)
-    {
-        string source;
-        try { source = File.ReadAllText(filePath); }
-        catch { return null; }
-
-        Antlr4.Runtime.AntlrInputStream stream;
-        try { stream = new Antlr4.Runtime.AntlrInputStream(source); }
-        catch { return null; }
-
-        var lexer = new NebraLexer(stream);
-        lexer.RemoveErrorListeners();
-        var tokens = new Antlr4.Runtime.CommonTokenStream(lexer);
-        var parser = new NebraParser(tokens);
-        parser.RemoveErrorListeners();
-        var visitor = new IRVisitor(filePath, nodeAlloc, diag, config);
-        if (visitor.Visit(parser.script()) is not IRScript script) return null;
-
-        if (!TryExtractMeta(script.Body, out var targets, out var parameters, out _)) return null;
-
-        var name = Path.GetFileNameWithoutExtension(filePath);
-        return new AnnotationMeta(name, targets, parameters, filePath);
-    }
-
     public static bool TryExtractMeta(List<Stmt> body, out HashSet<AnnotationTargetKind> targets, out List<AnnotationParamSpec> parameters, out string? error)
     {
         targets = [AnnotationTargetKind.Function];

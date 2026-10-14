@@ -1,3 +1,4 @@
+using Nebra.Compiler.Annotations;
 using System.Collections.Concurrent;
 using Nebra.Compiler;
 using Nebra.Configuration;
@@ -140,6 +141,12 @@ public sealed class WorkspaceSnapshot
         {
             Timings = timings,
             BuiltinDeclarations = builtins,
+            Annotations = compiler.Cache.TryGetValue(AnnotationRegistry.CacheKey, out var registry) && registry is AnnotationRegistry annotations
+                ? annotations
+                : new AnnotationRegistry(),
+            Expansions = compiler.Cache.TryGetValue(AnnotationExpansion.CacheKey, out var recorded) && recorded is List<AnnotationExpansion> expansions
+                ? expansions
+                : [],
             IsWorkspace = isWorkspace,
             Types = compiler.TypeUniverse,
             Config = config
@@ -214,6 +221,12 @@ public sealed class WorkspaceSnapshot
     {
         return _nodes.TryGetValue(id, out node!) || BuiltinDeclarations.TryGetValue(id, out node!);
     }
+
+    /// <summary>The annotations the build knew: the project's own and those of its dependencies.</summary>
+    public AnnotationRegistry Annotations { get; private init; } = new();
+
+    /// <summary>What every annotation applied in the build expanded to.</summary>
+    public IReadOnlyList<AnnotationExpansion> Expansions { get; private init; } = [];
 
     /// <summary>The declarations of built-in libraries, which have no file and so no place in the node index.</summary>
     private IReadOnlyDictionary<NodeID, Node> BuiltinDeclarations { get; init; } = new Dictionary<NodeID, Node>();
