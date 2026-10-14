@@ -4,29 +4,57 @@
 -- may carry: headers ({ [string]: string }), query ({ [string]: any }),
 -- body (string), json (any, encoded as JSON), timeout (number, seconds).
 
+--- The response to an HTTP request.
 declare interface HttpResponse
+    --- The status code, such as 200 or 404.
     status: number
+    --- Whether the status code is in the 2xx range.
     ok: boolean
+    --- The response body as text.
     body: string
+    --- The response headers.
     headers: { [string]: string }
 end
 
+--- Options for an HTTP request; every field is optional.
 declare interface HttpOptions
+    --- Request headers.
     headers: { [string]: string }
+    --- Query parameters appended to the URL.
     query: { [string]: any }
+    --- The request body as text.
     body: string
+    --- A value sent as a JSON body, with the matching Content-Type.
     json: any
+    --- How long to wait for the response, in seconds.
     timeout: number
 end
 
-declare http: {
-    get: (string, HttpOptions?) -> HttpResponse,
-    post: (string, HttpOptions?) -> HttpResponse,
-    put: (string, HttpOptions?) -> HttpResponse,
-    patch: (string, HttpOptions?) -> HttpResponse,
-    delete: (string, HttpOptions?) -> HttpResponse,
-    request: (string, string, HttpOptions?) -> HttpResponse,
-    postjson: (string, any) -> HttpResponse,
-    download: (string, string) -> number,
-    getString: (string) -> string,
-}
+--- A blocking HTTP client.
+declare interface HttpLib
+    --- Sends a GET request.
+    function get(url: string, options: HttpOptions?): HttpResponse
+    --- Sends a POST request.
+    function post(url: string, options: HttpOptions?): HttpResponse
+    --- Sends a PUT request.
+    function put(url: string, options: HttpOptions?): HttpResponse
+    --- Sends a PATCH request.
+    function patch(url: string, options: HttpOptions?): HttpResponse
+    --- Sends a DELETE request.
+    function delete(url: string, options: HttpOptions?): HttpResponse
+    --- Sends a request with any method.
+    --- @param method string the HTTP method, such as `"GET"`
+    --- @param url string the URL
+    --- @param options HttpOptions? headers, query, body, json and timeout
+    function request(method: string, url: string, options: HttpOptions?): HttpResponse
+    --- Sends a POST request with `payload` encoded as a JSON body.
+    function postjson(url: string, payload: any): HttpResponse
+    --- Downloads a URL into a file, creating missing directories.
+    --- @return number the number of bytes written
+    function download(url: string, path: string): number
+    --- Downloads a URL and returns its body as text.
+    function getString(url: string): string
+end
+
+--- A blocking HTTP client.
+declare http: HttpLib

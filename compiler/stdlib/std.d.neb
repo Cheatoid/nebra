@@ -16,287 +16,722 @@
 
 -- --- Built-in Globals ------------------------------------------------------
 
+--- The global environment: a table holding every global variable.
 declare _G: { [string]: any }
+--- The environment of the current chunk, which global names are looked up in (Lua 5.2+).
 declare _ENV: { [string]: any }
+--- The running Lua version, such as `"Lua 5.4"`.
 declare _VERSION: string
 
 -- --- Built-in Functions ----------------------------------------------------
 
+--- Writes its arguments to standard output, converted with `tostring` and separated by tabs, followed by a newline.
+--- @param ... any the values to print
 declare function print(...: any): nil
+--- Returns the type of a value as a string: `"nil"`, `"number"`, `"string"`, `"boolean"`, `"table"`, `"function"`, `"thread"` or `"userdata"`.
+--- @param v any the value to inspect
+--- @return string the type name
 declare function type(v: any): string
+--- Converts a value to a readable string, using the `__tostring` metamethod when it has one.
+--- @param v any the value to convert
+--- @return string the string form
 declare function tostring(v: any): string
+--- Converts a value to a number, or returns nil when it cannot.
+--- @param v any the value to convert, usually a string
+--- @param base number? the base (2 to 36) to read an integer string in; decimal when omitted
+--- @return number? the number, or nil
 declare function tonumber(v: any, base: number?): number?
+--- Iterates over the array part of a table in order, from index 1 up to the first nil.
+--- @param t any the table to iterate
+--- @return any an iterator yielding index and value
 declare function ipairs(t: any): any
+--- Iterates over every key and value of a table, in no particular order.
+--- @param t any the table to iterate
+--- @return any an iterator yielding key and value
 declare function pairs(t: any): any
+--- Returns the key following `key` in a table together with its value; the first entry when `key` is nil.
+--- @param t any the table to traverse
+--- @param key any? the current key
+--- @return any the next key and its value, or nil at the end
 declare function next(t: any, key: any?): any
+--- Returns every argument after the `n`-th one, or the number of extra arguments when `n` is `"#"`.
+--- @param n any an index, negative to count from the end, or `"#"`
+--- @param ... any the arguments to select from
+--- @return any the selected arguments or their count
 declare function select(n: any, ...: any): any
+--- Raises an error with `message`. Never returns.
+--- @param message any the error value, usually a string
+--- @param level number? which caller the error position points at: 1 is the caller of `error` (default), 0 adds no position
 declare function error(message: any, level: number?): never
+--- Raises an error when `v` is false or nil; otherwise returns all its arguments.
+--- @param v any the value to check
+--- @param message any? the error message, `"assertion failed!"` when omitted
+--- @return any its arguments
 declare function assert(v: any, message: any?): any
+--- Calls `f` in protected mode: an error inside it is caught instead of propagated.
+--- @param f any the function to call
+--- @param ... any the arguments to pass
+--- @return any `true` followed by the results of `f`, or `false` and the error
 declare function pcall(f: any, ...: any): any
+--- Like `pcall`, but passes an error to `handler` first, which can add a traceback.
+--- @param f any the function to call
+--- @param handler any called with the error; its result is returned in its place
+--- @param ... any the arguments to pass
+--- @return any `true` followed by the results of `f`, or `false` and the handler's result
 declare function xpcall(f: any, handler: any, ...: any): any
+--- Returns the elements of a list from `i` to `j` as separate values (Lua 5.1; `table.unpack` since 5.2).
+--- @param list any the list to unpack
+--- @param i number? the first index, 1 when omitted
+--- @param j number? the last index, the length of the list when omitted
+--- @return ...any the elements
 declare function unpack(list: any, i: number?, j: number?): ...any
+--- Reads `t[key]` without invoking the `__index` metamethod.
+--- @param t any the table
+--- @param key any the key
+--- @return any the stored value
 declare function rawget(t: any, key: any): any
+--- Sets `t[key] = v` without invoking the `__newindex` metamethod.
+--- @param t any the table
+--- @param key any the key
+--- @param v any the value to store
+--- @return any the table
 declare function rawset(t: any, key: any, v: any): any
+--- Compares two values without invoking the `__eq` metamethod.
+--- @return boolean whether they are primitively equal
 declare function rawequal(a: any, b: any): boolean
+--- Returns the length of a table or string without invoking the `__len` metamethod.
+--- @param t any the table or string
+--- @return number its length
 declare function rawlen(t: any): number
+--- Sets or removes the metatable of a table.
+--- @param t any the table
+--- @param mt any? the new metatable, or nil to remove it
+--- @return any the table
 declare function setmetatable(t: any, mt: any?): any
+--- Returns the metatable of a value, or its `__metatable` field when the metatable has one.
+--- @param t any the value
+--- @return any the metatable, or nil
 declare function getmetatable(t: any): any
+--- Loads a module once and returns what it returned; later calls return the cached value from `package.loaded`.
+--- @param modname string the module name, dot separated
+--- @return any the module
 declare function require(modname: string): any
+--- Runs a Lua file and returns everything the chunk returns.
+--- @param filename string? the file to run; standard input when omitted
+--- @return any the results of the chunk
 declare function dofile(filename: string?): any
+--- Compiles a Lua file into a function without running it.
+--- @param filename string? the file to load; standard input when omitted
+--- @param mode string? `"b"`, `"t"` or `"bt"`: whether binary and/or text chunks are allowed
+--- @param env any? the environment the chunk runs in
+--- @return any the compiled function, or nil and an error message
 declare function loadfile(filename: string?, mode: string?, env: any?): any
+--- Compiles a chunk given as a string, or produced by repeatedly calling a function, without running it.
+--- @param chunk any the source string, or a function returning pieces of it
+--- @param chunkname string? the name used in error messages
+--- @param mode string? `"b"`, `"t"` or `"bt"`: whether binary and/or text chunks are allowed
+--- @param env any? the environment the chunk runs in
+--- @return any the compiled function, or nil and an error message
 declare function load(chunk: any, chunkname: string?, mode: string?, env: any?): any
+--- Compiles a string into a function without running it (Lua 5.1; `load` since 5.2).
+--- @param s string the source
+--- @param chunkname string? the name used in error messages
+--- @return any the compiled function, or nil and an error message
 declare function loadstring(s: string, chunkname: string?): any
+--- Controls the garbage collector.
+--- @param opt string? `"collect"` (default) for a full cycle, `"count"` for the memory in use in KB, or `"step"`, `"stop"`, `"restart"`, `"incremental"`, `"generational"`, `"isrunning"`
+--- @param arg any? an argument for the chosen option
+--- @return any what the option reports
 declare function collectgarbage(opt: string?, arg: any?): any
 
 -- --- string ----------------------------------------------------------------
 
+--- String manipulation: searching, formatting, substitution and binary packing. Strings use these as methods too, so `s:upper()` is `string.upper(s)`.
 declare interface StringLib
+    --- Returns the numeric codes of the characters from `i` to `j`.
+    --- @param s string the string
+    --- @param i number? the first position, 1 when omitted
+    --- @param j number? the last position, `i` when omitted
+    --- @return number the character codes
     function byte(s: string, i: number?, j: number?): number
+    --- Builds a string from numeric character codes.
+    --- @param ... number the character codes
+    --- @return string the string
     function char(...: number): string
+    --- Returns the binary representation of a Lua function, which `load` can turn back into a function.
+    --- @param f any the function to dump
+    --- @param strip boolean? leave out debug information
+    --- @return string the binary chunk
     function dump(f: any, strip: boolean?): string
+    --- Finds the first match of a pattern and returns where it starts and ends.
+    --- @param s string the string to search
+    --- @param pattern string a Lua pattern, or plain text when `plain` is true
+    --- @param init number? where to start searching, negative to count from the end
+    --- @param plain boolean? search for the pattern as plain text
+    --- @return number? the start of the match, or nil when there is none
+    --- @return number? the end of the match
     function find(s: string, pattern: string, init: number?, plain: boolean?): (number?, number?)
+    --- Formats its arguments following a printf-style format string: `%d`, `%s`, `%q`, `%f`, `%x` and so on.
+    --- @param fmt string the format string
+    --- @param ... any the values to format
+    --- @return string the formatted string
     function format(fmt: string, ...: any): string
+    --- Iterates over every match of a pattern, yielding the captures or the whole match.
+    --- @param s string the string to search
+    --- @param pattern string a Lua pattern
+    --- @return any an iterator over the matches
     function gmatch(s: string, pattern: string): any
+    --- Replaces matches of a pattern and returns the result together with how many were replaced.
+    --- @param s string the string to search
+    --- @param pattern string a Lua pattern
+    --- @param repl any a replacement string (`%1` refers to captures), a table keyed by the match, or a function called with the captures
+    --- @param n number? the maximum number of replacements
+    --- @return string the new string
+    --- @return number the number of replacements
     function gsub(s: string, pattern: string, repl: any, n: number?): (string, number)
+    --- Returns the length of a string in bytes.
+    --- @param s string the string
+    --- @return number its length
     function len(s: string): number
+    --- Returns a copy with every uppercase letter turned lowercase.
+    --- @param s string the string
+    --- @return string the lowercase string
     function lower(s: string): string
+    --- Repeats a string `n` times, optionally separated by `sep`.
+    --- @param s string the string to repeat
+    --- @param n number how many times
+    --- @param sep string? the separator between the copies
+    --- @return string the repeated string
     function rep(s: string, n: number, sep: string?): string
+    --- Returns the string reversed.
+    --- @param s string the string
+    --- @return string the reversed string
     function reverse(s: string): string
+    --- Returns the part of a string from `i` to `j`; negative positions count from the end.
+    --- @param s string the string
+    --- @param i number the first position
+    --- @param j number? the last position, the end of the string when omitted
+    --- @return string the substring
     function sub(s: string, i: number, j: number?): string
+    --- Returns a copy with every lowercase letter turned uppercase.
+    --- @param s string the string
+    --- @return string the uppercase string
     function upper(s: string): string
+    --- Serializes values into a binary string following a format such as `"i4d"` (Lua 5.3+).
+    --- @param fmt string the format
+    --- @param ... any the values to pack
+    --- @return string the packed bytes
     function pack(fmt: string, ...: any): string
+    --- Returns the size of a string packed with a format that has only fixed-size items (Lua 5.3+).
+    --- @param fmt string the format
+    --- @return number the size in bytes
     function packsize(fmt: string): number
+    --- Reads values packed with `string.pack` back out of a binary string (Lua 5.3+).
+    --- @param fmt string the format
+    --- @param s string the packed bytes
+    --- @param pos number? where to start reading, 1 when omitted
+    --- @return any the values, followed by the position after the last one read
     function unpack(fmt: string, s: string, pos: number?): any
 end
 
+--- String manipulation: searching, formatting, substitution and binary packing.
 declare string: StringLib
 
 -- --- table -----------------------------------------------------------------
 
+--- Functions for lists and tables: inserting, removing, sorting and joining.
 declare interface TableLib
+    --- Joins the elements of a list of strings or numbers.
+    --- @param list any the list
+    --- @param sep string? the separator, empty when omitted
+    --- @param i number? the first index, 1 when omitted
+    --- @param j number? the last index, the length of the list when omitted
+    --- @return string the joined string
     function concat(list: any, sep: string?, i: number?, j: number?): string
+    --- Appends a value to a list, or inserts it at a position and shifts the rest up.
+    --- @param list any the list
+    --- @param posOrValue any the value to append, or the position to insert at when `value` is given
+    --- @param value any? the value to insert at `posOrValue`
     function insert(list: any, posOrValue: any, value: any?): nil
+    --- Removes an element from a list, shifting the rest down, and returns it.
+    --- @param list any the list
+    --- @param pos number? the position to remove, the last element when omitted
+    --- @return any the removed element
     function remove(list: any, pos: number?): any
+    --- Sorts a list in place.
+    --- @param list any the list
+    --- @param comp any? a function `(a, b) -> boolean` returning whether `a` goes before `b`; `<` when omitted
     function sort(list: any, comp: any?): nil
+    --- Returns the elements of a list from `i` to `j` as separate values (Lua 5.2+).
+    --- @param list any the list
+    --- @param i number? the first index, 1 when omitted
+    --- @param j number? the last index, the length of the list when omitted
+    --- @return ...any the elements
     function unpack(list: any, i: number?, j: number?): ...any
+    --- Packs its arguments into a list whose field `n` holds how many there were (Lua 5.2+).
+    --- @param ... any the values
+    --- @return any the list
     function pack(...: any): any
+    --- Copies `a1[f..e]` into `a2` (or `a1`) starting at index `t`, handling overlapping ranges (Lua 5.3+).
+    --- @param a1 any the source list
+    --- @param f number the first index to copy
+    --- @param e number the last index to copy
+    --- @param t number where the copy starts in the destination
+    --- @param a2 any? the destination, `a1` when omitted
+    --- @return any the destination
     function move(a1: any, f: number, e: number, t: number, a2: any?): any
+    --- Returns the largest positive numeric key of a table (Lua 5.1).
+    --- @param list any the table
+    --- @return number the largest numeric key, 0 when there is none
     function maxn(list: any): number
+    --- Returns the length of a list (Lua 5.1; the `#` operator since 5.2).
+    --- @param list any the list
+    --- @return number its length
     function getn(list: any): number
 end
 
+--- Functions for lists and tables: inserting, removing, sorting and joining.
 declare table: TableLib
 
 -- --- math ------------------------------------------------------------------
 
+--- Mathematical functions and constants.
 declare interface MathLib
+    --- The value of π.
     pi: number
+    --- A value larger than any other number: positive infinity.
     huge: number
+    --- The smallest integer (Lua 5.3+).
     mininteger: number
+    --- The largest integer (Lua 5.3+).
     maxinteger: number
 
+    --- Returns the absolute value of `x`.
     function abs(x: number): number
+    --- Returns the arc cosine of `x`, in radians.
     function acos(x: number): number
+    --- Returns the arc sine of `x`, in radians.
     function asin(x: number): number
+    --- Returns the arc tangent of `y / x` in radians, using the signs of both to find the quadrant.
+    --- @param y number the y coordinate
+    --- @param x number? the x coordinate, 1 when omitted
     function atan(y: number, x: number?): number
+    --- Returns the arc tangent of `y / x` in radians, using the signs of both to find the quadrant (Lua 5.1; `atan` with two arguments since 5.3).
     function atan2(y: number, x: number): number
+    --- Returns the smallest integer greater than or equal to `x`.
     function ceil(x: number): number
+    --- Returns the cosine of `x`, given in radians.
     function cos(x: number): number
+    --- Returns the hyperbolic cosine of `x`.
     function cosh(x: number): number
+    --- Converts an angle from radians to degrees.
     function deg(x: number): number
+    --- Returns e raised to the power `x`.
     function exp(x: number): number
+    --- Returns the largest integer less than or equal to `x`.
     function floor(x: number): number
+    --- Returns the remainder of `x / y`, rounding the quotient towards zero.
     function fmod(x: number, y: number): number
+    --- Splits `x` into a mantissa in [0.5, 1) and an exponent, so that `x = m * 2^e`.
+    --- @return number the mantissa
+    --- @return number the exponent
     function frexp(x: number): (number, number)
+    --- Returns `m * 2^e`.
     function ldexp(m: number, e: number): number
+    --- Returns the logarithm of `x`.
+    --- @param x number the value
+    --- @param base number? the base, e when omitted
     function log(x: number, base: number?): number
+    --- Returns the base-10 logarithm of `x`.
     function log10(x: number): number
+    --- Returns the largest of its arguments.
     function max(...: number): number
+    --- Returns the smallest of its arguments.
     function min(...: number): number
+    --- Splits `x` into its integral and fractional parts.
+    --- @return number the integral part
+    --- @return number the fractional part
     function modf(x: number): (number, number)
+    --- Returns `x` raised to the power `y` (Lua 5.1; the `^` operator otherwise).
     function pow(x: number, y: number): number
+    --- Converts an angle from degrees to radians.
     function rad(x: number): number
+    --- Returns a random number: a float in [0, 1) without arguments, an integer in [1, m] with one, an integer in [m, n] with two.
+    --- @param m number? the upper bound, or the lower bound when `n` is given
+    --- @param n number? the upper bound
     function random(m: number?, n: number?): number
+    --- Seeds the random number generator, which makes `math.random` repeat the same sequence for the same seed.
+    --- @param seed number? the seed; a random one when omitted (Lua 5.4)
     function randomseed(seed: number?, ...: number): nil
+    --- Returns the sine of `x`, given in radians.
     function sin(x: number): number
+    --- Returns the hyperbolic sine of `x`.
     function sinh(x: number): number
+    --- Returns the square root of `x`.
     function sqrt(x: number): number
+    --- Returns the tangent of `x`, given in radians.
     function tan(x: number): number
+    --- Returns the hyperbolic tangent of `x`.
     function tanh(x: number): number
+    --- Converts `x` to an integer when it has an exact integer value (Lua 5.3+).
+    --- @return number? the integer, or nil
     function tointeger(x: any): number?
+    --- Tells integers from floats (Lua 5.3+).
+    --- @return string? `"integer"`, `"float"`, or nil when `x` is not a number
     function type(x: any): string?
+    --- Compares two integers as if they were unsigned (Lua 5.3+).
+    --- @return boolean whether `m` is below `n`
     function ult(m: number, n: number): boolean
 end
 
+--- Mathematical functions and constants.
 declare math: MathLib
 
 -- --- io --------------------------------------------------------------------
 
+--- An open file, as returned by `io.open`. Call its methods with `:`, such as `file:read("a")`.
 declare interface IoFile
-    function close(self: any): boolean
-    function flush(self: any): any
-    function lines(self: any, ...: any): any
-    function read(self: any, ...: any): any
-    function seek(self: any, whence: string?, offset: number?): number?
-    function setvbuf(self: any, mode: string, size: number?): any
-    function write(self: any, ...: any): any
+    --- Closes the file.
+    --- @return boolean whether it closed cleanly
+    method close(): boolean
+    --- Writes any buffered data to the file.
+    method flush(): any
+    --- Iterates over the file, reading with the given formats each time; line by line when none are given.
+    --- @param ... any read formats, as for `file:read`
+    method lines(...: any): any
+    --- Reads from the file following formats: `"l"` a line, `"L"` a line with its newline, `"n"` a number, `"a"` everything, or a number of bytes.
+    --- @param ... any the formats, `"l"` when omitted
+    --- @return any what was read for each format, nil at the end of the file
+    method read(...: any): any
+    --- Gets or sets the file position.
+    --- @param whence string? `"set"` from the start, `"cur"` from the current position (default) or `"end"` from the end
+    --- @param offset number? the offset, 0 when omitted
+    --- @return number? the resulting position from the start of the file
+    method seek(whence: string?, offset: number?): number?
+    --- Sets how writes are buffered.
+    --- @param mode string `"no"`, `"full"` or `"line"`
+    --- @param size number? the buffer size in bytes
+    method setvbuf(mode: string, size: number?): any
+    --- Writes strings or numbers to the file.
+    --- @param ... any the values to write
+    --- @return any the file, or nil and an error message
+    method write(...: any): any
 end
 
+--- Input and output through files and the standard streams.
 declare interface IoLib
+    --- Standard input.
     stdin: IoFile
+    --- Standard output.
     stdout: IoFile
+    --- Standard error.
     stderr: IoFile
 
+    --- Opens a file.
+    --- @param filename string the path
+    --- @param mode string? `"r"` read (default), `"w"` write, `"a"` append, with `"+"` for update and `"b"` for binary
+    --- @return IoFile? the file, or nil when it cannot be opened
     function open(filename: string, mode: string?): IoFile?
+    --- Closes a file, or the default output file when none is given.
     function close(file: any?): any
+    --- Writes any buffered data of the default output file.
     function flush(): any
+    --- Sets the default input file by name or handle, or returns it when called without arguments.
     function input(file: any?): IoFile
+    --- Sets the default output file by name or handle, or returns it when called without arguments.
     function output(file: any?): IoFile
+    --- Iterates over the lines of a file, closing it at the end; over standard input when no name is given.
+    --- @param filename string? the file to read
+    --- @param ... any read formats, as for `file:read`
     function lines(filename: string?, ...: any): any
+    --- Reads from the default input file, as `io.input():read(...)`.
     function read(...: any): any
+    --- Writes to the default output file, as `io.output():write(...)`.
     function write(...: any): any
+    --- Runs a program and returns a file connected to its output or input.
+    --- @param prog string the command line
+    --- @param mode string? `"r"` to read its output (default) or `"w"` to write to its input
     function popen(prog: string, mode: string?): IoFile?
+    --- Opens a temporary file in update mode, removed when the program ends.
     function tmpfile(): IoFile
+    --- Tells whether a value is a file handle.
+    --- @return string? `"file"`, `"closed file"`, or nil when it is not a file
     function type(obj: any): string?
 end
 
+--- Input and output through files and the standard streams.
 declare io: IoLib
 
 -- --- os --------------------------------------------------------------------
 
+--- Operating system facilities: time, environment, processes and files.
 declare interface OsLib
+    --- Returns the CPU time used by the program, in seconds.
     function clock(): number
+    --- Formats a time as a string, or as a table with `"*t"`.
+    --- @param format string? a strftime-style format; `"!"` at the start means UTC, `"*t"` returns a table
+    --- @param time number? the time to format, now when omitted
     function date(format: string?, time: number?): any
+    --- Returns the number of seconds from `t1` to `t2`.
     function difftime(t2: number, t1: number): number
+    --- Runs a shell command.
+    --- @param command string? the command; without one, reports whether a shell is available
+    --- @return any whether it succeeded, how it ended and its exit status
     function execute(command: string?): any
+    --- Ends the program. Never returns.
+    --- @param code any? `true` or an exit code for success (default), `false` for failure
+    --- @param close boolean? close the Lua state before exiting
     function exit(code: any?, close: boolean?): never
+    --- Returns the value of an environment variable, or nil when it is not set.
     function getenv(varname: string): string?
+    --- Deletes a file or an empty directory.
+    --- @return boolean whether it was removed
     function remove(filename: string): boolean
+    --- Renames or moves a file.
+    --- @return boolean whether it was renamed
     function rename(oldname: string, newname: string): boolean
+    --- Sets or queries the current locale.
+    --- @param locale string? the locale, nil to query
+    --- @param category string? `"all"` (default), `"collate"`, `"ctype"`, `"monetary"`, `"numeric"` or `"time"`
     function setlocale(locale: string?, category: string?): string?
+    --- Returns the current time, or the time a date table describes, as seconds since the epoch.
+    --- @param t any? a table with `year`, `month`, `day` and optionally `hour`, `min`, `sec`
     function time(t: any?): number
+    --- Returns a name usable for a temporary file.
     function tmpname(): string
 end
 
+--- Operating system facilities: time, environment, processes and files.
 declare os: OsLib
 
 -- --- coroutine -------------------------------------------------------------
 
+--- Coroutines: functions that can suspend themselves with `yield` and be resumed later.
 declare interface CoroutineLib
+    --- Creates a coroutine that runs `f` when first resumed.
+    --- @param f any the body
     function create(f: any): thread
+    --- Starts or continues a coroutine, passing values to it.
+    --- @param co thread the coroutine
+    --- @param ... any the arguments on the first resume, the results of `yield` afterwards
+    --- @return any `true` and what it yielded or returned, or `false` and the error
     function resume(co: thread, ...: any): any
+    --- Suspends the running coroutine, handing values back to `resume`.
+    --- @param ... any the values `resume` returns
+    --- @return any the values passed to the next `resume`
     function yield(...: any): any
+    --- Returns the state of a coroutine: `"running"`, `"suspended"`, `"normal"` or `"dead"`.
     function status(co: thread): string
+    --- Creates a coroutine and returns a function that resumes it each time it is called, raising its errors.
+    --- @param f any the body
     function wrap(f: any): function
+    --- Tells whether the running code can yield.
     function isyieldable(co: thread?): boolean
+    --- Returns the running coroutine and whether it is the main one.
     function running(): (thread, boolean)
+    --- Closes a suspended or dead coroutine, running its pending to-be-closed variables (Lua 5.4).
+    --- @return boolean whether it closed without error
+    --- @return any the error, when there was one
     function close(co: thread): (boolean, any)
 end
 
+--- Coroutines: functions that can suspend themselves with `yield` and be resumed later.
 declare coroutine: CoroutineLib
 
 -- --- debug -----------------------------------------------------------------
 
+--- Introspection and hooks for debugging. Bypasses normal rules, so use it with care.
 declare interface DebugLib
+    --- Enters an interactive debug console reading commands from standard input.
     function debug(): nil
+    --- Returns the current hook function, mask and count of a thread.
     function gethook(co: any?): any
+    --- Returns a table describing a function or a stack level.
+    --- @param thread any the thread, or the function or level when no thread is given
+    --- @param f any? the function or stack level
+    --- @param what string? which fields to fill, such as `"nSl"`
     function getinfo(thread: any, f: any?, what: string?): any
+    --- Returns the name and value of a local variable at a stack level.
     function getlocal(thread: any, level: any, idx: number?): any
+    --- Returns the metatable of a value, ignoring `__metatable`.
     function getmetatable(value: any): any
+    --- Returns the registry table.
     function getregistry(): any
+    --- Returns the name and value of an upvalue of a function.
     function getupvalue(f: any, up: number): any
+    --- Returns the user value attached to a userdata.
     function getuservalue(u: any, n: number?): any
+    --- Sets a function to be called on calls (`"c"`), returns (`"r"`), new lines (`"l"`) or every `count` instructions.
     function sethook(thread: any, hook: any?, mask: string?, count: number?): nil
+    --- Sets the value of a local variable at a stack level.
+    --- @return string? the name of the variable, or nil when there is none
     function setlocal(thread: any, level: any, idx: number, value: any?): string?
+    --- Sets the metatable of any value, ignoring `__metatable`.
     function setmetatable(value: any, table: any?): any
+    --- Sets the value of an upvalue of a function.
+    --- @return string? the name of the upvalue, or nil when there is none
     function setupvalue(f: any, up: number, value: any): string?
+    --- Attaches a user value to a userdata.
     function setuservalue(udata: any, value: any, n: number?): any
+    --- Returns a stack traceback, optionally prefixed by a message.
+    --- @param thread any? the thread, or the message when no thread is given
+    --- @param message any? the message to put first
+    --- @param level number? the stack level to start at
     function traceback(thread: any?, message: any?, level: number?): string
+    --- Returns a unique identifier of an upvalue, which tells whether two closures share it.
     function upvalueid(f: any, n: number): any
+    --- Makes upvalue `n1` of `f1` refer to upvalue `n2` of `f2`.
     function upvaluejoin(f1: any, n1: number, f2: any, n2: number): nil
 end
 
+--- Introspection and hooks for debugging. Bypasses normal rules, so use it with care.
 declare debug: DebugLib
 
 -- --- package ---------------------------------------------------------------
 
+--- How `require` finds and loads modules.
 declare interface PackageLib
+    --- Compile-time configuration: the directory separator, path separator and template marks, one per line.
     config: string
+    --- The search path for C modules, with `?` standing for the module name.
     cpath: string
+    --- The search path for Lua modules, with `?` standing for the module name.
     path: string
+    --- The modules loaded so far, keyed by name; `require` returns these.
     loaded: { [string]: any }
+    --- Loader functions for modules, keyed by name, consulted before any search.
     preload: { [string]: any }
+    --- The functions `require` tries in order to find a module (Lua 5.2+).
     searchers: any
+    --- The functions `require` tries in order to find a module (Lua 5.1).
     loaders: any
 
+    --- Links a C library and returns one of its functions.
+    --- @param libname string the library file
+    --- @param funcname string the function to look up, or `"*"` to only link the library
     function loadlib(libname: string, funcname: string): any
+    --- Searches a path for a module file.
+    --- @param name string the module name
+    --- @param path string the search path, with `?` standing for the name
+    --- @return string? the first file found, or nil
     function searchpath(name: string, path: string, sep: string?, rep: string?): string?
+    --- Gives a module access to the global environment through its metatable (Lua 5.1).
     function seeall(mod: any): nil
 end
 
+--- How `require` finds and loads modules.
 declare package: PackageLib
 
 -- --- bit32 / bit (LuaJIT, Lua 5.2) -----------------------------------------
 
+--- Bitwise operations on 32-bit integers (`bit32` in Lua 5.2, `bit` in LuaJIT).
 declare interface BitLib
+    --- Shifts `x` right by `n` bits, filling with the sign bit.
     function arshift(x: number, n: number): number
+    --- Returns the bitwise AND of its arguments.
     function band(...: number): number
+    --- Returns the bitwise NOT of `x`.
     function bnot(x: number): number
+    --- Returns the bitwise OR of its arguments.
     function bor(...: number): number
+    --- Returns the bitwise XOR of its arguments.
     function bxor(...: number): number
+    --- Tells whether the bitwise AND of its arguments is not zero.
     function btest(...: number): boolean
+    --- Returns the `width` bits of `n` starting at bit `field`.
     function extract(n: number, field: number, width: number?): number
+    --- Returns `n` with the `width` bits starting at bit `field` replaced by `v`.
     function replace(n: number, v: number, field: number, width: number?): number
+    --- Rotates `x` left by `n` bits.
     function lrotate(x: number, n: number): number
+    --- Rotates `x` right by `n` bits.
     function rrotate(x: number, n: number): number
+    --- Shifts `x` left by `n` bits.
     function lshift(x: number, n: number): number
+    --- Shifts `x` right by `n` bits, filling with zeros.
     function rshift(x: number, n: number): number
+    --- Normalizes a number to the 32-bit integer range (LuaJIT).
     function tobit(x: number): number
+    --- Formats `x` as a hexadecimal string of `n` digits, uppercase when `n` is negative (LuaJIT).
     function tohex(x: number, n: number?): string
 end
 
+--- Bitwise operations on 32-bit integers (LuaJIT).
 declare bit: BitLib
+--- Bitwise operations on 32-bit integers (Lua 5.2).
 declare bit32: BitLib
 
 -- --- jit / ffi (LuaJIT) ----------------------------------------------------
 
+--- Control over LuaJIT's just-in-time compiler.
 declare interface JitLib
+    --- The LuaJIT version string.
     version: string
+    --- The LuaJIT version as a number, such as `20100`.
     version_num: number
+    --- The target architecture, such as `"x64"`.
     arch: string
+    --- The target operating system, such as `"Linux"`.
     os: string
 
+    --- Turns the compiler on, globally or for a function or module.
     function on(...: any): nil
+    --- Turns the compiler off, globally or for a function or module.
     function off(...: any): nil
+    --- Flushes compiled code, globally or for a function or module.
     function flush(...: any): nil
+    --- Returns whether the compiler is on, followed by the enabled CPU features and optimizations.
     function status(): any
+    --- Attaches a callback to a compiler event.
     function attach(callback: any, event: string?): nil
 end
 
+--- Control over LuaJIT's just-in-time compiler.
 declare jit: JitLib
 
 -- Note: ffi.new and ffi.typeof aren't declared because `new` and `typeof` are
 -- reserved Nebra keywords; access them via ffi["new"] / ffi["typeof"] at the
 -- call site for now.
+--- LuaJIT's foreign function interface: declares C types and functions and calls them directly.
 declare interface FfiLib
+    --- The default C library namespace; declared functions are called through it, such as `ffi.C.printf`.
     C: any
+    --- The target architecture, such as `"x64"`.
     arch: string
+    --- The target operating system, such as `"Linux"`.
     os: string
 
+    --- Declares C types and functions from C declaration syntax.
     function cdef(def: string): nil
+    --- Loads a shared library and returns its namespace.
+    --- @param name string the library name or path
+    --- @param global boolean? also make its symbols available through `ffi.C`
     function load(name: string, global: boolean?): any
+    --- Converts a value to a C type, like a C cast.
     function cast(ct: any, init: any): any
+    --- Creates a C type with a metatable, giving its values methods and operators.
     function metatype(ct: any, metatable: any): any
+    --- Attaches a finalizer to a C value, called when it is collected.
     function gc(cdata: any, finalizer: any): any
+    --- Returns the size of a C type in bytes.
     function sizeof(ct: any, nelem: number?): number
+    --- Returns the alignment of a C type in bytes.
     function alignof(ct: any): number
+    --- Returns the offset of a field within a C struct in bytes.
     function offsetof(ct: any, field: string): number
+    --- Tells whether a value has a given C type.
     function istype(ct: any, obj: any): boolean
+    --- Returns the C `errno`, and sets it when given a value.
     function errno(newerr: number?): number
+    --- Creates a Lua string from a C pointer, up to the first zero byte or `len` bytes.
     function string(ptr: any, len: number?): string
+    --- Copies `len` bytes from `src` to `dst`, or a Lua string including its terminating zero.
     function copy(dst: any, src: any, len: number?): nil
+    --- Fills `len` bytes at `dst` with `c`, zero when omitted.
     function fill(dst: any, len: number, c: any?): nil
+    --- Tells whether the target ABI has a property, such as `"64bit"` or `"le"`.
     function abi(param: string): boolean
 end
 
+--- LuaJIT's foreign function interface: declares C types and functions and calls them directly.
 declare ffi: FfiLib

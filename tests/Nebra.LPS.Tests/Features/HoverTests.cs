@@ -185,6 +185,22 @@ public sealed class HoverTests
 
         await session.OpenAsync("src/main.neb");
 
-        Assert.Contains("function StringLib.upper(s: string): string", await session.HoverAsync("function"));
+        var hover = await session.HoverAsync("function");
+
+        Assert.Contains("function StringLib.upper(s: string): string", hover);
+        Assert.Contains("Returns a copy with every lowercase letter turned uppercase.", hover);
+    }
+
+    [Fact]
+    public async Task HoverShowsTheDocumentationOfStandardLibraryMethods()
+    {
+        await using var session = await LspSession.StartAsync(
+            ("src/main.neb", "local file = io.open(\"data.txt\")\nif file ~= nil then\n    print(file:{|method|}read(\"a\"))\nend\n"));
+
+        await session.OpenAsync("src/main.neb");
+        var hover = await session.HoverAsync("method");
+
+        Assert.Contains("method IoFile:read(...: any): any", hover);
+        Assert.Contains("Reads from the file following formats", hover);
     }
 }

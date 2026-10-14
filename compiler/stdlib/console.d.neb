@@ -1,34 +1,90 @@
 -- Console / prompt utilities. Accessible as the global `console`.
 -- Interactive prompts fall back to defaults when stdin/stdout is redirected.
 
+--- An animated spinner, as returned by `console.spinner`. Call its methods with `:`.
 declare interface Spinner
-    update: (string) -> nil
-    stop: (boolean?, string?) -> nil
-    succeed: (string?) -> nil
-    fail: (string?) -> nil
+    --- Replaces the message shown next to the spinner.
+    method update(message: string): nil
+    --- Stops the spinner and prints its outcome.
+    --- @param success boolean? whether to show success (default) or failure
+    --- @param message string? the final message, the current one when omitted
+    method stop(success: boolean?, message: string?): nil
+    --- Stops the spinner and shows success.
+    --- @param message string? the final message, the current one when omitted
+    method succeed(message: string?): nil
+    --- Stops the spinner and shows failure.
+    --- @param message string? the final message, the current one when omitted
+    method fail(message: string?): nil
 end
 
+--- A progress bar, as returned by `console.progress`. Call its methods with `:`.
 declare interface ProgressBar
-    update: (number, string?) -> nil
-    increment: (number?) -> nil
-    setMessage: (string) -> nil
-    finish: (string?) -> nil
+    --- Moves the bar to an absolute position.
+    --- @param current number the amount done so far
+    --- @param message string? a new message to show
+    method update(current: number, message: string?): nil
+    --- Advances the bar.
+    --- @param step number? how much to advance, 1 when omitted
+    method increment(step: number?): nil
+    --- Replaces the message shown next to the bar.
+    method setMessage(message: string): nil
+    --- Fills the bar and ends it.
+    --- @param message string? the final message
+    method finish(message: string?): nil
 end
 
-declare console: {
-    print: (string) -> nil,
-    info: (string) -> nil,
-    success: (string) -> nil,
-    warn: (string) -> nil,
-    error: (string) -> nil,
-    header: (string) -> nil,
-    dim: (string) -> nil,
-    blank: () -> nil,
-    input: (string, string?) -> string,
-    password: (string) -> string,
-    confirm: (string, boolean?) -> boolean,
-    select: (string, string[], number?) -> string,
-    multiselect: (string, string[], string[]?) -> string[],
-    spinner: (string) -> Spinner,
-    progress: (number, string?) -> ProgressBar,
-}
+--- Colored terminal output and interactive prompts.
+declare interface ConsoleLib
+    --- Prints a plain line.
+    function print(message: string): nil
+    --- Prints an informational line, marked with a cyan `ℹ`.
+    function info(message: string): nil
+    --- Prints a success line, marked with a green `✓`.
+    function success(message: string): nil
+    --- Prints a warning line, marked with a yellow `⚠`.
+    function warn(message: string): nil
+    --- Prints an error line, marked with a red `✗`.
+    function error(message: string): nil
+    --- Prints a bold heading.
+    function header(message: string): nil
+    --- Prints a dimmed line.
+    function dim(message: string): nil
+    --- Prints an empty line.
+    function blank(): nil
+    --- Asks for a line of text. Without an interactive terminal it returns the default without waiting.
+    --- @param prompt string the question
+    --- @param defaultValue string? what an empty answer stands for
+    --- @return string the answer
+    function input(prompt: string, defaultValue: string?): string
+    --- Asks for a secret without echoing what is typed.
+    --- @param prompt string the question
+    --- @return string the answer
+    function password(prompt: string): string
+    --- Asks a yes/no question, accepting y, yes, n and no.
+    --- @param prompt string the question
+    --- @param defaultValue boolean? what an empty answer stands for, no when omitted
+    --- @return boolean whether the answer was yes
+    function confirm(prompt: string, defaultValue: boolean?): boolean
+    --- Lets the user pick one option with the arrow keys.
+    --- @param prompt string the question
+    --- @param options string[] the options
+    --- @param defaultIndex number? the option chosen without an interactive terminal, 1 when omitted
+    --- @return string the chosen option
+    function select(prompt: string, options: string[], defaultIndex: number?): string
+    --- Lets the user pick any number of options, toggling with Space and confirming with Enter.
+    --- @param prompt string the question
+    --- @param options string[] the options
+    --- @param defaults string[]? the options chosen up front, and without an interactive terminal
+    --- @return string[] the chosen options
+    function multiselect(prompt: string, options: string[], defaults: string[]?): string[]
+    --- Starts an animated spinner; finish it with `:stop`, `:succeed` or `:fail`.
+    --- @param message string the message next to the spinner
+    function spinner(message: string): Spinner
+    --- Starts a progress bar; advance it with `:update` or `:increment` and end it with `:finish`.
+    --- @param total number the amount that fills the bar
+    --- @param message string? the message next to the bar
+    function progress(total: number, message: string?): ProgressBar
+end
+
+--- Colored terminal output and interactive prompts.
+declare console: ConsoleLib

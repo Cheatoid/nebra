@@ -1,55 +1,104 @@
 declare module "nebra.annotation"
+    --- The kinds of declaration an annotation can be written on.
     enum AnnotationTarget
+        --- A global function.
         Function
+        --- A local function.
         LocalFunction
+        --- A local or global variable.
         Variable
+        --- A function parameter.
         Parameter
+        --- An enum.
         Enum
+        --- A member of an enum.
         EnumMember
+        --- A class.
         Class
+        --- A method of a class.
         ClassMethod
+        --- A field of a class.
         ClassField
+        --- The constructor of a class.
         ClassConstructor
+        --- A getter or setter of a class.
         ClassAccessor
+        --- An interface.
         Interface
+        --- A method of an interface.
         InterfaceMethod
+        --- A field of an interface.
         InterfaceField
     end
 
+    --- How one parameter of an annotation is declared.
     interface AnnotationParamSpec
+        --- The type the argument must have.
         type: string
+        --- The value used when the argument is left out.
         default: any
+        --- Whether the argument has to be given.
         required: boolean
     end
 
+    --- What an annotation file declares about itself: where it may be used and which parameters it takes.
     interface AnnotationMeta
+        --- The kind of declaration the annotation applies to.
         target: AnnotationTarget
+        --- The parameters, by name.
         params: { [string]: AnnotationParamSpec }
     end
 
+    --- A node of the program an annotation receives and returns.
     interface IRNode
+        --- The node kind, such as `"FunctionCallExpr"`.
         kind: string
+        --- The node's identifier.
         id: number
+        --- Where the node is written: start line, start column, end line, end column.
         span: number[]
     end
 
-    declare ir: {
-        stringLiteral: (value: string) -> IRNode,
-        numberLiteral: (raw: string) -> IRNode,
-        boolLiteral: (value: boolean) -> IRNode,
-        nilLiteral: () -> IRNode,
-        nameExpr: (name: string) -> IRNode,
-        call: (callee: any, args: IRNode[]) -> IRNode,
-        methodCall: (object: IRNode, method: string, args: IRNode[]) -> IRNode,
-        dotAccess: (object: IRNode, field: string) -> IRNode,
-        exprStmt: (expr: IRNode) -> IRNode,
-        returnStmt: (values: IRNode[]) -> IRNode,
-        localDecl: (name: string, value: IRNode?) -> IRNode,
-        newExpr: (className: string, args: IRNode[]?) -> IRNode,
-        varargExpr: () -> IRNode,
-        param: (name: string, opts: { isVararg: boolean? }?) -> IRNode,
-        functionDef: (params: IRNode[], body: IRNode[], returnStmt: IRNode?) -> IRNode,
-        varargMethodCallClosure: (instExpr: IRNode, methodName: string) -> IRNode,
-        annotation: (name: string, args: any[]) -> IRNode,
-    }
+    --- Builds new program nodes for an annotation to return.
+    interface IRBuilder
+        --- A string literal.
+        function stringLiteral(value: string): IRNode
+        --- A number literal, written as in source.
+        function numberLiteral(raw: string): IRNode
+        --- A `true` or `false` literal.
+        function boolLiteral(value: boolean): IRNode
+        --- A `nil` literal.
+        function nilLiteral(): IRNode
+        --- A reference to a name.
+        function nameExpr(name: string): IRNode
+        --- A call of `callee` with `args`.
+        --- @param callee any the node or name to call
+        function call(callee: any, args: IRNode[]): IRNode
+        --- A method call, `object:method(args)`.
+        function methodCall(object: IRNode, method: string, args: IRNode[]): IRNode
+        --- A field access, `object.field`.
+        function dotAccess(object: IRNode, field: string): IRNode
+        --- An expression used as a statement.
+        function exprStmt(expr: IRNode): IRNode
+        --- A `return` of `values`.
+        function returnStmt(values: IRNode[]): IRNode
+        --- A `local` declaration, optionally with a value.
+        function localDecl(name: string, value: IRNode?): IRNode
+        --- A `new` expression constructing `className`.
+        function newExpr(className: string, args: IRNode[]?): IRNode
+        --- The vararg expression `...`.
+        function varargExpr(): IRNode
+        --- A function parameter.
+        --- @param opts { isVararg: boolean? }? whether it is the `...` parameter
+        function param(name: string, opts: { isVararg: boolean? }?): IRNode
+        --- An anonymous function.
+        function functionDef(params: IRNode[], body: IRNode[], returnStmt: IRNode?): IRNode
+        --- A function forwarding all its arguments to `instExpr:methodName(...)`.
+        function varargMethodCallClosure(instExpr: IRNode, methodName: string): IRNode
+        --- An annotation, `@name(args)`.
+        function annotation(name: string, args: any[]): IRNode
+    end
+
+    --- Builds new program nodes for an annotation to return.
+    declare ir: IRBuilder
 end

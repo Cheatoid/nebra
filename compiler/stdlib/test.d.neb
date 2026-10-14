@@ -5,28 +5,59 @@
 -- discovered test file in turn and then prints an aggregate report.
 
 declare module "nebra:test"
+    --- Checks on a value, as returned by `expect`. Call its methods with `:`, such as `expect(x):toBe(1)`.
     interface Assertion
+        --- Passes when the value is `other`, compared with `==`.
         method toBe(other: any): nil
+        --- Passes when the value equals `other`, comparing tables field by field.
         method toEqual(other: any): nil
+        --- Passes when the number is within `eps` of `other`.
+        --- @param other number the expected number
+        --- @param eps number? the allowed difference, `1e-9` when omitted
         method toBeNear(other: number, eps: number?): nil
+        --- Passes when the value is neither false nor nil.
         method toBeTruthy(): nil
+        --- Passes when the value is false or nil.
         method toBeFalsy(): nil
+        --- Passes when the value is nil.
         method toBeNil(): nil
+        --- Passes when the value is not nil.
         method toBeDefined(): nil
+        --- Passes when a string contains `needle` as plain text, or a table holds it as a value.
         method toContain(needle: any): nil
+        --- Passes when the string matches a Lua pattern.
         method toMatch(pattern: string): nil
+        --- Passes when the length of the string or list is `n`.
         method toHaveLength(n: number): nil
+        --- Passes when calling the function raises an error.
+        --- @param message string? text the error has to contain
         method toThrow(message: string?): nil
+        --- Passes when the value is not `other`, compared with `==`.
         method toNotBe(other: any): nil
+        --- Passes when the value does not equal `other`, comparing tables field by field.
         method toNotEqual(other: any): nil
+        --- Passes when a string does not contain `needle`, or a table does not hold it as a value.
         method toNotContain(needle: any): nil
     end
 
+    --- Registers and runs a test. A failing assertion or error inside `fn` fails it.
+    --- @param name string the test name, which `nebra test <filter>` matches against
+    --- @param fn function the test body
     function test(name: string, fn: () -> nil): nil
+    --- Registers and runs a test; the same as `test`.
+    --- @param name string the test name
+    --- @param fn function the test body
     function it(name: string, fn: () -> nil): nil
+    --- Groups tests under a name; nested names are joined with ` > ` in reports and filters.
+    --- @param name string the group name
+    --- @param fn function registers the tests of the group
     function describe(name: string, fn: () -> nil): nil
+    --- Runs `fn` before every test of the current group.
     function beforeEach(fn: () -> nil): nil
+    --- Runs `fn` after every test of the current group.
     function afterEach(fn: () -> nil): nil
+    --- Reports a test as skipped without running it.
     function skip(name: string, fn: () -> nil): nil
+    --- Starts a check on a value; follow it with an assertion such as `:toBe(...)`.
     function expect(value: any): Assertion
 end

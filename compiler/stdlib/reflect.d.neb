@@ -11,16 +11,16 @@
 -- Classes, enums, functions and variables carry a live `ref` handle; interfaces
 -- are erased at runtime and therefore have no `ref`.
 
--- A structural description of a type. The `kind` field selects which of the
--- remaining fields are present:
---   "primitive"  name           ("number", "string", "boolean", "nil", ...)
---   "named"      id             (registry id; resolve with reflect.get)
---   "array"      element
---   "map"        key, value
---   "union"      types
---   "variadic"   element
---   "tuple"      elements
---   "function"   params, returns
+--- A structural description of a type. The `kind` field selects which of the
+--- remaining fields are present:
+---   "primitive"  name           ("number", "string", "boolean", "nil", ...)
+---   "named"      id             (registry id; resolve with reflect.get)
+---   "array"      element
+---   "map"        key, value
+---   "union"      types
+---   "variadic"   element
+---   "tuple"      elements
+---   "function"   params, returns
 declare interface TypeDesc
     kind: string
     name: string?
@@ -34,18 +34,20 @@ declare interface TypeDesc
     returns: TypeDesc?
 end
 
--- An annotation preserved for runtime inspection. `args` is a plain table that
--- mixes positional entries (array part) with named entries (`name = value`).
+--- An annotation preserved for runtime inspection. `args` is a plain table that
+--- mixes positional entries (array part) with named entries (`name = value`).
 declare interface AnnotationInfo
     name: string
     args: any
 end
 
+--- A parameter of a reflected function or method.
 declare interface ParamInfo
     name: string
     type: TypeDesc
 end
 
+--- A field of a reflected class or interface.
 declare interface FieldInfo
     name: string
     type: TypeDesc
@@ -54,6 +56,7 @@ declare interface FieldInfo
     annotations: AnnotationInfo[]?
 end
 
+--- A method of a reflected class or interface.
 declare interface MethodInfo
     name: string
     params: ParamInfo[]
@@ -65,8 +68,8 @@ declare interface MethodInfo
     annotations: AnnotationInfo[]?
 end
 
--- Registry entry for a class. `ref` is the live class table (call `.new` on it,
--- or use reflect.create). `base` and `interfaces` hold registry ids.
+--- Registry entry for a class. `ref` is the live class table (call `.new` on it,
+--- or use reflect.create). `base` and `interfaces` hold registry ids.
 declare interface ClassInfo
     kind: string
     name: string
@@ -79,8 +82,8 @@ declare interface ClassInfo
     ref: any
 end
 
--- Registry entry for an interface. Interfaces are erased at runtime, so there is
--- no `ref`; `bases` holds the registry ids of the base interfaces.
+--- Registry entry for an interface. Interfaces are erased at runtime, so there is
+--- no `ref`; `bases` holds the registry ids of the base interfaces.
 declare interface InterfaceInfo
     kind: string
     name: string
@@ -90,12 +93,13 @@ declare interface InterfaceInfo
     annotations: AnnotationInfo[]?
 end
 
+--- A member of a reflected enum and the value it stands for.
 declare interface EnumMemberInfo
     name: string
     value: any
 end
 
--- Registry entry for an enum. `ref` is the live enum table.
+--- Registry entry for an enum. `ref` is the live enum table.
 declare interface EnumInfo
     kind: string
     name: string
@@ -104,8 +108,8 @@ declare interface EnumInfo
     ref: any
 end
 
--- Registry entry for a top-level function. `ref` is the live function; call it
--- directly or via reflect.invoke.
+--- Registry entry for a top-level function. `ref` is the live function; call it
+--- directly or via reflect.invoke.
 declare interface FunctionInfo
     kind: string
     name: string
@@ -115,8 +119,8 @@ declare interface FunctionInfo
     ref: any
 end
 
--- Registry entry for a top-level variable. `ref` is a getter closure returning
--- the variable's current value.
+--- Registry entry for a top-level variable. `ref` is a getter closure returning
+--- the variable's current value.
 declare interface VariableInfo
     kind: string
     name: string
@@ -124,49 +128,59 @@ declare interface VariableInfo
     ref: () -> any
 end
 
+--- Runtime reflection over the declarations the compiler recorded.
 declare interface ReflectLib
-    -- Compiler intrinsic. Resolves the metadata for its argument using the
-    -- argument's static type: a class/interface/enum (or a bare type name)
-    -- yields its registry entry; a primitive yields a constant TypeDesc; an
-    -- `any` argument falls back to a runtime lookup.
+    --- Compiler intrinsic. Resolves the metadata for its argument using the
+    --- argument's static type: a class/interface/enum (or a bare type name)
+    --- yields its registry entry; a primitive yields a constant TypeDesc; an
+    --- `any` argument falls back to a runtime lookup.
     function Of(value: any): any
 
-    -- Looks up a registry entry by its `<module>::<Name>` id.
+    --- Looks up a registry entry by its `<module>::<Name>` id.
     function get(id: string): any
 
-    -- Resolves the runtime metadata of a value from its actual type. Returns a
-    -- ClassInfo/EnumInfo for reflected instances, or a primitive TypeDesc.
+    --- Resolves the runtime metadata of a value from its actual type. Returns a
+    --- ClassInfo/EnumInfo for reflected instances, or a primitive TypeDesc.
     function typeOf(value: any): any
+    --- Resolves the runtime metadata of a value from its actual type; the same as `typeOf`.
     function dynamic(value: any): any
 
-    -- Every registry entry, in no particular order.
+    --- Every registry entry, in no particular order.
     function all(): any[]
 
+    --- Every reflected class.
     function classes(): ClassInfo[]
+    --- Every reflected interface.
     function interfaces(): InterfaceInfo[]
+    --- Every reflected enum.
     function enums(): EnumInfo[]
+    --- Every reflected top-level function.
     function functions(): FunctionInfo[]
+    --- Every reflected top-level variable.
     function variables(): VariableInfo[]
 
-    -- The live handle for an id (class table, function, enum table, or a
-    -- variable getter closure), or nil when the id is unknown.
+    --- The live handle for an id (class table, function, enum table, or a
+    --- variable getter closure), or nil when the id is unknown.
     function ref(id: string): any
 
-    -- Constructs an instance from a ClassInfo, forwarding the extra arguments to
-    -- its constructor.
+    --- Constructs an instance from a ClassInfo, forwarding the extra arguments to
+    --- its constructor.
     function create(info: any, ...: any): any
 
-    -- Calls a FunctionInfo's underlying function with the given arguments.
+    --- Calls a FunctionInfo's underlying function with the given arguments.
     function invoke(info: any, ...: any): any
 
-    -- Every class whose `interfaces` list contains the given interface id.
+    --- Every class whose `interfaces` list contains the given interface id.
     function implementorsOf(id: string): ClassInfo[]
 
-    -- Annotation helpers. `decl` is any registry entry (or field/method
-    -- descriptor) carrying an `annotations` list.
+    --- Annotation helpers. `decl` is any registry entry (or field/method
+    --- descriptor) carrying an `annotations` list.
     function annotationsOf(decl: any): AnnotationInfo[]
+    --- The first annotation named `name` on a registry entry or member descriptor, or nil.
     function annotation(decl: any, name: string): AnnotationInfo?
+    --- Whether a registry entry or member descriptor carries an annotation named `name`.
     function hasAnnotation(decl: any, name: string): boolean
 end
 
+--- Runtime reflection over the declarations the compiler recorded.
 declare reflect: ReflectLib

@@ -1,12 +1,35 @@
 -- High-level project scaffolding helpers. Accessible as the global `project`.
 -- Designed for use inside setup.neb scripts run by `nebra create`.
 
-declare project: {
-    writeGitignore: (string, string[]?) -> nil,
-    writeConfig: (string, { [string]: any }) -> nil,
-    writeFile: (string, string) -> nil,
-    cwd: () -> string,
-    runShell: (string, string?) -> number,
-    gitInit: (string, boolean?, string?) -> boolean,
-    installDeps: (string?, boolean?) -> boolean,
-}
+--- Helpers for setup scripts run by `nebra create`.
+declare interface ProjectLib
+    --- Creates or extends a `.gitignore` with Nebra's defaults, keeping existing entries and skipping duplicates.
+    --- @param path string the directory or file
+    --- @param extra string[]? further lines to add
+    function writeGitignore(path: string, extra: string[]?): nil
+    --- Writes a `nebra.toml` from a table; `dependencies`, `dev_dependencies` and `peer_dependencies` become their own sections.
+    function writeConfig(path: string, settings: { [string]: any }): nil
+    --- Writes a text file, creating missing parent directories.
+    function writeFile(path: string, contents: string): nil
+    --- Returns the absolute current working directory, which follows the directory `nebra create` switched to.
+    function cwd(): string
+    --- Runs a shell command with its output shown.
+    --- @param command string the command line
+    --- @param cwd string? where to run it, the current directory when omitted
+    --- @return number the exit code
+    function runShell(command: string, cwd: string?): number
+    --- Runs `git init`, optionally followed by `git add .` and a first commit.
+    --- @param directory string the repository directory
+    --- @param initialCommit boolean? also make a first commit
+    --- @param commitMessage string? the message of that commit
+    --- @return boolean whether every step succeeded
+    function gitInit(directory: string, initialCommit: boolean?, commitMessage: string?): boolean
+    --- Runs `nebra install`.
+    --- @param directory string? the project directory, the current one when omitted
+    --- @param allowScripts boolean? let dependencies run their install scripts
+    --- @return boolean whether it succeeded
+    function installDeps(directory: string?, allowScripts: boolean?): boolean
+end
+
+--- Helpers for setup scripts run by `nebra create`.
+declare project: ProjectLib

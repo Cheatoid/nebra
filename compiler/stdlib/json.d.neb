@@ -1,7 +1,16 @@
 -- JSON encoder/decoder built on System.Text.Json. Accessible as the global `json`.
 
-declare json: {
-    encode: (any, boolean?) -> string,
-    decode: (string) -> any,
-    pretty: (any) -> string,
-}
+--- Converts values to and from JSON.
+declare interface JsonLib
+    --- Encodes a value as JSON.
+    --- @param value any the value: tables become objects or arrays
+    --- @param pretty boolean? indent the output
+    function encode(value: any, pretty: boolean?): string
+    --- Decodes JSON into values: objects become tables with string keys, arrays become lists starting at 1.
+    function decode(text: string): any
+    --- Encodes a value as indented JSON.
+    function pretty(value: any): string
+end
+
+--- Converts values to and from JSON.
+declare json: JsonLib

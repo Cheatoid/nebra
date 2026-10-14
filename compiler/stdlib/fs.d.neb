@@ -1,21 +1,44 @@
 -- Filesystem helpers. Accessible as the global `fs`.
 
-declare fs: {
-    readFile: (string) -> string,
-    writeFile: (string, string) -> nil,
-    appendFile: (string, string) -> nil,
-    exists: (string) -> boolean,
-    isFile: (string) -> boolean,
-    isDir: (string) -> boolean,
-    mkdir: (string) -> nil,
-    remove: (string) -> nil,
-    copy: (string, string) -> nil,
-    move: (string, string) -> nil,
-    listFiles: (string, string?) -> string[],
-    listDirs: (string) -> string[],
-    cwd: () -> string,
-    join: (string, string) -> string,
-    basename: (string) -> string,
-    dirname: (string) -> string,
-    extname: (string) -> string,
-}
+--- Reading, writing and inspecting files and directories.
+declare interface FsLib
+    --- Returns the whole content of a text file.
+    function readFile(path: string): string
+    --- Writes text to a file, replacing what was there and creating missing directories.
+    function writeFile(path: string, content: string): nil
+    --- Appends text to the end of a file, creating it and missing directories when needed.
+    function appendFile(path: string, content: string): nil
+    --- Tells whether a file or directory exists at the path.
+    function exists(path: string): boolean
+    --- Tells whether the path is an existing file.
+    function isFile(path: string): boolean
+    --- Tells whether the path is an existing directory.
+    function isDir(path: string): boolean
+    --- Creates a directory together with any missing parents.
+    function mkdir(path: string): nil
+    --- Deletes a file, or a directory with everything in it.
+    function remove(path: string): nil
+    --- Copies a file or directory.
+    function copy(source: string, destination: string): nil
+    --- Moves or renames a file or directory.
+    function move(source: string, destination: string): nil
+    --- Returns the files directly inside a directory.
+    --- @param path string the directory
+    --- @param pattern string? a wildcard filter such as `"*.neb"`; every file when omitted
+    function listFiles(path: string, pattern: string?): string[]
+    --- Returns the directories directly inside a directory.
+    function listDirs(path: string): string[]
+    --- Returns the current working directory.
+    function cwd(): string
+    --- Joins two path segments with the platform's separator.
+    function join(a: string, b: string): string
+    --- Returns the last segment of a path: the file name with its extension.
+    function basename(path: string): string
+    --- Returns the directory part of a path.
+    function dirname(path: string): string
+    --- Returns the extension of a path including the dot, such as `".neb"`.
+    function extname(path: string): string
+end
+
+--- Reading, writing and inspecting files and directories.
+declare fs: FsLib
