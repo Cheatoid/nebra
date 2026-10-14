@@ -78,6 +78,11 @@ public sealed class ResolveAnnotationsPass() : Pass(PassName, PassScope.PerBuild
         string text;
         try { text = File.ReadAllText(path); }
         catch { return false; }
+        return LooksLikeAnnotationSource(text);
+    }
+
+    public static bool LooksLikeAnnotationSource(string text)
+    {
         return text.Contains("export local annotation", StringComparison.Ordinal)
             || text.Contains("export function apply", StringComparison.Ordinal)
             || text.Contains("export local function apply", StringComparison.Ordinal);
@@ -99,6 +104,7 @@ public sealed class ResolveAnnotationsPass() : Pass(PassName, PassScope.PerBuild
     private static void LoadAnnotationFile(PassContext ctx, AnnotationRegistry registry, string path)
     {
         var subConfig = ctx.Config.Clone();
+        subConfig.AnnotationFile = true;
         subConfig.Code = new CodeSection
         {
             IndexBase = 1,
@@ -385,39 +391,35 @@ public sealed class ResolveAnnotationsPass() : Pass(PassName, PassScope.PerBuild
     /// Recursively checks whether any declaration in the body carries <c>@</c>-annotations.
     /// Annotation definition files must not use annotations themselves to prevent recursion.
     /// </summary>
-    private static bool ContainsAnnotations(List<Stmt> body)
+    private static bool ContainsAnnotations(List<Stmt> body) => AnnotationsIn(body).Any();
+
+    /// <summary>The annotations written on the top-level declarations of an annotation file and on their members.</summary>
+    public static IEnumerable<Annotation> AnnotationsIn(List<Stmt> body)
     {
         foreach (var stmt in body)
         {
-            var decl = stmt switch
+            var decl = stmt is ExportStmt export ? export.Declaration : stmt as Decl;
+            var annotations = decl switch
             {
-                ExportStmt ex => ex.Declaration,
-                Decl d => d,
-                _ => null,
+                FunctionDecl function => function.Annotations,
+                LocalFunctionDecl function => function.Annotations,
+                LocalDecl local => local.Annotations,
+                ClassDecl classDecl => classDecl.Annotations
+                    .Concat(classDecl.Fields.SelectMany(field => field.Annotations))
+                    .Concat(classDecl.Methods.SelectMany(method => method.Annotations)),
+                EnumDecl enumDecl => enumDecl.Annotations.Concat(enumDecl.Members.SelectMany(member => member.Annotations)),
+                InterfaceDecl interfaceDecl => interfaceDecl.Annotations,
+                _ => []
             };
-            if (decl == null) continue;
 
-            switch (decl)
+            foreach (var annotation in annotations)
             {
-                case FunctionDecl fd when fd.Annotations.Count > 0: return true;
-                case LocalFunctionDecl lfd when lfd.Annotations.Count > 0: return true;
-                case LocalDecl ld when ld.Annotations.Count > 0: return true;
-                case ClassDecl cd when cd.Annotations.Count > 0: return true;
-                case EnumDecl ed when ed.Annotations.Count > 0: return true;
-                case InterfaceDecl id when id.Annotations.Count > 0: return true;
-                case ClassDecl cd2:
-                    if (cd2.Fields.Any(f => f.Annotations.Count > 0)) return true;
-                    if (cd2.Methods.Any(m => m.Annotations.Count > 0)) return true;
-                    break;
-                case EnumDecl ed2:
-                    if (ed2.Members.Any(m => m.Annotations.Count > 0)) return true;
-                    break;
+                yield return annotation;
             }
         }
-        return false;
     }
 
-    private static bool HasApplyFunction(List<Stmt> body)
+    public static bool HasApplyFunction(List<Stmt> body)
     {
         foreach (var stmt in body)
         {

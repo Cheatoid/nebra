@@ -103,6 +103,14 @@ public sealed class Config
     public IReadOnlyDictionary<string, string> SourceOverrides { get; set; } = new Dictionary<string, string>();
 
     /// <summary>
+    /// Set while an annotation definition file is compiled: its environment (the <c>ir</c>
+    /// builder and the shapes it declares itself with) is loaded, annotations are not applied to
+    /// it, and it is checked the way the annotation loader reads it.
+    /// </summary>
+    [Tomlyn.Serialization.TomlIgnore]
+    public bool AnnotationFile { get; set; }
+
+    /// <summary>
     /// Reads the source at <paramref name="path"/>, preferring <see cref="SourceOverrides"/> over
     /// the file on disk.
     /// </summary>
@@ -309,6 +317,7 @@ public sealed class Config
             Source = Source,
             ProjectRoot = ProjectRoot,
             SourceOverrides = SourceOverrides,
+            AnnotationFile = AnnotationFile,
             TypesOnly = TypesOnly,
             Globals = [..Globals],
             Annotations = [..Annotations],

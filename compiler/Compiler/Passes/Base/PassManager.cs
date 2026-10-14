@@ -40,6 +40,7 @@ public sealed class PassManager
         ResolveAnnotationsPass.PassName,
         ApplyAnnotationsPass.PassName,
         ResolveLibsPass.PassName,
+        CheckAnnotationFilePass.PassName,
         BindDeclarePass.PassName,
         ResolveImportsPass.PassName,
         ResolveNamesPass.PassName,
@@ -116,6 +117,7 @@ public sealed class PassManager
         Register(new ResolveAnnotationsPass());
         Register(new ApplyAnnotationsPass());
         Register(new ResolveLibsPass());
+        Register(new CheckAnnotationFilePass());
         Register(new BindDeclarePass());
         Register(new ResolveImportsPass());
         Register(new ResolveNamesPass());

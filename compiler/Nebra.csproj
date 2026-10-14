@@ -34,6 +34,7 @@
       <EmbeddedResource Include="stdlib\reflect.d.neb" />
       <EmbeddedResource Include="stdlib\project.d.neb" />
       <EmbeddedResource Include="stdlib\test.d.neb" />
+      <EmbeddedResource Include="stdlib\annotation.d.neb" />
       <EmbeddedResource Include="stdlib\test_runtime.lua" />
     </ItemGroup>
 

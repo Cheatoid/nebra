@@ -16,6 +16,9 @@ public sealed class ResolveLibsPass() : Pass(PassName, PassScope.PerBuild)
     /// </summary>
     private const string StdLogicalName = "std.d.neb";
 
+    /// <summary>The environment of annotation files, loaded only while one is compiled.</summary>
+    private const string AnnotationLogicalName = "annotation.d.neb";
+
     public override bool Run(PassContext context)
     {
         LoadDeclarationFiles(context);
@@ -95,6 +98,9 @@ public sealed class ResolveLibsPass() : Pass(PassName, PassScope.PerBuild)
             var logicalName = ExtractLogicalName(name);
             var isStd = string.Equals(logicalName, StdLogicalName, StringComparison.OrdinalIgnoreCase);
             if (isStd && !stdlib.Enabled) continue;
+
+            var isAnnotationEnvironment = string.Equals(logicalName, AnnotationLogicalName, StringComparison.OrdinalIgnoreCase);
+            if (isAnnotationEnvironment && !context.Config.AnnotationFile) continue;
 
             string? source;
             try

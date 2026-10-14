@@ -22,7 +22,7 @@ public sealed class ApplyAnnotationsPass()
 
     public override bool Run(PassContext context)
     {
-        if (context.File == null) return true;
+        if (context.File == null || context.Config.AnnotationFile) return true;
 
         // Walk even when the project defines no annotations of its own: an annotation that is
         // neither builtin nor registered is a typo that would otherwise do nothing at all, and

@@ -262,6 +262,7 @@ public sealed class NebraProject(Func<ServerSettings>? settings = null)
     private WorkspaceSnapshot BuildDocumentSnapshot(string path, long version)
     {
         var config = CreateBuildConfig();
+        config.AnnotationFile = IsAnnotationFile(path);
         var document = _openDocuments.TryGetValue(path, out var open)
             ? new SourceDocument(path, open.Text, open.Uri)
             : new SourceDocument(path, File.ReadAllText(path));
@@ -390,6 +391,7 @@ public sealed class NebraProject(Func<ServerSettings>? settings = null)
 
         foreach (var (path, open) in _openDocuments)
         {
+            if (IsAnnotationFile(path)) continue;
             if (!IsCompiledAsSource(path, config) && documents.Count > 0 && !IsOutsideProject(path)) continue;
             documents[path] = new SourceDocument(path, open.Text, open.Uri);
         }
@@ -476,6 +478,34 @@ public sealed class NebraProject(Func<ServerSettings>? settings = null)
         }
     }
 
+    /// <summary>
+    /// Whether <paramref name="path"/> is an annotation definition file: one beneath an
+    /// annotation directory of this project, or beneath one of a dependency that reads like an
+    /// annotation file. Such a file is checked on its own, in the annotation environment, and
+    /// never compiled as a source of the project.
+    /// </summary>
+    public bool IsAnnotationFile(string path)
+    {
+        if (_rootPath == null) return false;
+        if (!path.EndsWith(".neb", StringComparison.OrdinalIgnoreCase) || path.EndsWith(".d.neb", StringComparison.OrdinalIgnoreCase)) return false;
+
+        var ownRoots = _config.Annotations.Select(entry => Path.GetFullPath(Path.IsPathRooted(entry) ? entry : Path.Combine(_rootPath, entry)));
+        if (ownRoots.Any(root => PathComparer.Equals(root, path) || IsBeneathDirectory(path, root))) return true;
+
+        var dependencyRoots = InstalledPackages.Discover(_rootPath)
+            .SelectMany(package => package.AnnotationRoots.Count > 0 ? package.AnnotationRoots : [package.RootPath]);
+        if (!dependencyRoots.Any(root => IsBeneathDirectory(path, Path.GetFullPath(root)))) return false;
+
+        var text = _openDocuments.TryGetValue(path, out var open) ? open.Text : File.Exists(path) ? File.ReadAllText(path) : "";
+        return Nebra.Compiler.Passes.ResolveAnnotationsPass.LooksLikeAnnotationSource(text);
+    }
+
+    private static bool IsBeneathDirectory(string path, string directory)
+    {
+        var prefix = directory.TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar;
+        return path.StartsWith(prefix, StringComparison.OrdinalIgnoreCase);
+    }
+
     private bool IsOutsideProject(string path)
     {
         if (_rootPath == null) return true;
@@ -542,7 +572,10 @@ public sealed class NebraProject(Func<ServerSettings>? settings = null)
                 }
 
                 var inWorkspace = snapshot.SourcePaths.Contains(path, PathComparer) || _openDocuments.ContainsKey(path);
-                var diagnostics = inWorkspace ? snapshot.DiagnosticsFor(path).Select(ToLspDiagnostic).ToList() : [];
+                var source = inWorkspace && IsAnnotationFile(path)
+                    ? await GetDocumentSnapshotAsync(path, snapshot.Version).ConfigureAwait(false)
+                    : snapshot;
+                var diagnostics = inWorkspace ? source.DiagnosticsFor(path).Select(ToLspDiagnostic).ToList() : [];
                 var fingerprint = string.Join("\n", diagnostics.Select(d => $"{d.Range}|{d.Code}|{d.Message}"));
 
                 var changed = !_published.TryGetValue(path, out var previous) || previous != fingerprint;

@@ -31,6 +31,12 @@ public sealed class CompletionHandler(NebraWorkspace workspace) : CompletionHand
             var line = request.Position.Line + 1;
             var col = request.Position.Character + 1;
 
+            var metaItems = workspace.ProjectFor(result.FilePath).IsAnnotationFile(result.FilePath)
+                ? TryAnnotationMetaCompletion(result, request.Position)
+                : null;
+            if (metaItems != null)
+                return new CompletionList(metaItems);
+
             var annotationItems = TryAnnotationCompletion(result, request.Position);
             if (annotationItems != null)
                 return new CompletionList(annotationItems);
@@ -735,6 +741,50 @@ public sealed class CompletionHandler(NebraWorkspace workspace) : CompletionHand
             .Where(entry => AnnotationCatalog.AppliesTo(entry, target))
             .Select(AnnotationItem)
             .ToList();
+    }
+
+    /// <summary>
+    /// Completes the strings of an annotation file's <c>annotation</c> table: the declaration
+    /// kinds inside <c>targets = { ... }</c> and the parameter types after <c>type =</c>.
+    /// </summary>
+    private static List<CompletionItem>? TryAnnotationMetaCompletion(AnalysisResult result, Position pos)
+    {
+        var lines = result.SourceText.Split('\n');
+        if (pos.Line < 0 || pos.Line >= lines.Length) return null;
+
+        var before = lines[pos.Line].TrimEnd('\r')[..Math.Min(pos.Character, lines[pos.Line].TrimEnd('\r').Length)];
+        var quote = before.LastIndexOf('"');
+        if (quote < 0 || before.Count(character => character == '"') % 2 == 0) return null;
+
+        var prefix = before[..quote].TrimEnd();
+        if (prefix.EndsWith("type =") || prefix.EndsWith("type="))
+        {
+            return new[] { "string", "number", "boolean", "table" }
+                .Select(type => new CompletionItem { Label = type, Kind = CompletionItemKind.TypeParameter })
+                .ToList();
+        }
+
+        if (!InsideTargetsList(lines, pos.Line, quote)) return null;
+
+        return Enum.GetValues<Nebra.Compiler.Annotations.AnnotationTargetKind>()
+            .Select(target => new CompletionItem
+            {
+                Label = target.ToString(),
+                Kind = CompletionItemKind.EnumMember,
+                Detail = AnnotationCatalog.Describe(target)
+            })
+            .ToList();
+    }
+
+    /// <summary>Whether the text before the given position sits in the braces opened after <c>targets =</c>.</summary>
+    private static bool InsideTargetsList(string[] lines, int line, int character)
+    {
+        var text = string.Join("\n", lines.Take(line)) + "\n" + lines[line][..character];
+        var open = text.LastIndexOf('{');
+        if (open < 0 || text.IndexOf('}', open) >= 0) return false;
+
+        var key = text[..open].TrimEnd();
+        return key.EndsWith("targets =") || key.EndsWith("targets=");
     }
 
     private static CompletionItem AnnotationItem(AnnotationEntry entry)
