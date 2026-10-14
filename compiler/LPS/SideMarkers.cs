@@ -190,10 +190,14 @@ public static class SideMarkers
         var owner = MemberResolver.FindOwner(receiverType, member.Name);
         if (owner == null) return;
 
-        var side = MemberSide(owner, member.Name);
-        if (side == Side.All) side = TypeSide(result, owner);
+        Add(markers, member, MemberSide(result, owner, member.Name), "reference");
+    }
 
-        Add(markers, member, side, "reference");
+    /// <summary>The side <paramref name="member"/> of <paramref name="owner"/> is annotated with, or that of the owner itself.</summary>
+    public static Side MemberSide(AnalysisResult result, Type owner, string member)
+    {
+        var side = MemberSide(owner, member);
+        return side == Side.All ? TypeSide(result, owner) : side;
     }
 
     private static Side MemberSide(Type owner, string member)

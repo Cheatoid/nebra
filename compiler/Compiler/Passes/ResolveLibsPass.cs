@@ -172,6 +172,7 @@ public sealed class ResolveLibsPass() : Pass(PassName, PassScope.PerBuild)
             if (disabled is { Count: > 0 })
                 ApplyStdlibDisable(script, disabled);
 
+            Doc.DocBinder.Bind(script, source);
             pkg.Files.Add(new PreparsedFile(filePath, source) { Hir = script });
         }
     }

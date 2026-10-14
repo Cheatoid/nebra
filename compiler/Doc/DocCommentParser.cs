@@ -25,18 +25,39 @@ public static class DocCommentParser
     /// source, or null if no doc comment is found. <paramref name="targetLine"/>
     /// is 1-based, matching <see cref="Nebra.Diagnostics.TextSpan.StartLn"/>.
     /// </summary>
-    public static DocComment? ExtractAt(string source, int targetLine)
+    public static DocComment? ExtractAt(string source, int targetLine) => ExtractAt(source.Split('\n'), targetLine);
+
+    /// <summary>
+    /// <see cref="ExtractAt(string, int)"/> over a source already split into lines, for callers
+    /// that look up the comments of many declarations in the same file.
+    /// </summary>
+    public static DocComment? ExtractAt(string[] lines, int targetLine)
     {
-        var lines = source.Split('\n');
         if (targetLine <= 1 || targetLine > lines.Length + 1) return null;
 
-        var collected = TryCollectLineDoc(lines, targetLine - 2);
+        var above = SkipAnnotations(lines, targetLine - 2);
+
+        var collected = TryCollectLineDoc(lines, above);
         if (collected != null) return Parse(collected);
 
-        var block = TryCollectBlockDoc(lines, targetLine - 2);
+        var block = TryCollectBlockDoc(lines, above);
         if (block != null) return Parse(block);
 
         return null;
+    }
+
+    /// <summary>
+    /// Steps up past annotation lines such as <c>@side(server)</c> written between a comment and
+    /// the declaration it documents.
+    /// </summary>
+    private static int SkipAnnotations(string[] lines, int index)
+    {
+        while (index >= 0 && lines[index].TrimStart().StartsWith('@'))
+        {
+            index--;
+        }
+
+        return index;
     }
 
     /// <summary>

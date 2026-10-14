@@ -127,6 +127,10 @@ public sealed class WorkspaceSnapshot
         started = System.Diagnostics.Stopwatch.GetTimestamp();
         var files = CollectFiles(compiler);
         var (nodes, nodeFiles) = IndexNodes(files.Values.Select(entry => entry.File));
+        var builtins = compiler.Library.Files
+            .Where(file => !Path.IsPathRooted(file.Filename))
+            .SelectMany(file => NodeFinder.BuildNodeRegistry(file.Hir))
+            .ToDictionary(entry => entry.Key, entry => entry.Value);
         var symbols = IndexSymbols(compiler);
         var diagnostics = GroupDiagnostics(compiler.Diagnostics, staleFiles);
 
@@ -135,6 +139,7 @@ public sealed class WorkspaceSnapshot
         return new WorkspaceSnapshot(version, failure, byPath, files, nodes, nodeFiles, symbols, diagnostics, staleFiles)
         {
             Timings = timings,
+            BuiltinDeclarations = builtins,
             IsWorkspace = isWorkspace,
             Types = compiler.TypeUniverse,
             Config = config
@@ -200,6 +205,18 @@ public sealed class WorkspaceSnapshot
         file = null!;
         return false;
     }
+
+    /// <summary>
+    /// Finds a declaration by ID, including those of built-in libraries that have no file to
+    /// navigate to; for reading what a declaration says, such as its documentation.
+    /// </summary>
+    public bool TryGetDeclaration(NodeID id, out Node node)
+    {
+        return _nodes.TryGetValue(id, out node!) || BuiltinDeclarations.TryGetValue(id, out node!);
+    }
+
+    /// <summary>The declarations of built-in libraries, which have no file and so no place in the node index.</summary>
+    private IReadOnlyDictionary<NodeID, Node> BuiltinDeclarations { get; init; } = new Dictionary<NodeID, Node>();
 
     /// <summary>
     /// Returns the symbol <paramref name="id"/> ultimately stands for: the exported symbol it was

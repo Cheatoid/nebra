@@ -3,326 +3,138 @@ using OmniSharp.Extensions.LanguageServer.Protocol.Client.Capabilities;
 using OmniSharp.Extensions.LanguageServer.Protocol.Document;
 using OmniSharp.Extensions.LanguageServer.Protocol.Models;
 
-using NebraSymbolKind = Nebra.IR.SymbolKind;
+using Type = Nebra.IR.Type;
 
 namespace Nebra.LPS.Handlers;
 
+/// <summary>
+/// Shows what the name under the cursor is: a member where it is declared or used, a symbol, an
+/// annotation, or failing those the type of the expression. <see cref="HoverRenderer"/> writes
+/// the content.
+/// </summary>
 public sealed class HoverHandler(NebraWorkspace workspace) : HoverHandlerBase
 {
     public override async Task<Hover?> Handle(HoverParams request, CancellationToken ct)
     {
-        var result = await workspace.GetResultAsync(request.TextDocument.Uri.ToString(), ct);
+        var uri = request.TextDocument.Uri.ToString();
+        var result = await workspace.GetResultAsync(uri, ct);
         if (result == null) return null;
 
         var line = request.Position.Line + 1;
         var col = request.Position.Character + 1;
+        var renderer = new HoverRenderer(result, workspace);
+
+        var declaredMember = MemberDeclarationAt(result, line, col);
+        if (declaredMember != null)
+        {
+            return Create(renderer.ForMemberDeclaration(declaredMember.Value.Owner, declaredMember.Value.Name.Name), declaredMember.Value.Name.Span);
+        }
 
         var hoveredNode = NodeFinder.Find(result.Hir, line, col);
         var nameRef = NodeFinder.FindNameRef(result.Hir, line, col);
-        if (nameRef != null && nameRef.Sym != SymID.Invalid && result.Syms.GetByID(nameRef.Sym, out var sym))
+        if (nameRef != null && result.Syms.GetByID(nameRef.Sym, out var symbol))
         {
-            var declaredType = sym.Type;
-            var effectiveType = declaredType;
-            if (hoveredNode is NameExpr ne && ne.Name == nameRef && ne.Type != TypID.Invalid)
-            {
-                effectiveType = ne.Type;
-            }
-
-            var typeStr = workspace.FormatType(result.Types, effectiveType);
-            var kind = sym.Kind == NebraSymbolKind.Function ? "function" : "variable";
-            string display;
-
-            if (result.Types.GetByID(effectiveType, out var effTyp)
-                && effTyp is InterfaceType or ClassType or EnumType)
-            {
-                display = workspace.FormatTypeBody(result, effTyp);
-            }
-            else if (sym.Kind == NebraSymbolKind.Function && result.Types.GetByID(sym.Type, out var typ) && typ is FunctionType ft)
-            {
-                List<Parameter>? declParams = null;
-                if (sym.DeclaringNode != NodeID.Invalid && result.NodeRegistry.TryGetValue(sym.DeclaringNode, out var dn))
-                {
-                    declParams = dn switch
-                    {
-                        FunctionDecl fd => fd.Parameters,
-                        LocalFunctionDecl lfd => lfd.Parameters,
-                        _ => null
-                    };
-                }
-
-                var paramParts = new List<string>();
-                if (declParams != null)
-                {
-                    var ri = 0;
-                    foreach (var dp in declParams)
-                    {
-                        if (dp.IsVararg)
-                        {
-                            var vaType = ft.VarargType != null
-                                ? workspace.FormatType(result.Types, ft.VarargType)
-                                : "any";
-                            var vaName = dp.Name.Name != "..." ? dp.Name.Name : "";
-                            paramParts.Add($"...{vaName}: {vaType}");
-                        }
-                        else
-                        {
-                            var pType = ri < ft.ParamTypes.Count
-                                ? workspace.FormatType(result.Types, ft.ParamTypes[ri])
-                                : "any";
-                            var part = $"{dp.Name.Name}: {pType}";
-                            if (dp.DefaultValue != null) part += " = ...";
-                            paramParts.Add(part);
-                            ri++;
-                        }
-                    }
-                }
-                else
-                {
-                    for (var i = 0; i < ft.ParamTypes.Count; i++)
-                    {
-                        var s = workspace.FormatType(result.Types, ft.ParamTypes[i]);
-                        var suffix = ft.DefaultParams.Contains(i) ? " = ..." : "";
-                        paramParts.Add(s + suffix);
-                    }
-                    if (ft.IsVararg)
-                    {
-                        var vaType = ft.VarargType != null
-                            ? workspace.FormatType(result.Types, ft.VarargType)
-                            : "any";
-                        paramParts.Add($"...: {vaType}");
-                    }
-                }
-
-                var ret = workspace.FormatType(result.Types, ft.ReturnType);
-                display = $"(function) {sym.Name}({string.Join(", ", paramParts)}) -> {ret}";
-            }
-            else if (effectiveType != declaredType)
-            {
-                var declaredStr = workspace.FormatType(result.Types, declaredType);
-                display = $"({kind}) {sym.Name}: {typeStr}\n-- narrowed from {declaredStr}";
-            }
-            else
-            {
-                display = $"({kind}) {sym.Name}: {typeStr}";
-            }
-
-            var typesLine = workspace.FormatTypeReferencesLine(result, effectiveType);
-            var docMarkdown = TryRenderDocFor(result, sym);
-            var hoverValue = $"```nebra\n{display}\n```";
-            if (!string.IsNullOrEmpty(typesLine))
-                hoverValue += $"\n\n{typesLine}";
-            if (!string.IsNullOrEmpty(docMarkdown))
-                hoverValue += $"\n\n---\n\n{docMarkdown}";
-
-            return new Hover
-            {
-                Contents = new MarkedStringsOrMarkupContent(new MarkupContent
-                {
-                    Kind = MarkupKind.Markdown,
-                    Value = hoverValue
-                }),
-                Range = NebraWorkspace.SpanToRange(nameRef.Span)
-            };
+            var effectiveType = hoveredNode is NameExpr name && name.Name == nameRef && name.Type != TypID.Invalid ? name.Type : symbol.Type;
+            return Create(renderer.ForSymbol(symbol, effectiveType), nameRef.Span);
         }
 
-        if (nameRef != null && nameRef.Sym == SymID.Invalid)
-        {
-            var memberHover = TryMemberHover(result, hoveredNode, nameRef);
-            if (memberHover != null) return memberHover;
-        }
+        var memberHover = nameRef == null ? null : MemberHover(result, renderer, hoveredNode, nameRef);
+        if (memberHover != null) return memberHover;
 
         var annotation = FindAnnotationAt(result.Hir, line, col);
         if (annotation != null)
         {
-            var info = workspace.GetAnnotationInfo(request.TextDocument.Uri.ToString(), annotation.Name.Name);
-            var display = info ?? $"@{annotation.Name.Name}";
-            return new Hover
-            {
-                Contents = new MarkedStringsOrMarkupContent(new MarkupContent
-                {
-                    Kind = MarkupKind.Markdown,
-                    Value = $"```nebra\n{display}\n```"
-                }),
-                Range = NebraWorkspace.SpanToRange(annotation.Span)
-            };
+            var info = workspace.GetAnnotationInfo(uri, annotation.Name.Name) ?? $"@{annotation.Name.Name}";
+            return Create($"```nebra\n{info}\n```", annotation.Span);
         }
 
         if (hoveredNode is Expr expr && expr.Type != TypID.Invalid)
         {
-            var typeStr = workspace.FormatType(result.Types, expr.Type);
-            var typesLine = workspace.FormatTypeReferencesLine(result, expr.Type);
-            var value = $"```nebra\n{typeStr}\n```";
-            if (!string.IsNullOrEmpty(typesLine)) value += $"\n\n{typesLine}";
-            return new Hover
-            {
-                Contents = new MarkedStringsOrMarkupContent(new MarkupContent
-                {
-                    Kind = MarkupKind.Markdown,
-                    Value = value
-                }),
-                Range = NebraWorkspace.SpanToRange(expr.Span)
-            };
+            return Create(renderer.ForExpression(expr.Type), expr.Span);
         }
 
         return null;
     }
 
-    /// <summary>
-    /// Builds the hover for a member access whose NameRef has no bound
-    /// symbol (call-site method names and dot-access field names). Looks up
-    /// the member on the receiver's type — walking the class inheritance
-    /// chain and the interface base graph so e.g. <c>player:GetValue(...)</c>
-    /// finds the method on <c>Entity</c>, <c>Player</c>'s parent class.
-    /// </summary>
-    private Hover? TryMemberHover(AnalysisResult result, Node? hoveredNode, NameRef nameRef)
+    private static Hover? MemberHover(AnalysisResult result, HoverRenderer renderer, Node? hoveredNode, NameRef nameRef)
     {
         var access = MemberResolver.FindAccess(hoveredNode, nameRef);
-        if (access == null) return null;
+        if (access == null || !result.Types.GetByID(access.Receiver.Type, out var receiverType)) return null;
 
-        var receiver = access.Receiver;
-        var memberName = access.Member.Name;
-        var isMethodCall = hoveredNode is MethodCallExpr || hoveredNode is ExprStmt { Expression: MethodCallExpr };
+        var content = renderer.ForMember(receiverType, access.Member.Name);
+        return content == null ? null : Create(content, nameRef.Span);
+    }
 
-        if (receiver.Type == TypID.Invalid) return null;
-        if (!result.Types.GetByID(receiver.Type, out var recvType)) return null;
-
-        recvType = UnwrapNullable(result, recvType);
-
-        var (display, declNode, typesLine) = ResolveMemberDisplay(result, recvType, memberName, isMethodCall);
-        if (display == null) return null;
-
-        var hoverValue = $"```nebra\n{display}\n```";
-        if (!string.IsNullOrEmpty(typesLine)) hoverValue += $"\n\n{typesLine}";
-        if (declNode is Decl decl && decl.Doc != null)
+    /// <summary>
+    /// The member whose name is declared at the position, in a class, interface or enum
+    /// declaration, together with the type that declares it.
+    /// </summary>
+    private static (Type Owner, NameRef Name)? MemberDeclarationAt(AnalysisResult result, int line, int col)
+    {
+        foreach (var declaration in Declarations(result.Hir.Body))
         {
-            var docMd = Doc.DocMarkdown.Render(decl.Doc);
-            if (!string.IsNullOrEmpty(docMd)) hoverValue += $"\n\n---\n\n{docMd}";
+            var declared = MembersOf(declaration);
+            var member = declared?.Members.FirstOrDefault(candidate => Contains(candidate.Span, line, col));
+            if (declared == null || member == null) continue;
+            if (!result.Syms.GetByID(declared.Owner.Sym, out var owner) || !result.Types.GetByID(owner.Type, out var ownerType)) continue;
+
+            return (ownerType, member);
         }
 
-        return new Hover
+        return null;
+    }
+
+    /// <summary>The name of a type declaration and the names of the members it declares.</summary>
+    private sealed record DeclaredMembers(NameRef Owner, IEnumerable<NameRef> Members);
+
+    private static DeclaredMembers? MembersOf(Decl declaration)
+    {
+        return declaration switch
         {
-            Contents = new MarkedStringsOrMarkupContent(new MarkupContent
-            {
-                Kind = MarkupKind.Markdown,
-                Value = hoverValue
-            }),
-            Range = NebraWorkspace.SpanToRange(nameRef.Span)
+            ClassDecl classDecl => new DeclaredMembers(classDecl.Name, classDecl.Fields.Select(field => field.Name)
+                .Concat(classDecl.Methods.Select(method => method.Name))
+                .Concat(classDecl.Accessors.Select(accessor => accessor.Name))),
+            InterfaceDecl interfaceDecl => new DeclaredMembers(interfaceDecl.Name, interfaceDecl.Fields.Select(field => field.Name)
+                .Concat(interfaceDecl.Methods.Select(method => method.Name))),
+            EnumDecl enumDecl => new DeclaredMembers(enumDecl.Name, enumDecl.Members.Select(member => member.Name)),
+            _ => null
         };
     }
 
-    private static IR.Type UnwrapNullable(AnalysisResult result, IR.Type t)
+    private static IEnumerable<Decl> Declarations(IEnumerable<Stmt> statements)
     {
-        if (t is UnionType u)
+        foreach (var statement in statements)
         {
-            foreach (var m in u.Types)
-                if (m.Kind != TypeKind.PrimitiveNil) return UnwrapNullable(result, m);
+            switch (statement)
+            {
+                case ExportStmt export:
+                    yield return export.Declaration;
+                    break;
+                case DeclareModuleDecl module:
+                    foreach (var member in Declarations(module.Members))
+                    {
+                        yield return member;
+                    }
+                    break;
+                case Decl declaration:
+                    yield return declaration;
+                    break;
+            }
         }
-        return t;
     }
 
-    /// <summary>
-    /// Looks up a member on a class/interface (walking inheritance) and
-    /// returns a hover-ready label, the optional source declaration node
-    /// (for doc comments), and the workspace's "Type references" footer line.
-    /// </summary>
-    private (string? Display, Node? DeclNode, string? TypesLine) ResolveMemberDisplay(
-        AnalysisResult result, IR.Type recvType, string name, bool isMethodCall)
+    private static bool Contains(Diagnostics.TextSpan span, int line, int col)
     {
-        if (recvType is ClassType ct)
-        {
-            for (var cur = ct; cur != null; cur = cur.BaseClass)
-            {
-                if (cur.Methods.TryGetValue(name, out var im))
-                    return (FormatMember(result, ct.Name, name, im, isMethodLike: true),
-                        null, workspace.FormatTypeReferencesLine(result, im.ID));
-                if (cur.StaticMethods.TryGetValue(name, out var sm))
-                    return (FormatMember(result, ct.Name, name, sm, isMethodLike: true, isStatic: true),
-                        null, workspace.FormatTypeReferencesLine(result, sm.ID));
-                if (cur.Getters.TryGetValue(name, out var g))
-                    return ($"(getter) {ct.Name}.{name}: {workspace.FormatType(result.Types, g.ReturnType)}",
-                        null, workspace.FormatTypeReferencesLine(result, g.ReturnType.ID));
-                if (cur.InstanceFields.TryGetValue(name, out var f))
-                    return ($"(field) {ct.Name}.{name}: {workspace.FormatType(result.Types, f.Type)}",
-                        null, workspace.FormatTypeReferencesLine(result, f.Type.ID));
-            }
-
-            foreach (var iface in IR.Type.ImplementedInterfaces(ct))
-            {
-                if (iface.Methods.TryGetValue(name, out var im))
-                    return (FormatMember(result, ct.Name, name, im, isMethodLike: true),
-                        null, workspace.FormatTypeReferencesLine(result, im.ID));
-                if (iface.Fields.TryGetValue(name, out var f))
-                    return ($"(field) {ct.Name}.{name}: {workspace.FormatType(result.Types, f.Type)}",
-                        null, workspace.FormatTypeReferencesLine(result, f.Type.ID));
-            }
-        }
-        else if (recvType is InterfaceType ift)
-        {
-            var visited = new HashSet<InterfaceType>();
-            var queue = new Queue<InterfaceType>();
-            queue.Enqueue(ift);
-            while (queue.TryDequeue(out var cur))
-            {
-                if (!visited.Add(cur)) continue;
-                if (cur.Methods.TryGetValue(name, out var im))
-                    return (FormatMember(result, ift.Name, name, im, isMethodLike: true),
-                        null, workspace.FormatTypeReferencesLine(result, im.ID));
-                if (cur.Fields.TryGetValue(name, out var f))
-                    return ($"(field) {ift.Name}.{name}: {workspace.FormatType(result.Types, f.Type)}",
-                        null, workspace.FormatTypeReferencesLine(result, f.Type.ID));
-                foreach (var b in cur.BaseInterfaces) queue.Enqueue(b);
-            }
-        }
-        else if (recvType is StructType st)
-        {
-            var field = st.Fields.FirstOrDefault(f => f.Name.Name == name);
-            if (field != null)
-                return ($"(field) {name}: {workspace.FormatType(result.Types, field.Type)}",
-                    null, workspace.FormatTypeReferencesLine(result, field.Type.ID));
-        }
-
-        // Extension methods declared via `extend Type` — resolved on the type, its base
-        // classes, or its implemented/extended interfaces (works for primitives too).
-        var (extFn, extTarget) = IR.Type.ResolveExtension(recvType, name, result.Types.PrimFunction);
-        if (extFn != null && extTarget != null)
-        {
-            var targetName = extTarget is ClassType ec ? ec.Name
-                : extTarget is InterfaceType ei ? ei.Name
-                : workspace.FormatType(result.Types, extTarget);
-            return ("(extension) " + FormatMember(result, targetName, name, extFn, isMethodLike: true),
-                null, workspace.FormatTypeReferencesLine(result, extFn.ID));
-        }
-
-        return (null, null, null);
+        return span.StartLn == line && span.StartCol <= col && col < span.EndCol;
     }
 
-    private string FormatMember(AnalysisResult result, string ownerName, string memberName,
-        FunctionType ft, bool isMethodLike, bool isStatic = false)
+    private static Hover Create(string markdown, Diagnostics.TextSpan span)
     {
-        var prefix = isStatic ? "static " : "";
-        var parts = new List<string>();
-        // Class instance methods include a synthetic `self` first parameter
-        // that lives in the FunctionType but is never written at the call
-        // site; skip it when rendering so the hover matches what the user
-        // actually types.
-        var skipFirst = !isStatic && ft.ParamTypes.Count > 0 && ft.ParamNames.Count > 0
-            && ft.ParamNames[0] == "self";
-        for (var i = skipFirst ? 1 : 0; i < ft.ParamTypes.Count; i++)
+        return new Hover
         {
-            var pName = i < ft.ParamNames.Count ? ft.ParamNames[i] : $"arg{i}";
-            var pType = workspace.FormatType(result.Types, ft.ParamTypes[i]);
-            var part = $"{pName}: {pType}";
-            if (ft.DefaultParams.Contains(i)) part += " = ...";
-            parts.Add(part);
-        }
-        if (ft.IsVararg)
-        {
-            var vaType = ft.VarargType != null ? workspace.FormatType(result.Types, ft.VarargType) : "any";
-            parts.Add($"...: {vaType}");
-        }
-        var ret = workspace.FormatType(result.Types, ft.ReturnType);
-        var sep = isMethodLike && !isStatic ? ":" : ".";
-        return $"({prefix}method) {ownerName}{sep}{memberName}({string.Join(", ", parts)}) -> {ret}";
+            Contents = new MarkedStringsOrMarkupContent(new MarkupContent { Kind = MarkupKind.Markdown, Value = markdown }),
+            Range = NebraWorkspace.SpanToRange(span)
+        };
     }
 
     private static Annotation? FindAnnotationAt(IRScript hir, int line, int col)
@@ -376,27 +188,6 @@ public sealed class HoverHandler(NebraWorkspace workspace) : HoverHandlerBase
             }
         }
         return null;
-    }
-
-    /// <summary>
-    /// Looks up the <see cref="Doc.DocComment"/> attached to the declaration that
-    /// owns the symbol and renders it for inclusion under the type-signature
-    /// block of a hover. Walks class/interface/enum members so e.g. hovering a
-    /// method picks up the comment on the method, not on the enclosing class.
-    /// </summary>
-    private static string TryRenderDocFor(AnalysisResult result, Symbol sym)
-    {
-        if (sym.DeclaringNode == NodeID.Invalid) return string.Empty;
-        if (!result.NodeRegistry.TryGetValue(sym.DeclaringNode, out var node)) return string.Empty;
-
-        Doc.DocComment? doc = node switch
-        {
-            Decl d => d.Doc,
-            _ => null,
-        };
-
-        if (doc == null) return string.Empty;
-        return Doc.DocMarkdown.Render(doc);
     }
 
     protected override HoverRegistrationOptions CreateRegistrationOptions(

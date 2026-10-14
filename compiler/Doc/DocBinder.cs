@@ -13,11 +13,12 @@ public static class DocBinder
     public static void Bind(IRScript script, string source)
     {
         if (string.IsNullOrEmpty(source)) return;
+        var lines = source.Split('\n');
         foreach (var stmt in script.Body)
-            BindStmt(stmt, source);
+            BindStmt(stmt, lines);
     }
 
-    private static void BindStmt(Stmt stmt, string source)
+    private static void BindStmt(Stmt stmt, string[] source)
     {
         switch (stmt)
         {
@@ -30,7 +31,7 @@ public static class DocBinder
         }
     }
 
-    private static void BindDecl(Decl decl, string source, int decoratedLine)
+    private static void BindDecl(Decl decl, string[] source, int decoratedLine)
     {
         decl.Doc = DocCommentParser.ExtractAt(source, decoratedLine);
 

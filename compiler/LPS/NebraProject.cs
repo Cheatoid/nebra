@@ -987,9 +987,9 @@ public sealed class NebraProject(Func<ServerSettings>? settings = null)
             if (sym.DeclaringNode != NodeID.Invalid &&
                 result.NodeRegistry.TryGetValue(sym.DeclaringNode, out var declNode))
             {
-                var path = result.FileMap.TryGetValue(sym.DeclaringNode, out var declFile)
-                    ? declFile : result.FilePath;
-                return new TypeDeclLocation(path, declNode.Span);
+                return result.FileMap.TryGetValue(sym.DeclaringNode, out var declFile)
+                    ? new TypeDeclLocation(declFile, declNode.Span)
+                    : null;
             }
         }
 

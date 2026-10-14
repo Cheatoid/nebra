@@ -77,4 +77,114 @@ public sealed class HoverTests
         Assert.NotNull(hover);
         Assert.Contains("punctuation", hover);
     }
+
+    [Fact]
+    public async Task HoverOverAnEnumMemberShowsItsValue()
+    {
+        await using var session = await LspSession.StartAsync(
+            ("src/main.neb", "enum Test\n    Krass\n    Mega = 5\n    Ultra\nend\n\nprint(Test.{|first|}Krass, Test.{|last|}Ultra)\n"));
+
+        await session.OpenAsync("src/main.neb");
+
+        Assert.Contains("Test.Krass = 0", await session.HoverAsync("first"));
+        Assert.Contains("Test.Ultra = 6", await session.HoverAsync("last"));
+    }
+
+    [Fact]
+    public async Task HoverOverAnEnumListsItsMembersWithTheirValues()
+    {
+        await using var session = await LspSession.StartAsync(
+            ("src/main.neb", "enum State\n    Active = \"ACTIVE\"\n    Idle = \"IDLE\"\nend\n\nprint({|enum|}State.Active)\n"));
+
+        await session.OpenAsync("src/main.neb");
+        var hover = await session.HoverAsync("enum");
+
+        Assert.Contains("Active = \"ACTIVE\"", hover);
+        Assert.Contains("Idle = \"IDLE\"", hover);
+    }
+
+    [Fact]
+    public async Task HoverOverAClassListsItsPublicMembersAndItsDocumentation()
+    {
+        await using var session = await LspSession.StartAsync(
+            ("src/main.neb", """
+                --- A player in the game.
+                class Player
+                    health: number = 100
+                    protected secret: string = "x"
+
+                    function heal(amount: number): number
+                        return self.health + amount
+                    end
+                end
+
+                local player = new {|class|}Player()
+                print({|local|}player)
+                """));
+
+        await session.OpenAsync("src/main.neb");
+        var hover = await session.HoverAsync("class");
+
+        Assert.Contains("health: number", hover);
+        Assert.Contains("function heal(amount: number): number", hover);
+        Assert.DoesNotContain("secret", hover);
+        Assert.DoesNotContain("self", hover);
+        Assert.Contains("A player in the game.", hover);
+        Assert.Contains("local player: Player", await session.HoverAsync("local"));
+    }
+
+    [Fact]
+    public async Task HoverOverAMemberShowsItsDocumentationWhereItIsUsedAndDeclared()
+    {
+        await using var session = await LspSession.StartAsync(
+            ("src/main.neb", """
+                class Player
+                    --- Heals the player.
+                    --- @param amount number how much to heal
+                    function {|declared|}heal(amount: number): number
+                        return amount
+                    end
+                end
+
+                local player = new Player()
+                print(player:{|used|}heal(5))
+                """));
+
+        await session.OpenAsync("src/main.neb");
+
+        foreach (var marker in new[] { "declared", "used" })
+        {
+            var hover = await session.HoverAsync(marker);
+            Assert.Contains("function Player:heal(amount: number): number", hover);
+            Assert.Contains("Heals the player.", hover);
+            Assert.Contains("how much to heal", hover);
+        }
+    }
+
+    [Fact]
+    public async Task HoverOverALibraryFunctionShowsItsDocumentationAndSide()
+    {
+        await using var session = await LspSession.StartAsync(
+            ("nebra.toml", "name = \"lps-test\"\nversion = \"0.1.0\"\ntarget = \"5.4\"\nsource = \"src\"\noutput = \"out\"\nglobals = [\"types\"]\n"),
+            ("types/api.d.neb", "--- Kicks a player from the server.\n@side(server)\ndeclare function kick(reason: string): nil\n"),
+            ("src/main.neb", "{|call|}kick(\"bye\")\n"));
+
+        await session.OpenAsync("src/main.neb");
+        var hover = await session.HoverAsync("call");
+
+        Assert.Contains("declare function kick(reason: string): nil", hover);
+        Assert.Contains("runs on the **server**", hover);
+        Assert.Contains("Kicks a player from the server.", hover);
+    }
+
+    [Fact]
+    public async Task HoverTellsFunctionMembersFromMethods()
+    {
+        await using var session = await LspSession.StartAsync(
+            ("src/main.neb", "print(string.{|function|}upper(\"x\"))\n"));
+
+        await session.OpenAsync("src/main.neb");
+
+        Assert.Contains("function StringLib.upper(s: string): string", await session.HoverAsync("function"));
+    }
 }
