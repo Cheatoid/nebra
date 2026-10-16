@@ -1,4 +1,5 @@
 using Nebra.LPS.Tests.Harness;
+using OmniSharp.Extensions.LanguageServer.Protocol.Models;
 
 namespace Nebra.LPS.Tests.Features;
 
@@ -122,5 +123,32 @@ public sealed class CompletionTests
         var labels = await session.CompletionLabelsAsync("cursor");
 
         Assert.Contains("farewell", labels);
+    }
+
+    private const string Dates = "export class DateTime\n    static function now(): DateTime\n        return nil!\n    end\nend\n";
+
+    [Fact]
+    public async Task AnImportedClassIsCompletedWhereATypeIsWritten()
+    {
+        await using var session = await LspSession.StartAsync(
+            ("src/Date.neb", Dates),
+            ("src/main.neb", "import { DateTime } from \"Date\"\n\nlocal stamp: Da{|type|}\nprint(stamp)\n"));
+        await session.OpenAsync("src/main.neb");
+
+        var item = Assert.Single(await session.CompletionItemsAsync("type"), candidate => candidate.Label == "DateTime");
+
+        Assert.Equal(CompletionItemKind.Class, item.Kind);
+    }
+
+    [Fact]
+    public async Task AMethodIsCompletedAsACall()
+    {
+        await using var session = await LspSession.StartAsync(
+            ("src/Date.neb", Dates),
+            ("src/main.neb", "import { DateTime } from \"Date\"\n\nlocal now = DateTime.{|member|}\nlocal later = DateTime.{|called|}()\nprint(now, later)\n"));
+        await session.OpenAsync("src/main.neb");
+
+        Assert.Equal("now($0)", Assert.Single(await session.CompletionItemsAsync("member"), candidate => candidate.Label == "now").InsertText);
+        Assert.Null(Assert.Single(await session.CompletionItemsAsync("called"), candidate => candidate.Label == "now").InsertText);
     }
 }

@@ -56,7 +56,7 @@ public sealed class CompletionHandler(NebraWorkspace workspace) : CompletionHand
             var memberItems = TryMemberCompletion(result, request.Position);
             if (memberItems != null)
             {
-                return new CompletionList(memberItems);
+                return new CompletionList(WithCallParentheses(memberItems, result, request.Position));
             }
 
             var typeContext = IsTypeAnnotationContext(result, request.Position);
@@ -97,14 +97,15 @@ public sealed class CompletionHandler(NebraWorkspace workspace) : CompletionHand
             var symbols = workspace.CollectVisibleSymbols(result, scopeId);
             foreach (var sym in symbols)
             {
-                if (typeContext && !IsTypeKind(sym.Kind))
+                var kind = DeclaredKind(result, sym);
+                if (typeContext && !IsTypeKind(kind))
                     continue;
 
                 var typeStr = workspace.FormatType(result.Types, sym.Type);
                 items.Add(new CompletionItem
                 {
                     Label = sym.Name,
-                    Kind = AutoImportCompletion.KindOf(sym.Kind),
+                    Kind = AutoImportCompletion.KindOf(kind),
                     Detail = typeStr,
                     Documentation = BuildSymbolDocumentation(result, sym),
                     Tags = IsDeprecated(result, sym) ? new Container<CompletionItemTag>(CompletionItemTag.Deprecated) : null
@@ -113,6 +114,11 @@ public sealed class CompletionHandler(NebraWorkspace workspace) : CompletionHand
 
             var visible = symbols.Select(sym => sym.Name).ToHashSet(StringComparer.Ordinal);
             items.AddRange(AutoImportCompletion.Items(result, workspace.LatestSnapshotFor(result.FilePath), request.Position, typeContext, visible));
+
+            if (!typeContext)
+            {
+                items = WithCallParentheses(items, result, request.Position);
+            }
         }
         else
         {
@@ -127,6 +133,43 @@ public sealed class CompletionHandler(NebraWorkspace workspace) : CompletionHand
         }
 
         return new CompletionList(items);
+    }
+
+    /// <summary>
+    /// The kind of declaration <paramref name="symbol"/> names: for an imported name, that of the
+    /// declaration it was imported from, so an imported class completes as a class and in type
+    /// positions, rather than as the variable the import binds.
+    /// </summary>
+    private static NebraSymbolKind DeclaredKind(AnalysisResult result, Symbol symbol)
+    {
+        return result.Snapshot.TryGetSymbol(result.Snapshot.Origin(symbol.ID), out var origin) ? origin.Kind : symbol.Kind;
+    }
+
+    /// <summary>
+    /// Completes functions and methods as a call: their name followed by parentheses with the
+    /// cursor between them, opening the signature help. Left alone when the cursor already sits
+    /// before an opening parenthesis, or when an item brings its own text.
+    /// </summary>
+    private static List<CompletionItem> WithCallParentheses(List<CompletionItem> items, AnalysisResult result, Position position)
+    {
+        var lines = result.SourceText.Split('\n');
+        var rest = position.Line < lines.Length ? lines[position.Line].TrimEnd('\r')[Math.Min(position.Character, lines[position.Line].TrimEnd('\r').Length)..] : "";
+        if (rest.TrimStart().StartsWith('(')) return items;
+
+        return items.Select(item => IsCallable(item) && item.InsertText == null && item.TextEdit == null
+                ? item with
+                {
+                    InsertText = $"{item.Label}($0)",
+                    InsertTextFormat = InsertTextFormat.Snippet,
+                    Command = Command.Create("editor.action.triggerParameterHints")
+                }
+                : item)
+            .ToList();
+    }
+
+    private static bool IsCallable(CompletionItem item)
+    {
+        return item.Kind is CompletionItemKind.Method or CompletionItemKind.Function;
     }
 
     private static bool IsTypeKind(NebraSymbolKind kind) =>
