@@ -191,6 +191,47 @@ public sealed class InferTypesPass() : Pass(PassName, PassScope.PerBuild)
     }
 
     /// <summary>
+    /// Types a <c>local</c> function of a class: a plain function its methods call by name, with
+    /// no <c>self</c> and no place on the class table. Returns its return type, which its body is
+    /// checked against with the bodies of the class's methods.
+    /// </summary>
+    private Type DeclareLocalClassFunction(PassContext pc, ClassMethodNode method)
+    {
+        var parameters = new List<Tuple<string, Type>>();
+        var defaults = new List<int>();
+        var isVararg = false;
+        Type? varargType = null;
+
+        for (var index = 0; index < method.Parameters.Count; index++)
+        {
+            var parameter = method.Parameters[index];
+            var type = ResolveParamType(pc, parameter);
+            pc.Pkg!.Syms.SetType(parameter.Name.Sym, type.ID);
+
+            if (parameter.IsVararg)
+            {
+                isVararg = true;
+                varargType = type.Kind == TypeKind.PrimitiveAny ? null : type;
+                continue;
+            }
+
+            parameters.Add(new Tuple<string, Type>(parameter.Name.Name, type));
+            if (parameter.DefaultValue != null)
+            {
+                SynthesizeExpr(pc, parameter.DefaultValue);
+                defaults.Add(index);
+            }
+        }
+
+        var returnType = method.ReturnType != null && method.ReturnType.ResolvedType != TypID.Invalid
+            ? GetType(pc, method.ReturnType.ResolvedType)
+            : pc.Types.PrimNil;
+        var function = pc.Types.FuncOf(parameters, returnType, isVararg, varargType, defaults.Count > 0 ? defaults : null, method.IsAsync);
+        pc.Pkg!.Syms.SetType(method.Name.Sym, function);
+        return returnType;
+    }
+
+    /// <summary>
     /// Types the default value of a class field and checks it against the field's annotation the
     /// way a local's value is checked against its own, so <c>name: string = nil</c> is rejected
     /// under <c>strict_nil</c> and a default of the wrong type always is.
@@ -857,7 +898,11 @@ public sealed class InferTypesPass() : Pass(PassName, PassScope.PerBuild)
             var fieldType = field.TypeAnnotation != null && field.TypeAnnotation.ResolvedType != TypID.Invalid
                 ? GetType(pc, field.TypeAnnotation.ResolvedType)
                 : (field.DefaultValue != null ? GetType(pc, field.DefaultValue.Type) : pc.Types.PrimAny);
-            if (!field.IsLocal)
+            if (field.IsLocal)
+            {
+                pc.Pkg!.Syms.SetType(field.Name.Sym, fieldType.ID);
+            }
+            else
             {
                 classType.InstanceFields[field.Name.Name] = new StructType.Field(field.Name, fieldType);
                 classType.MemberDeclarations.TryAdd(field.Name.Name, field.Name);
@@ -894,7 +939,11 @@ public sealed class InferTypesPass() : Pass(PassName, PassScope.PerBuild)
 
         foreach (var method in cd.Methods)
         {
-            if (method.IsLocal) continue;
+            if (method.IsLocal)
+            {
+                methodBodies.Add((method, DeclareLocalClassFunction(pc, method)));
+                continue;
+            }
 
             if (method.IsAbstract && !cd.IsAbstract)
                 pc.Diag.Report(method.Span, Diagnostics.DiagnosticCode.ErrAbstractInNonAbstractClass, method.Name.Name);
@@ -2786,7 +2835,7 @@ public sealed class InferTypesPass() : Pass(PassName, PassScope.PerBuild)
                         else if (cur.StaticMethods.TryGetValue(fname, out var psm)) { resultType = psm.ID; found = true; }
                         cur = cur.BaseClass;
                     }
-                    if (!found) resultType = ResolveInterfaceMemberOnClass(pc, ct, fname);
+                    if (!found) resultType = ResolveUndeclaredMember(pc, ct, dot);
                 }
                 classDotDone:
                 break;
@@ -3239,6 +3288,32 @@ public sealed class InferTypesPass() : Pass(PassName, PassScope.PerBuild)
     /// interfaces it implements, covering the members a <c>declare class</c> inherits without
     /// restating them. Returns <c>any</c> when no implemented interface declares the name.
     /// </summary>
+    /// <summary>
+    /// Resolves a member a class and its bases do not declare themselves: one an implemented
+    /// interface declares, a setter, or an extension method. Anything else is not part of the
+    /// class, and reading or writing it is reported rather than let through as <c>any</c>.
+    /// </summary>
+    private TypID ResolveUndeclaredMember(PassContext pc, ClassType classType, DotAccessExpr dot)
+    {
+        var name = dot.FieldName.Name;
+        var fromInterface = ResolveInterfaceMemberOnClass(pc, classType, name);
+        if (fromInterface != pc.Types.PrimAny.ID) return fromInterface;
+
+        for (var current = classType; current != null; current = current.BaseClass)
+        {
+            if (current.Setters.TryGetValue(name, out var setter))
+            {
+                return setter.ParamTypes.Count > 1 ? setter.ParamTypes[^1].ID : pc.Types.PrimAny.ID;
+            }
+        }
+
+        var (extension, _) = Type.ResolveExtension(classType, name, pc.Types.PrimFunction);
+        if (extension != null) return extension.ID;
+
+        pc.Diag.Report(dot.FieldName.Span, DiagnosticCode.ErrNoSuchField, classType.Name, name);
+        return pc.Types.PrimAny.ID;
+    }
+
     private TypID ResolveInterfaceMemberOnClass(PassContext pc, ClassType classType, string memberName)
     {
         foreach (var iface in Type.ImplementedInterfaces(classType))

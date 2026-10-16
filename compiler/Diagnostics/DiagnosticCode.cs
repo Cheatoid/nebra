@@ -137,6 +137,18 @@ public enum DiagnosticCode
     [Format("type '{0}' has no method '{1}'")]
     [Help("check the method name for a typo, or add it to '{0}' with an 'extend {0} ... end' block")]
     ErrNoSuchMethod = 0x2011,
+
+    [Level(DiagnosticLevel.Error)]
+    [Category(DiagnosticCategory.Type)]
+    [Format("type '{0}' has no field '{1}'")]
+    [Help("declare it in the class body, such as `{1}: <type>`; a `local` field is reached by its name, not through `self`")]
+    ErrNoSuchField = 0x2012,
+
+    [Level(DiagnosticLevel.Error)]
+    [Category(DiagnosticCategory.Semantic)]
+    [Format("'self' is not available in {0}: it belongs to the class, not to an instance")]
+    [Help("make it an instance method, or pass the instance in as a parameter")]
+    ErrSelfOutsideInstance = 0x2013,
     
     [Level(DiagnosticLevel.Error)]
     [Category(DiagnosticCategory.Type)]

@@ -416,7 +416,7 @@ public sealed partial class CodegenPass() : Pass(PassName, PassScope.PerBuild, t
         {
             if (!field.IsLocal) continue;
             gen.Write("local ");
-            gen.Write(field.Name.Name);
+            gen.Write(ResolveName(ctx, pkg, field.Name));
             if (field.DefaultValue != null)
             {
                 gen.Write(" = ");
@@ -879,7 +879,7 @@ public sealed partial class CodegenPass() : Pass(PassName, PassScope.PerBuild, t
     private void EmitLocalClassMethod(PassContext ctx, PackageContext pkg, LuaGenerator gen, ClassMethodNode method)
     {
         gen.Write("local function ");
-        gen.Write(method.Name.Name);
+        gen.Write(ResolveName(ctx, pkg, method.Name));
         gen.Write("(");
         EmitParamList(ctx, pkg, gen, method.Parameters);
         EmitAsyncDoneParam(gen, method.IsAsync, method.Parameters.Count > 0);
