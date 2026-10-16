@@ -2052,9 +2052,9 @@ public sealed class InferTypesPass() : Pass(PassName, PassScope.PerBuild)
     }
 
     /// <summary>
-    /// Resolves an assignment. Writing through a narrowed access path ends that narrowing: the new
-    /// value only has to fit the declared type, and reads after the assignment see the declared
-    /// type again.
+    /// Resolves an assignment. Writing through a narrowed access path ends that narrowing unless
+    /// the new value fits the narrowed type as well: the value only has to fit the declared type,
+    /// and reads after the assignment see the declared type again.
     /// </summary>
     private void ResolveAssignStmt(PassContext pc, AssignStmt stmt)
     {
@@ -2070,7 +2070,8 @@ public sealed class InferTypesPass() : Pass(PassName, PassScope.PerBuild)
         {
             var target = stmt.Targets[i];
             var narrowedPath = GetAccessPath(target);
-            if (narrowedPath != null) _narrowed.Remove(narrowedPath);
+            var assigned = i < valueTypes.Count ? FirstValue(pc, valueTypes[i]) : pc.Types.PrimNil.ID;
+            if (narrowedPath != null && !KeepsNarrowing(pc, narrowedPath, assigned)) _narrowed.Remove(narrowedPath);
 
             CheckAssignableTarget(pc, target);
 
@@ -2087,6 +2088,13 @@ public sealed class InferTypesPass() : Pass(PassName, PassScope.PerBuild)
                 }
             }
         }
+    }
+
+    private bool KeepsNarrowing(PassContext pc, AccessPath path, TypID assigned)
+    {
+        if (!_narrowed.TryGetValue(path, out var narrowed)) return false;
+        if (IsNullable(pc, assigned) && !IsNullable(pc, narrowed)) return false;
+        return IsTypeAssignable(pc, narrowed, assigned);
     }
 
     /// <summary>
@@ -2287,7 +2295,7 @@ public sealed class InferTypesPass() : Pass(PassName, PassScope.PerBuild)
                 result = LookupSymbolType(pc, nameExpr.Name.Sym);
                 break;
             case ParenExpr paren:
-                result = SynthesizeExpr(pc, paren.Inner);
+                result = FirstValue(pc, SynthesizeExpr(pc, paren.Inner));
                 break;
             case BinaryExpr bin:
                 result = InferBinary(pc, bin);
@@ -2369,11 +2377,30 @@ public sealed class InferTypesPass() : Pass(PassName, PassScope.PerBuild)
     /// diverging right side contributes no value, so the result is the surviving operand — and for
     /// <c>or</c>, reaching the result means the left side was truthy, which rules its nil out.
     /// </summary>
+    /// <summary>
+    /// Types the right side of <c>and</c> or <c>or</c>, which only runs when the left side was
+    /// truthy or falsy respectively. In <c>x == nil or x &lt; 1</c> the comparison sees <c>x</c>
+    /// as not nil.
+    /// </summary>
+    private TypID SynthesizeShortCircuitRight(PassContext pc, BinaryExpr bin)
+    {
+        var (whenTruthy, whenFalsy) = AnalyzeCondition(pc, bin.Left);
+        var saved = PushAllNarrows(bin.Op == BinaryOp.And ? whenTruthy : whenFalsy);
+        try
+        {
+            return SynthesizeExpr(pc, bin.Right);
+        }
+        finally
+        {
+            PopAllNarrows(saved);
+        }
+    }
+
     private TypID InferBinary(PassContext pc, BinaryExpr bin)
     {
         var tt = pc.Types;
         var l = SynthesizeExpr(pc, bin.Left);
-        var r = SynthesizeExpr(pc, bin.Right);
+        var r = bin.Op is BinaryOp.And or BinaryOp.Or ? SynthesizeShortCircuitRight(pc, bin) : SynthesizeExpr(pc, bin.Right);
 
         if (IsConfiguredConcatOp(pc, bin.Op)
             && (l == tt.PrimString.ID || r == tt.PrimString.ID))
@@ -4202,6 +4229,13 @@ public sealed class InferTypesPass() : Pass(PassName, PassScope.PerBuild)
                 if (TupleWithVariadicTailAssignable(pc, dstTuple, srcTuple)) return true;
             }
 
+            if (dstTypeNode is TableMapType dstMap && srcTypeNode is StructType srcStruct
+                && IsTypeAssignable(pc, dstMap.KeyType.ID, tt.PrimString.ID)
+                && srcStruct.Fields.Where(field => !field.IsMeta).All(field => IsTypeAssignable(pc, dstMap.ValueType.ID, field.Type.ID)))
+            {
+                return true;
+            }
+
             if (dstTypeNode is TupleType dstValues && srcTypeNode is TupleType srcValues
                 && dstValues.Fields.Count == srcValues.Fields.Count
                 && dstValues.Fields.Zip(srcValues.Fields).All(pair => IsTypeAssignable(pc, pair.First.Type.ID, pair.Second.Type.ID)))
@@ -4525,6 +4559,12 @@ public sealed class InferTypesPass() : Pass(PassName, PassScope.PerBuild)
             return (thenN, elseN);
         }
 
+        if (c is InstanceOfExpr instanceOf)
+        {
+            NarrowInstanceOf(pc, instanceOf, thenN, elseN);
+            return (thenN, elseN);
+        }
+
         // A call to a type-predicate guard (`param is Type`) narrows the argument bound to `param`.
         if (c is FunctionCallExpr predCall
             && pc.Pkg!.Types.GetByID(SynthesizeExpr(pc, predCall.Callee), out var calleeT)
@@ -4582,6 +4622,25 @@ public sealed class InferTypesPass() : Pass(PassName, PassScope.PerBuild)
 
         NarrowTruthiness(pc, GetAccessPath(c), thenN, elseN);
         return (thenN, elseN);
+    }
+
+    /// <summary>
+    /// <c>value instanceof Class</c> narrows the value to the class in the then-branch, and to the
+    /// rest of its union in the else-branch.
+    /// </summary>
+    private void NarrowInstanceOf(PassContext pc, InstanceOfExpr instanceOf, List<(AccessPath, TypID)> thenN, List<(AccessPath, TypID)> elseN)
+    {
+        var path = GetAccessPath(instanceOf.Inner);
+        if (path == null) return;
+
+        var target = instanceOf.TargetType?.ResolvedType ?? TypID.Invalid;
+        if (target == TypID.Invalid) target = LookupSymbolType(pc, instanceOf.ClassName.Sym);
+        if (target == TypID.Invalid) return;
+
+        thenN.Add((path, target));
+        var rest = SubtractType(pc, ResolveAccessPathType(pc, path), target);
+        if (rest != TypID.Invalid)
+            elseN.Add((path, rest));
     }
 
     /// <summary>
