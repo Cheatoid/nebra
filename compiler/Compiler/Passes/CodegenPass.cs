@@ -14,6 +14,7 @@ public sealed partial class CodegenPass() : Pass(PassName, PassScope.PerBuild, t
     private readonly Stack<int> _loopLabelStack = new();
     private readonly Stack<List<DeferStmt>> _deferStack = new();
     private readonly HashSet<int> _neededBreakLabels = [];
+    private readonly Dictionary<ScopeID, string> _staticMemberTables = [];
 
     public override bool Run(PassContext context)
     {
@@ -408,6 +409,8 @@ public sealed partial class CodegenPass() : Pass(PassName, PassScope.PerBuild, t
     private void EmitClassDecl(PassContext ctx, PackageContext pkg, LuaGenerator gen, ClassDecl cd)
     {
         var className = ResolveName(ctx, pkg, cd.Name);
+        if (pkg.Scopes.EnclosingScope(cd.ID, out var classScope))
+            _staticMemberTables[classScope] = className;
         var hasAccessors = cd.Accessors.Count > 0;
         var hasBase = cd.BaseClass != null;
         var baseName = hasBase ? ResolveName(ctx, pkg, cd.BaseClass!) : null;
@@ -2527,6 +2530,9 @@ public sealed partial class CodegenPass() : Pass(PassName, PassScope.PerBuild, t
         if (nameRef.Sym == SymID.Invalid)
             return nameRef.Name;
 
+        if (StaticMemberTable(pkg, nameRef.Sym) is { } table)
+            return $"{table}.{nameRef.Name}";
+
         if (ctx.Names.GetMangled(nameRef.Sym, out var mangled))
             return mangled;
 
@@ -2534,6 +2540,16 @@ public sealed partial class CodegenPass() : Pass(PassName, PassScope.PerBuild, t
             return original;
 
         return nameRef.Name;
+    }
+
+    /// <summary>
+    /// The emitted name of the class table a static member is stored on, when <paramref name="sym"/>
+    /// is a static member reached by its bare name inside its class.
+    /// </summary>
+    private string? StaticMemberTable(PackageContext pkg, SymID sym)
+    {
+        if (!pkg.Syms.GetByID(sym, out var symbol) || !symbol.Flags.HasFlag(SymbolFlags.Static)) return null;
+        return _staticMemberTables.GetValueOrDefault(symbol.Owner);
     }
 
     private bool IsStringTyped(PassContext ctx, PackageContext pkg, BinaryExpr bin)

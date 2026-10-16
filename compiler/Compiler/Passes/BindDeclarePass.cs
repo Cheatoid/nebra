@@ -468,6 +468,7 @@ public sealed class BindDeclarePass() : Pass(PassName, PassScope.PerFile)
                 var classScope = pkg.Scopes.NewScope(scope);
                 pkg.Scopes.BindNode(classDecl.ID, classScope);
                 DeclareTypeParams(ctx, classScope, classDecl.TypeParams);
+                DeclareStaticMembers(ctx, classDecl, classScope);
 
                 if (classDecl.Constructor != null)
                 {
@@ -795,6 +796,23 @@ public sealed class BindDeclarePass() : Pass(PassName, PassScope.PerFile)
     {
         if (pkg.Scopes.LookupOnlyCurrent(armScope, binding.Name, out var sym))
             binding.Sym = sym;
+    }
+
+    /// <summary>
+    /// Declares the static fields and functions of a class in its own scope, so the code of the
+    /// class reaches them by name the way it would write <c>ClassName.member</c>.
+    /// </summary>
+    private static void DeclareStaticMembers(PassContext ctx, ClassDecl classDecl, ScopeID classScope)
+    {
+        foreach (var field in classDecl.Fields.Where(field => field.IsStatic))
+        {
+            DeclareSymbol(ctx, classScope, field.Name.Name, SymbolKind.Variable, classDecl.ID, field.Name.Span, SymbolFlags.Static);
+        }
+
+        foreach (var method in classDecl.Methods.Where(method => method.IsStatic))
+        {
+            DeclareSymbol(ctx, classScope, method.Name.Name, SymbolKind.Function, classDecl.ID, method.Name.Span, SymbolFlags.Static);
+        }
     }
 
     private static void DeclareSymbol(PassContext ctx, ScopeID scope, string name, SymbolKind kind, NodeID decl, params SymbolFlags[] flags)

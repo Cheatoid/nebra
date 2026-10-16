@@ -224,4 +224,19 @@ public sealed class HoverTests
 
         Assert.DoesNotContain("runs on", await session.HoverAsync("call"));
     }
+
+    [Fact]
+    public async Task HoverOverAStaticFieldReachedByNameShowsItsType()
+    {
+        await using var session = await LspSession.StartAsync(
+            ("src/main.neb",
+                "class Registry\n    static count: number = 0\n\n    static function next(): number\n        return {|use|}count + 1\n    end\nend\n\nprint(Registry.next())\n"));
+
+        await session.OpenAsync("src/main.neb");
+        var hover = await session.HoverAsync("use");
+
+        Assert.NotNull(hover);
+        Assert.Contains("count", hover);
+        Assert.Contains("number", hover);
+    }
 }

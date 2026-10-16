@@ -124,6 +124,7 @@ public sealed class InferTypesPass() : Pass(PassName, PassScope.PerBuild)
             {
                 var fileCtx = MakeFileContext(context, pkg, file);
                 _narrowed.Clear();
+                TypeAnnotatedTopLevelLocals(fileCtx, pkg, file);
                 ResolveTypeUniverseDecls(fileCtx, file.Hir.Body);
             }
         }
@@ -188,6 +189,40 @@ public sealed class InferTypesPass() : Pass(PassName, PassScope.PerBuild)
             UnionType union => union.Types.Any(member => member is TableArrayType or TableMapType),
             _ => false
         };
+    }
+
+    /// <summary>
+    /// Gives the symbol a static member of <paramref name="cd"/> is reached by inside the class its
+    /// type; <paramref name="overload"/> picks among the overloads of one name, in declaration order.
+    /// </summary>
+    private static void SetStaticMemberType(PassContext pc, ClassDecl cd, string name, int overload, Type type)
+    {
+        if (!pc.Pkg!.Scopes.EnclosingScope(cd.ID, out var classScope)) return;
+
+        var symbols = pc.Pkg.Scopes.LookupAll(classScope, name)
+            .Where(id => pc.Pkg.Syms.GetByID(id, out var symbol) && symbol.Flags.HasFlag(SymbolFlags.Static) && symbol.Owner == classScope)
+            .ToList();
+        if (overload < symbols.Count) pc.Pkg.Syms.SetType(symbols[overload], type.ID);
+    }
+
+    /// <summary>
+    /// Gives every top-level local written with a type annotation that type before any class is
+    /// resolved. A class's methods are checked before the statements around the class are, so a
+    /// method reading such a local would otherwise see it untyped.
+    /// </summary>
+    private static void TypeAnnotatedTopLevelLocals(PassContext pc, PackageContext pkg, PreparsedFile file)
+    {
+        foreach (var statement in file.Hir.Body)
+        {
+            if ((statement is ExportStmt export ? export.Declaration : statement) is not LocalDecl local) continue;
+
+            foreach (var variable in local.Variables)
+            {
+                var annotated = variable.TypeAnnotation?.ResolvedType ?? TypID.Invalid;
+                if (annotated == TypID.Invalid || !pkg.Syms.GetByID(variable.Name.Sym, out var symbol) || symbol.Type != TypID.Invalid) continue;
+                pkg.Syms.SetType(variable.Name.Sym, annotated);
+            }
+        }
     }
 
     /// <summary>
@@ -859,6 +894,8 @@ public sealed class InferTypesPass() : Pass(PassName, PassScope.PerBuild)
                 : (field.DefaultValue != null ? GetType(pc, field.DefaultValue.Type) : pc.Types.PrimAny);
             classType.InstanceFields[field.Name.Name] = new StructType.Field(field.Name, fieldType);
             classType.MemberDeclarations.TryAdd(field.Name.Name, field.Name);
+            if (field.IsStatic)
+                SetStaticMemberType(pc, cd, field.Name.Name, 0, fieldType);
             if (field.IsProtected)
                 classType.ProtectedMembers.Add(field.Name.Name);
             if (field.IsLocal)
@@ -890,6 +927,7 @@ public sealed class InferTypesPass() : Pass(PassName, PassScope.PerBuild)
         }
 
         var methodBodies = new List<(ClassMethodNode Method, Type ReturnType)>();
+        var staticOverloads = new Dictionary<string, int>(StringComparer.Ordinal);
 
         foreach (var method in cd.Methods)
         {
@@ -933,8 +971,13 @@ public sealed class InferTypesPass() : Pass(PassName, PassScope.PerBuild)
             var methodSide = Nebra.Compiler.Annotations.BuiltinAnnotations.ExtractSide(method.Annotations,
                 (ann, badName) => ReportBadSide(pc, ann, badName));
             if (method.IsStatic)
+            {
                 AppendOverload(classType.StaticMethods, classType.StaticMethodOverloads,
                     classType.StaticMethodOverloadSides, method.Name.Name, ft, methodSide);
+                var overload = staticOverloads.GetValueOrDefault(method.Name.Name);
+                staticOverloads[method.Name.Name] = overload + 1;
+                SetStaticMemberType(pc, cd, method.Name.Name, overload, ft);
+            }
             else
                 AppendOverload(classType.Methods, classType.MethodOverloads,
                     classType.MethodOverloadSides, method.Name.Name, ft, methodSide);

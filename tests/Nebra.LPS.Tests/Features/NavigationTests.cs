@@ -196,4 +196,17 @@ public sealed class NavigationTests
 
         Assert.Equal([session.Location("decl")], targets);
     }
+
+    [Fact]
+    public async Task DefinitionOfAStaticFieldReachedByNameJumpsToItsName()
+    {
+        await using var session = await LspSession.StartAsync(
+            ("src/main.neb",
+                "class Registry\n    static {|decl|}count: number = 0\n\n    static function next(): number\n        return {|use|}count + 1\n    end\nend\n\nprint(Registry.next())\n"));
+
+        await session.OpenAsync("src/main.neb");
+        var targets = await session.DefinitionAsync("use");
+
+        Assert.Equal([session.Location("decl")], targets);
+    }
 }

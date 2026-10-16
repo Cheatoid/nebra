@@ -76,4 +76,37 @@ public sealed class ClassMemberTests
         Assert.Equal(DiagnosticCode.ErrSelfOutsideInstance, error.Code);
         Assert.Contains("a static function", error.Message);
     }
+
+    private const string Registry = """
+        class Registry
+            local static prefix: string = "id-"
+            static count: number = 0
+
+            static function next(): string
+                count = count + 1
+                return prefix .. tostring(count)
+            end
+
+            function label(): string
+                return next()
+            end
+        end
+
+        """;
+
+    [Fact]
+    public void StaticMembersAreReachableByNameInsideTheirClass()
+    {
+        Assert.Empty(Check(Registry + "local registry = new Registry()\nprint(Registry.next() .. registry:label())\n"));
+        Assert.Contains(Check(Registry.Replace("count = count + 1", "count = \"many\"")), error => error.Code == DiagnosticCode.ErrTypeMismatch);
+        Assert.Equal(DiagnosticCode.ErrPrivateAccess, Assert.Single(Check(Registry + "print(Registry.prefix)\n")).Code);
+    }
+
+    [Fact]
+    public void AnAnnotatedTopLevelLocalKeepsItsTypeInsideAClass()
+    {
+        var errors = Check("local fallback: string = \"none\"\n\nclass Box\n    function size(): number\n        return fallback\n    end\nend\n\nprint(Box)\n");
+
+        Assert.Equal(DiagnosticCode.ErrTypeMismatch, Assert.Single(errors).Code);
+    }
 }

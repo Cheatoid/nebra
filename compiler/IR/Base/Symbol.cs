@@ -53,6 +53,11 @@ public enum SymbolFlags
     /// </summary>
     Unused = 1 << 4,
     Async = 1 << 5,
+    /// <summary>
+    /// The symbol is a static field or function of the class whose scope declares it, reached by
+    /// its name from code inside the class. It lives on the class table, so a use of it stands for
+    /// <c>ClassName.member</c>.
+    /// </summary>
     Static = 1 << 6,
     /// <summary>
     /// The symbol names something provided from outside the generated code: anything introduced by
