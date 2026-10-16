@@ -1,3 +1,4 @@
+using Nebra.Diagnostics;
 using Nebra.IR;
 using OmniSharp.Extensions.LanguageServer.Protocol.Client.Capabilities;
 using OmniSharp.Extensions.LanguageServer.Protocol.Document;
@@ -45,9 +46,19 @@ public sealed class SignatureHelpHandler(NebraWorkspace workspace) : SignatureHe
                     if (ft != null) calleeLabel = mce.MethodName.Name;
                 }
                 break;
+            case NewExpr creation:
+                ft = ConstructorOf(ClassOfSymbol(result, creation.ClassName.Sym));
+                calleeLabel = creation.ClassName.Name;
+                break;
+            case SuperCallExpr:
+                ft = ConstructorOf(EnclosingClass(result, line, col)?.BaseClass);
+                calleeLabel = "super";
+                break;
             default:
                 return null;
         }
+
+        if (ft == null && callNode is NewExpr or SuperCallExpr) return null;
 
         Symbol? sym = null;
         if (ft == null)
@@ -170,6 +181,45 @@ public sealed class SignatureHelpHandler(NebraWorkspace workspace) : SignatureHe
             ActiveSignature = 0,
             ActiveParameter = Math.Min(activeParam, Math.Max(0, paramInfos.Count - 1))
         };
+    }
+
+    private static ClassType? ClassOfSymbol(AnalysisResult result, SymID sym)
+    {
+        if (!result.Syms.GetByID(sym, out var symbol)) return null;
+        return result.Types.GetByID(symbol.Type, out var type) ? type as ClassType : null;
+    }
+
+    /// <summary>
+    /// The class whose declaration encloses the position, the innermost one when classes nest.
+    /// </summary>
+    private static ClassType? EnclosingClass(AnalysisResult result, int line, int col)
+    {
+        var enclosing = result.NodeRegistry.Values
+            .OfType<ClassDecl>()
+            .Where(decl => Contains(decl.Span, line, col))
+            .MinBy(decl => (decl.Span.EndLn - decl.Span.StartLn, decl.Span.EndCol - decl.Span.StartCol));
+        return enclosing == null ? null : ClassOfSymbol(result, enclosing.Name.Sym);
+    }
+
+    private static bool Contains(TextSpan span, int line, int col)
+    {
+        if (line < span.StartLn || line > span.EndLn) return false;
+        if (line == span.StartLn && col < span.StartCol) return false;
+        return line != span.EndLn || col <= span.EndCol;
+    }
+
+    /// <summary>
+    /// The constructor a <c>new</c> of <paramref name="classType"/> runs: its own, or else the
+    /// nearest inherited one.
+    /// </summary>
+    private static FunctionType? ConstructorOf(ClassType? classType)
+    {
+        for (var current = classType; current != null; current = current.BaseClass)
+        {
+            if (current.ConstructorType != null) return current.ConstructorType;
+        }
+
+        return null;
     }
 
     /// <summary>

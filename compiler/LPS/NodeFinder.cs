@@ -110,136 +110,21 @@ public static class NodeFinder
         return false;
     }
 
+    /// <summary>
+    /// The innermost call around the position: a function or method call, a <c>new</c> or a
+    /// <c>super(...)</c>, wherever it sits, class members included.
+    /// </summary>
     public static Expr? FindEnclosingCall(IRScript script, int line, int col)
     {
         Expr? best = null;
-        SearchStmtListForCall(script.Body, line, col, ref best);
-        if (script.Return != null)
-            SearchStmtForCall(script.Return, line, col, ref best);
+        foreach (var node in NodeTree.Index(script).Values)
+        {
+            if (node is not (FunctionCallExpr or MethodCallExpr or NewExpr or SuperCallExpr)) continue;
+            if (!Contains(node.Span, line, col) || !IsTighter(node, best)) continue;
+            best = (Expr)node;
+        }
+
         return best;
-    }
-
-    private static void SearchStmtListForCall(List<Stmt> stmts, int line, int col, ref Expr? best)
-    {
-        foreach (var s in stmts) SearchStmtForCall(s, line, col, ref best);
-    }
-
-    private static void SearchStmtForCall(Stmt stmt, int line, int col, ref Expr? best)
-    {
-        if (!Contains(stmt.Span, line, col)) return;
-        switch (stmt)
-        {
-            case FunctionDecl fd:
-                SearchStmtListForCall(fd.Body, line, col, ref best);
-                if (fd.ReturnStmt != null) SearchStmtForCall(fd.ReturnStmt, line, col, ref best);
-                break;
-            case LocalFunctionDecl lfd:
-                SearchStmtListForCall(lfd.Body, line, col, ref best);
-                if (lfd.ReturnStmt != null) SearchStmtForCall(lfd.ReturnStmt, line, col, ref best);
-                break;
-            case LocalDecl ld:
-                foreach (var v in ld.Values) SearchExprForCall(v, line, col, ref best);
-                break;
-            case AssignStmt a:
-                foreach (var t in a.Targets) SearchExprForCall(t, line, col, ref best);
-                foreach (var v in a.Values) SearchExprForCall(v, line, col, ref best);
-                break;
-            case ExprStmt es:
-                SearchExprForCall(es.Expression, line, col, ref best);
-                break;
-            case DoBlockStmt db:
-                SearchStmtListForCall(db.Body, line, col, ref best);
-                break;
-            case WhileStmt ws:
-                SearchExprForCall(ws.Condition, line, col, ref best);
-                SearchStmtListForCall(ws.Body, line, col, ref best);
-                break;
-            case RepeatStmt rs:
-                SearchStmtListForCall(rs.Body, line, col, ref best);
-                SearchExprForCall(rs.Condition, line, col, ref best);
-                break;
-            case IfStmt ifs:
-                SearchExprForCall(ifs.Condition, line, col, ref best);
-                SearchStmtListForCall(ifs.Body, line, col, ref best);
-                foreach (var ei in ifs.ElseIfs)
-                {
-                    SearchExprForCall(ei.Condition, line, col, ref best);
-                    SearchStmtListForCall(ei.Body, line, col, ref best);
-                }
-                if (ifs.ElseBody != null) SearchStmtListForCall(ifs.ElseBody, line, col, ref best);
-                break;
-            case NumericForStmt nf:
-                SearchExprForCall(nf.Start, line, col, ref best);
-                SearchExprForCall(nf.Limit, line, col, ref best);
-                if (nf.Step != null) SearchExprForCall(nf.Step, line, col, ref best);
-                SearchStmtListForCall(nf.Body, line, col, ref best);
-                break;
-            case GenericForStmt gf:
-                foreach (var iter in gf.Iterators) SearchExprForCall(iter, line, col, ref best);
-                SearchStmtListForCall(gf.Body, line, col, ref best);
-                break;
-            case ReturnStmt ret:
-                foreach (var v in ret.Values) SearchExprForCall(v, line, col, ref best);
-                break;
-            case ExportStmt exp:
-                SearchStmtForCall(exp.Declaration, line, col, ref best);
-                break;
-        }
-    }
-
-    private static void SearchExprForCall(Expr expr, int line, int col, ref Expr? best)
-    {
-        if (!Contains(expr.Span, line, col)) return;
-
-        if (expr is FunctionCallExpr or MethodCallExpr)
-        {
-            if (best == null || IsTighter(expr, best))
-                best = expr;
-        }
-
-        switch (expr)
-        {
-            case ParenExpr pe: SearchExprForCall(pe.Inner, line, col, ref best); break;
-            case BinaryExpr bin:
-                SearchExprForCall(bin.Left, line, col, ref best);
-                SearchExprForCall(bin.Right, line, col, ref best);
-                break;
-            case UnaryExpr un: SearchExprForCall(un.Operand, line, col, ref best); break;
-            case DotAccessExpr dot: SearchExprForCall(dot.Object, line, col, ref best); break;
-            case IndexAccessExpr idx:
-                SearchExprForCall(idx.Object, line, col, ref best);
-                SearchExprForCall(idx.Index, line, col, ref best);
-                break;
-            case FunctionCallExpr call:
-                SearchExprForCall(call.Callee, line, col, ref best);
-                foreach (var a in call.Arguments) SearchExprForCall(a, line, col, ref best);
-                break;
-            case MethodCallExpr mc:
-                SearchExprForCall(mc.Object, line, col, ref best);
-                foreach (var a in mc.Arguments) SearchExprForCall(a, line, col, ref best);
-                break;
-            case FunctionDefExpr fd:
-                SearchStmtListForCall(fd.Body, line, col, ref best);
-                if (fd.ReturnStmt != null) SearchStmtForCall(fd.ReturnStmt, line, col, ref best);
-                break;
-            case TableConstructorExpr tc:
-                foreach (var f in tc.Fields)
-                {
-                    if (f.Key != null) SearchExprForCall(f.Key, line, col, ref best);
-                    SearchExprForCall(f.Value, line, col, ref best);
-                }
-                break;
-            case InterpolatedStringExpr interp:
-                foreach (var p in interp.Parts)
-                    if (p is InterpExprPart ep) SearchExprForCall(ep.Expression, line, col, ref best);
-                break;
-            case NonNilAssertExpr nna: SearchExprForCall(nna.Inner, line, col, ref best); break;
-            case IncDecExpr incDec: SearchExprForCall(incDec.Target, line, col, ref best); break;
-            case TypeCheckExpr tchk: SearchExprForCall(tchk.Inner, line, col, ref best); break;
-            case TypeCastExpr tcast: SearchExprForCall(tcast.Inner, line, col, ref best); break;
-            case TypeOfExpr tof: SearchExprForCall(tof.Inner, line, col, ref best); break;
-            case InstanceOfExpr iof: SearchExprForCall(iof.Inner, line, col, ref best); break;
-        }
     }
 
     #region Find Node

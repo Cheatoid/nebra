@@ -21,4 +21,30 @@ public sealed class SignatureHelpTests
         Assert.Equal(0, atFirst.ActiveParameter);
         Assert.Equal(1, atSecond.ActiveParameter);
     }
+
+    private const string Formats = "class Format\n    constructor(pattern: string)\n        print(pattern)\n    end\nend\n\nclass Iso extends Format\n    constructor()\n        super({|super|})\n    end\nend\n\nclass Plain extends Format\nend\n\n";
+
+    [Fact]
+    public async Task InsideNewTheInheritedConstructorIsShown()
+    {
+        await using var session = await LspSession.StartAsync(("src/main.neb", Formats + "print(new Plain({|new|}\"x\"))\n"));
+
+        await session.OpenAsync("src/main.neb");
+        var help = await session.SignatureHelpAsync("new");
+
+        Assert.NotNull(help);
+        Assert.Contains("pattern: string", help.Signatures.First().Label);
+    }
+
+    [Fact]
+    public async Task InsideSuperTheBaseConstructorIsShown()
+    {
+        await using var session = await LspSession.StartAsync(("src/main.neb", Formats + "print(new Iso())\n"));
+
+        await session.OpenAsync("src/main.neb");
+        var help = await session.SignatureHelpAsync("super");
+
+        Assert.NotNull(help);
+        Assert.Contains("super(pattern: string)", help.Signatures.First().Label);
+    }
 }
