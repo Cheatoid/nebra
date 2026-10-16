@@ -151,4 +151,16 @@ public sealed class CompletionTests
         Assert.Equal("now($0)", Assert.Single(await session.CompletionItemsAsync("member"), candidate => candidate.Label == "now").InsertText);
         Assert.Null(Assert.Single(await session.CompletionItemsAsync("called"), candidate => candidate.Label == "now").InsertText);
     }
+
+    [Fact]
+    public async Task CompletionAfterAnUnfinishedAssignmentStillAnswers()
+    {
+        await using var session = await LspSession.StartAsync(
+            ("src/main.neb", "class Date\n    local epoch: number = 0\n\n    constructor(value: number)\n        self.epoch = {|cursor|}\n    end\nend\n"));
+
+        await session.OpenAsync("src/main.neb");
+        var labels = await session.CompletionLabelsAsync("cursor");
+
+        Assert.NotEmpty(labels);
+    }
 }

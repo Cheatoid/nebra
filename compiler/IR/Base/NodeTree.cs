@@ -3,6 +3,8 @@ namespace Nebra.IR;
 /// <summary>
 /// Walks a program tree: every statement, expression, parameter and type reference beneath a
 /// node, indexed by ID. Shared by passes that look at every node and by the language server.
+/// A tree recovered from a syntax error may lack a part, such as the value of an unfinished
+/// <c>x = </c>; the walk skips what is missing.
 /// </summary>
 public static class NodeTree
 {
@@ -36,8 +38,9 @@ public static class NodeTree
         foreach (var s in stmts) RegisterStmt(s, reg);
     }
 
-    private static void RegisterStmt(Stmt stmt, Dictionary<NodeID, Node> reg)
+    private static void RegisterStmt(Stmt? stmt, Dictionary<NodeID, Node> reg)
     {
+        if (stmt == null) return;
         reg[stmt.ID] = stmt;
         switch (stmt)
         {
@@ -144,8 +147,9 @@ public static class NodeTree
         }
     }
 
-    private static void RegisterExpr(Expr expr, Dictionary<NodeID, Node> reg)
+    private static void RegisterExpr(Expr? expr, Dictionary<NodeID, Node> reg)
     {
+        if (expr == null) return;
         reg[expr.ID] = expr;
         switch (expr)
         {
