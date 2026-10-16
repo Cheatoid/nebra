@@ -165,6 +165,49 @@ public sealed class InferTypesPass() : Pass(PassName, PassScope.PerBuild)
     }
 
     /// <summary>
+    /// The type of <paramref name="value"/> where a value of type <paramref name="expected"/> is
+    /// wanted. An empty table literal has no fields to tell its shape from, so it takes the list or
+    /// map type expected of it instead of being a list of anything. A table type with fields it
+    /// does not have is still rejected.
+    /// </summary>
+    private TypID SynthesizeFor(PassContext pc, Expr value, TypID expected)
+    {
+        var synthesized = SynthesizeExpr(pc, value);
+        return IsEmptyTable(value) && IsTableShape(pc, expected) ? expected : synthesized;
+    }
+
+    private static bool IsEmptyTable(Expr value) => value is TableConstructorExpr { Fields.Count: 0 };
+
+    /// <summary>Whether <paramref name="type"/> is a list or map type, or a union holding one.</summary>
+    private static bool IsTableShape(PassContext pc, TypID type)
+    {
+        if (!pc.Types.GetByID(type, out var resolved)) return false;
+        return resolved switch
+        {
+            TableArrayType or TableMapType => true,
+            UnionType union => union.Types.Any(member => member is TableArrayType or TableMapType),
+            _ => false
+        };
+    }
+
+    /// <summary>
+    /// Types the default value of a class field and checks it against the field's annotation the
+    /// way a local's value is checked against its own, so <c>name: string = nil</c> is rejected
+    /// under <c>strict_nil</c> and a default of the wrong type always is.
+    /// </summary>
+    private void CheckFieldDefault(PassContext pc, ClassFieldNode field)
+    {
+        var annotated = field.TypeAnnotation?.ResolvedType ?? TypID.Invalid;
+        var defaultType = SynthesizeFor(pc, field.DefaultValue!, annotated);
+        if (annotated == TypID.Invalid || defaultType == TypID.Invalid) return;
+
+        if (!IsTypeAssignable(pc, annotated, defaultType))
+        {
+            pc.Diag.Report(field.DefaultValue!.Span, DiagnosticCode.ErrTypeMismatch, TypeName(pc, annotated), TypeName(pc, defaultType));
+        }
+    }
+
+    /// <summary>
     /// Adds <paramref name="item"/> unless <paramref name="list"/> holds it already. Classes and
     /// interfaces are shared by name between packages while every package resolves its own copy
     /// of a library's declarations, so the same relation is resolved once per package; adding it
@@ -810,7 +853,7 @@ public sealed class InferTypesPass() : Pass(PassName, PassScope.PerBuild)
 
         foreach (var field in cd.Fields)
         {
-            if (field.DefaultValue != null) SynthesizeExpr(pc, field.DefaultValue);
+            if (field.DefaultValue != null) CheckFieldDefault(pc, field);
             var fieldType = field.TypeAnnotation != null && field.TypeAnnotation.ResolvedType != TypID.Invalid
                 ? GetType(pc, field.TypeAnnotation.ResolvedType)
                 : (field.DefaultValue != null ? GetType(pc, field.DefaultValue.Type) : pc.Types.PrimAny);
@@ -1834,9 +1877,10 @@ public sealed class InferTypesPass() : Pass(PassName, PassScope.PerBuild)
     private void ResolveLocalDecl(PassContext pc, LocalDecl ld)
     {
         var valueTypes = new List<TypID>();
-        foreach (var value in ld.Values)
+        for (var i = 0; i < ld.Values.Count; i++)
         {
-            valueTypes.Add(SynthesizeExpr(pc, value));
+            var expected = i < ld.Variables.Count ? ld.Variables[i].TypeAnnotation?.ResolvedType ?? TypID.Invalid : TypID.Invalid;
+            valueTypes.Add(SynthesizeFor(pc, ld.Values[i], expected));
         }
 
         valueTypes = ExpandTrailingTuple(pc, ld.Values, valueTypes, ld.Variables.Count);
@@ -1896,10 +1940,13 @@ public sealed class InferTypesPass() : Pass(PassName, PassScope.PerBuild)
             var targetType = SynthesizeExpr(pc, target);
             if (i < valueTypes.Count && targetType != TypID.Invalid && targetType != pc.Types.PrimAny.ID)
             {
-                if (!IsTypeAssignable(pc, targetType, valueTypes[i]))
+                var valueType = i < stmt.Values.Count && IsEmptyTable(stmt.Values[i]) && IsTableShape(pc, targetType)
+                    ? targetType
+                    : valueTypes[i];
+                if (!IsTypeAssignable(pc, targetType, valueType))
                 {
                     pc.Diag.Report(target.Span, DiagnosticCode.ErrTypeMismatch,
-                        TypeName(pc, targetType), TypeName(pc, valueTypes[i]));
+                        TypeName(pc, targetType), TypeName(pc, valueType));
                 }
             }
         }
