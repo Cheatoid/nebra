@@ -79,4 +79,24 @@ public sealed class ProjectTests
 
         Assert.Empty(await next);
     }
+
+    [Fact]
+    public void FindingProjectsDoesNotFollowLinksOutOfTheWorkspace()
+    {
+        var outside = Directory.CreateTempSubdirectory("nebra-outside").FullName;
+        File.WriteAllText(Path.Combine(outside, "nebra.toml"), string.Format(Config, "outside"));
+        var workspace = Directory.CreateTempSubdirectory("nebra-linked").FullName;
+        Directory.CreateDirectory(Path.Combine(workspace, "game"));
+        File.WriteAllText(Path.Combine(workspace, "game", "nebra.toml"), string.Format(Config, "game"));
+        Directory.CreateSymbolicLink(Path.Combine(workspace, "game", "drive"), outside);
+        Directory.CreateSymbolicLink(Path.Combine(workspace, "loop"), workspace);
+
+        var projects = new NebraWorkspace();
+        projects.Initialize(workspace, [workspace]);
+
+        var roots = projects.AllProjects().Select(project => project.RootPath).ToList();
+        Assert.Contains(Path.Combine(workspace, "game"), roots);
+        Assert.DoesNotContain(roots, root => root != null && root.Contains("drive"));
+        Assert.DoesNotContain(roots, root => root != null && root.Contains("loop"));
+    }
 }

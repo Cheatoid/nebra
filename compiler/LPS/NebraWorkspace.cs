@@ -19,7 +19,6 @@ namespace Nebra.LPS;
 public sealed class NebraWorkspace
 {
     private static readonly StringComparer PathComparer = StringComparer.OrdinalIgnoreCase;
-    private static readonly string[] SkippedDirectories = ["nebra_modules", "node_modules", "bin", "obj"];
 
     private readonly object _gate = new();
     private readonly List<string> _folders = [];
@@ -255,25 +254,9 @@ public sealed class NebraWorkspace
 
     private static IEnumerable<string> FindNestedRoots(string folder)
     {
-        var pending = new Stack<string>();
-        pending.Push(folder);
-
-        while (pending.Count > 0)
-        {
-            var directory = pending.Pop();
-            string[] children;
-            try { children = Directory.GetDirectories(directory); }
-            catch (IOException) { continue; }
-            catch (UnauthorizedAccessException) { continue; }
-
-            foreach (var child in children)
-            {
-                var name = Path.GetFileName(child);
-                if (name.StartsWith('.') || SkippedDirectories.Contains(name, PathComparer)) continue;
-                if (File.Exists(Path.Combine(child, "nebra.toml"))) yield return Path.GetFullPath(child);
-                pending.Push(child);
-            }
-        }
+        return ProjectFiles.Directories(folder)
+            .Where(directory => !PathComparer.Equals(directory, folder) && File.Exists(Path.Combine(directory, "nebra.toml")))
+            .Select(Path.GetFullPath);
     }
 
     private static string? ToPath(string uriOrPath)

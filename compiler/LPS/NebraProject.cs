@@ -1045,9 +1045,9 @@ public sealed class NebraProject(Func<ServerSettings>? settings = null)
                 if (!seenRoots.Add(rootFull)) continue;
                 if (!Directory.Exists(rootFull)) continue;
 
-                IEnumerable<string> files;
-                try { files = Directory.EnumerateFiles(rootFull, "*.neb", SearchOption.AllDirectories); }
-                catch { continue; }
+                var files = PathComparer.Equals(rootFull, Path.GetFullPath(modulesDir))
+                    ? ProjectFiles.PackageFiles(rootFull, "*.neb")
+                    : ProjectFiles.Files(rootFull, "*.neb");
 
                 foreach (var file in files)
                 {
@@ -1243,15 +1243,9 @@ public sealed class NebraProject(Func<ServerSettings>? settings = null)
         foreach (var dir in searchDirs)
         {
             if (!Directory.Exists(dir)) continue;
-            string[] candidates;
-            try
-            {
-                candidates = Directory.GetFiles(dir, "*.d.neb", SearchOption.AllDirectories);
-            }
-            catch
-            {
-                continue;
-            }
+            var candidates = Path.GetFileName(dir) == ProjectFiles.ModulesDirectory
+                ? ProjectFiles.PackageFiles(dir, "*.d.neb").ToArray()
+                : ProjectFiles.Files(dir, "*.d.neb").ToArray();
 
             foreach (var file in candidates)
             {
@@ -1310,11 +1304,7 @@ public sealed class NebraProject(Func<ServerSettings>? settings = null)
         var requesterDir = Path.GetDirectoryName(requesterFull);
         if (requesterDir == null) return matches;
 
-        IEnumerable<string> files;
-        try { files = Directory.EnumerateFiles(_rootPath, "*.neb", SearchOption.AllDirectories); }
-        catch { return matches; }
-
-        foreach (var file in files)
+        foreach (var file in ProjectFiles.Files(_rootPath, "*.neb"))
         {
             var fullPath = Path.GetFullPath(file);
             if (string.Equals(fullPath, requesterFull, StringComparison.OrdinalIgnoreCase)) continue;
