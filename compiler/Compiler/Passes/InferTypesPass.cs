@@ -2944,37 +2944,51 @@ public sealed class InferTypesPass() : Pass(PassName, PassScope.PerBuild)
         }
     }
 
-    private TypID InferFunctionCall(PassContext pc, FunctionCallExpr call)
+    /// <summary>
+    /// Reports a call written with '.' to a member that needs its receiver passed with ':'. A
+    /// receiver typed as a union, such as a nilable value or <c>a ?? b</c>, needs ':' as soon as
+    /// one of its members does.
+    /// </summary>
+    private bool ReportsMissingColon(PassContext pc, DotAccessExpr callee)
     {
-        if (call.Callee is DotAccessExpr dotCallee
-            && pc.Pkg!.Types.GetByID(SynthesizeExpr(pc, dotCallee.Object), out var receiverType)
-            && receiverType is ClassType receiverClass)
+        if (!pc.Pkg!.Types.GetByID(SynthesizeExpr(pc, callee.Object), out var receiverType)) return false;
+
+        var isClassReference = callee.Object is NameExpr className
+            && pc.Pkg.Syms.GetByID(className.Name.Sym, out var classSymbol)
+            && classSymbol.Kind == SymbolKind.Class;
+        var name = callee.FieldName.Name;
+        var receiverName = callee.Object is NameExpr receiverExpr ? receiverExpr.Name.Name : "obj";
+        var candidates = receiverType is UnionType union ? union.Types : [receiverType];
+
+        foreach (var candidate in candidates)
         {
-            var isClassRef = dotCallee.Object is NameExpr cn
-                && pc.Pkg!.Syms.GetByID(cn.Name.Sym, out var cs)
-                && cs.Kind == SymbolKind.Class;
-            var mname = dotCallee.FieldName.Name;
-            if (!isClassRef
-                && receiverClass.Methods.ContainsKey(mname)
-                && !receiverClass.StaticMethods.ContainsKey(mname)
-                && !mname.StartsWith("__"))
+            if (candidate is ClassType receiverClass && !isClassReference && IsInstanceMethodOf(receiverClass, name))
             {
-                var recvName = dotCallee.Object is NameExpr cne ? cne.Name.Name : "obj";
-                pc.Diag.Report(call.Callee.Span, DiagnosticCode.ErrInstanceMethodNeedsColon,
-                    mname, receiverClass.Name, recvName);
-                foreach (var arg in call.Arguments) SynthesizeExpr(pc, arg);
-                return call.IsOptional ? MakeNullable(pc, pc.Types.PrimAny.ID) : pc.Types.PrimAny.ID;
+                pc.Diag.Report(callee.Span, DiagnosticCode.ErrInstanceMethodNeedsColon, name, receiverClass.Name, receiverName);
+                return true;
+            }
+
+            if (candidate is InterfaceType receiverInterface && DeclaresInstanceMethod(receiverInterface, name))
+            {
+                pc.Diag.Report(callee.Span, DiagnosticCode.ErrInterfaceMethodNeedsColon, name, receiverInterface.Name, receiverName);
+                return true;
             }
         }
 
-        if (call.Callee is DotAccessExpr ifaceCallee
-            && pc.Pkg!.Types.GetByID(SynthesizeExpr(pc, ifaceCallee.Object), out var ifaceReceiver)
-            && ifaceReceiver is InterfaceType receiverInterface
-            && DeclaresInstanceMethod(receiverInterface, ifaceCallee.FieldName.Name))
+        return false;
+    }
+
+    private static bool IsInstanceMethodOf(ClassType classType, string name)
+    {
+        return classType.Methods.ContainsKey(name)
+            && !classType.StaticMethods.ContainsKey(name)
+            && !name.StartsWith("__");
+    }
+
+    private TypID InferFunctionCall(PassContext pc, FunctionCallExpr call)
+    {
+        if (call.Callee is DotAccessExpr dotCallee && ReportsMissingColon(pc, dotCallee))
         {
-            var receiverName = ifaceCallee.Object is NameExpr receiverExpr ? receiverExpr.Name.Name : "obj";
-            pc.Diag.Report(call.Callee.Span, DiagnosticCode.ErrInterfaceMethodNeedsColon,
-                ifaceCallee.FieldName.Name, receiverInterface.Name, receiverName);
             foreach (var arg in call.Arguments) SynthesizeExpr(pc, arg);
             return call.IsOptional ? MakeNullable(pc, pc.Types.PrimAny.ID) : pc.Types.PrimAny.ID;
         }
