@@ -412,20 +412,6 @@ public sealed partial class CodegenPass() : Pass(PassName, PassScope.PerBuild, t
         var hasBase = cd.BaseClass != null;
         var baseName = hasBase ? ResolveName(ctx, pkg, cd.BaseClass!) : null;
 
-        foreach (var field in cd.Fields)
-        {
-            if (!field.IsLocal) continue;
-            gen.Write("local ");
-            gen.Write(ResolveName(ctx, pkg, field.Name));
-            if (field.DefaultValue != null)
-            {
-                gen.Write(" = ");
-                EmitExpr(ctx, pkg, gen, field.DefaultValue);
-            }
-            gen.NewLine();
-            gen.WriteSemicolon();
-        }
-
         gen.Write("local ");
         gen.Write(className);
         if (hasBase)
@@ -572,11 +558,6 @@ public sealed partial class CodegenPass() : Pass(PassName, PassScope.PerBuild, t
         // Instance methods
         foreach (var method in cd.Methods)
         {
-            if (method.IsLocal)
-            {
-                EmitLocalClassMethod(ctx, pkg, gen, method);
-                continue;
-            }
             if (method.IsStatic) continue;
 
             gen.Write("function ");
@@ -633,7 +614,7 @@ public sealed partial class CodegenPass() : Pass(PassName, PassScope.PerBuild, t
         // Static methods
         foreach (var method in cd.Methods)
         {
-            if (method.IsLocal || !method.IsStatic) continue;
+            if (!method.IsStatic) continue;
 
             gen.Write("function ");
             gen.Write(className);
@@ -654,7 +635,7 @@ public sealed partial class CodegenPass() : Pass(PassName, PassScope.PerBuild, t
         // Static fields
         foreach (var field in cd.Fields)
         {
-            if (!field.IsStatic || field.IsLocal) continue;
+            if (!field.IsStatic) continue;
             gen.Write(className);
             gen.Write(".");
             gen.Write(field.Name.Name);
@@ -746,7 +727,7 @@ public sealed partial class CodegenPass() : Pass(PassName, PassScope.PerBuild, t
     {
         foreach (var field in cd.Fields)
         {
-            if (field.IsLocal || field.IsStatic) continue;
+            if (field.IsStatic) continue;
             if (field.DefaultValue == null) continue;
             gen.Write("self.");
             gen.Write(field.Name.Name);
@@ -775,7 +756,7 @@ public sealed partial class CodegenPass() : Pass(PassName, PassScope.PerBuild, t
 
         foreach (var field in cd.Fields)
         {
-            if (field.IsLocal || field.IsStatic || field.DefaultValue == null) continue;
+            if (field.IsStatic || field.DefaultValue == null) continue;
             if (ContainsSelfOrClosure(field.DefaultValue)) return false;
             if (!seen.Add(field.Name.Name)) return false;
             inits.Add((field.Name.Name, field.DefaultValue));
@@ -874,22 +855,6 @@ public sealed partial class CodegenPass() : Pass(PassName, PassScope.PerBuild, t
     private bool HasSuperCall(List<Stmt> stmts)
     {
         return stmts.Any(s => s is ExprStmt { Expression: SuperCallExpr });
-    }
-
-    private void EmitLocalClassMethod(PassContext ctx, PackageContext pkg, LuaGenerator gen, ClassMethodNode method)
-    {
-        gen.Write("local function ");
-        gen.Write(ResolveName(ctx, pkg, method.Name));
-        gen.Write("(");
-        EmitParamList(ctx, pkg, gen, method.Parameters);
-        EmitAsyncDoneParam(gen, method.IsAsync, method.Parameters.Count > 0);
-        gen.Write(")");
-        gen.NewLine();
-        gen.Indent();
-        EmitFuncBodyContent(ctx, pkg, gen, method.Parameters, method.Body, method.ReturnStmt, method.IsAsync);
-        gen.Dedent();
-        gen.WriteLine("end");
-        gen.WriteSemicolon();
     }
 
     private void EmitNewExpr(PassContext ctx, PackageContext pkg, LuaGenerator gen, NewExpr ne)

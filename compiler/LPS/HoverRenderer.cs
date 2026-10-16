@@ -127,7 +127,9 @@ public sealed class HoverRenderer(AnalysisResult result, NebraWorkspace workspac
     {
         if (classType.InstanceFields.TryGetValue(name, out var field))
         {
-            var prefix = classType.ProtectedMembers.Contains(name) ? "(protected field)" : "(field)";
+            var prefix = classType.PrivateMembers.Contains(name) ? "(private field)"
+                : classType.ProtectedMembers.Contains(name) ? "(protected field)"
+                : "(field)";
             return Render(new HoverText($"{prefix} {ownerName}.{name}: {Format(field.Type)}", side, doc, field.Type));
         }
 
@@ -138,7 +140,9 @@ public sealed class HoverRenderer(AnalysisResult result, NebraWorkspace workspac
 
         if (classType.Methods.TryGetValue(name, out var method))
         {
-            var keyword = classType.ProtectedMembers.Contains(name) ? "protected function" : "function";
+            var keyword = classType.PrivateMembers.Contains(name) ? "local function"
+                : classType.ProtectedMembers.Contains(name) ? "protected function"
+                : "function";
             return Render(new HoverText(Signature(keyword, $"{ownerName}:{name}", method, null, skipSelf: true), side, doc, method.ReturnType));
         }
 
@@ -262,7 +266,7 @@ public sealed class HoverRenderer(AnalysisResult result, NebraWorkspace workspac
 
     private static bool IsPublic(ClassType classType, string member)
     {
-        return !classType.ProtectedMembers.Contains(member);
+        return !classType.ProtectedMembers.Contains(member) && !classType.PrivateMembers.Contains(member);
     }
 
     private string InterfaceBody(InterfaceType interfaceType)

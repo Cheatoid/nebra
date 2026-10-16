@@ -13,8 +13,8 @@ public sealed class ResolveNamesPass() : Pass(PassName, PassScope.PerFile)
     public const string PassName = "ResolveNames";
 
     /// <summary>
-    /// Set while the body of a class function without a <c>self</c> is resolved - a static or a
-    /// <c>local</c> one - and naming it, so a <c>self</c> written there is reported for what it is.
+    /// Set while the body of a static class function is resolved, naming it, so a <c>self</c>
+    /// written there is reported for what it is.
     /// </summary>
     private string? _selfUnavailableIn;
 
@@ -323,16 +323,10 @@ public sealed class ResolveNamesPass() : Pass(PassName, PassScope.PerFile)
                         ResolveStmtNames(pc, classDecl.Constructor.ReturnStmt, pkg);
                 }
 
-                foreach (var local in classDecl.Fields.Where(field => field.IsLocal).Select(field => field.Name)
-                             .Concat(classDecl.Methods.Where(method => method.IsLocal).Select(method => method.Name)))
-                {
-                    ResolveNameRef(pc, local, scope, pkg);
-                }
-
                 foreach (var method in classDecl.Methods)
                 {
                     var enclosingSelf = _selfUnavailableIn;
-                    _selfUnavailableIn = method.IsStatic ? "a static function" : method.IsLocal ? "a local function of a class" : null;
+                    _selfUnavailableIn = method.IsStatic ? "a static function" : null;
 
                     foreach (var p in method.Parameters)
                     {

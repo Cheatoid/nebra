@@ -141,7 +141,7 @@ public enum DiagnosticCode
     [Level(DiagnosticLevel.Error)]
     [Category(DiagnosticCategory.Type)]
     [Format("type '{0}' has no field '{1}'")]
-    [Help("declare it in the class body, such as `{1}: <type>`; a `local` field is reached by its name, not through `self`")]
+    [Help("declare it in the class body, such as `{1}: <type>`")]
     ErrNoSuchField = 0x2012,
 
     [Level(DiagnosticLevel.Error)]
@@ -329,6 +329,12 @@ public enum DiagnosticCode
     [Category(DiagnosticCategory.Semantic)]
     [Format("Cannot access protected member '{0}' of class '{1}' from outside the class hierarchy")]
     ErrProtectedAccess = 0x4011,
+
+    [Level(DiagnosticLevel.Error)]
+    [Category(DiagnosticCategory.Semantic)]
+    [Format("Cannot access private member '{0}' of class '{1}' from outside the class")]
+    [Help("private members, declared `local`, are reached only from the methods of the class declaring them; use `protected` to share one with subclasses")]
+    ErrPrivateAccess = 0x402F,
 
     [Level(DiagnosticLevel.Warning)]
     [Category(DiagnosticCategory.Semantic)]

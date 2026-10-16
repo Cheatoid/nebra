@@ -191,47 +191,6 @@ public sealed class InferTypesPass() : Pass(PassName, PassScope.PerBuild)
     }
 
     /// <summary>
-    /// Types a <c>local</c> function of a class: a plain function its methods call by name, with
-    /// no <c>self</c> and no place on the class table. Returns its return type, which its body is
-    /// checked against with the bodies of the class's methods.
-    /// </summary>
-    private Type DeclareLocalClassFunction(PassContext pc, ClassMethodNode method)
-    {
-        var parameters = new List<Tuple<string, Type>>();
-        var defaults = new List<int>();
-        var isVararg = false;
-        Type? varargType = null;
-
-        for (var index = 0; index < method.Parameters.Count; index++)
-        {
-            var parameter = method.Parameters[index];
-            var type = ResolveParamType(pc, parameter);
-            pc.Pkg!.Syms.SetType(parameter.Name.Sym, type.ID);
-
-            if (parameter.IsVararg)
-            {
-                isVararg = true;
-                varargType = type.Kind == TypeKind.PrimitiveAny ? null : type;
-                continue;
-            }
-
-            parameters.Add(new Tuple<string, Type>(parameter.Name.Name, type));
-            if (parameter.DefaultValue != null)
-            {
-                SynthesizeExpr(pc, parameter.DefaultValue);
-                defaults.Add(index);
-            }
-        }
-
-        var returnType = method.ReturnType != null && method.ReturnType.ResolvedType != TypID.Invalid
-            ? GetType(pc, method.ReturnType.ResolvedType)
-            : pc.Types.PrimNil;
-        var function = pc.Types.FuncOf(parameters, returnType, isVararg, varargType, defaults.Count > 0 ? defaults : null, method.IsAsync);
-        pc.Pkg!.Syms.SetType(method.Name.Sym, function);
-        return returnType;
-    }
-
-    /// <summary>
     /// Types the default value of a class field and checks it against the field's annotation the
     /// way a local's value is checked against its own, so <c>name: string = nil</c> is rejected
     /// under <c>strict_nil</c> and a default of the wrong type always is.
@@ -898,17 +857,12 @@ public sealed class InferTypesPass() : Pass(PassName, PassScope.PerBuild)
             var fieldType = field.TypeAnnotation != null && field.TypeAnnotation.ResolvedType != TypID.Invalid
                 ? GetType(pc, field.TypeAnnotation.ResolvedType)
                 : (field.DefaultValue != null ? GetType(pc, field.DefaultValue.Type) : pc.Types.PrimAny);
-            if (field.IsLocal)
-            {
-                pc.Pkg!.Syms.SetType(field.Name.Sym, fieldType.ID);
-            }
-            else
-            {
-                classType.InstanceFields[field.Name.Name] = new StructType.Field(field.Name, fieldType);
-                classType.MemberDeclarations.TryAdd(field.Name.Name, field.Name);
-            }
+            classType.InstanceFields[field.Name.Name] = new StructType.Field(field.Name, fieldType);
+            classType.MemberDeclarations.TryAdd(field.Name.Name, field.Name);
             if (field.IsProtected)
                 classType.ProtectedMembers.Add(field.Name.Name);
+            if (field.IsLocal)
+                classType.PrivateMembers.Add(field.Name.Name);
             StampMemberSide(pc, field.Annotations, classType.FieldSides, field.Name.Name);
         }
 
@@ -939,12 +893,6 @@ public sealed class InferTypesPass() : Pass(PassName, PassScope.PerBuild)
 
         foreach (var method in cd.Methods)
         {
-            if (method.IsLocal)
-            {
-                methodBodies.Add((method, DeclareLocalClassFunction(pc, method)));
-                continue;
-            }
-
             if (method.IsAbstract && !cd.IsAbstract)
                 pc.Diag.Report(method.Span, Diagnostics.DiagnosticCode.ErrAbstractInNonAbstractClass, method.Name.Name);
 
@@ -1000,6 +948,9 @@ public sealed class InferTypesPass() : Pass(PassName, PassScope.PerBuild)
 
             if (method.IsProtected)
                 classType.ProtectedMembers.Add(method.Name.Name);
+
+            if (method.IsLocal)
+                classType.PrivateMembers.Add(method.Name.Name);
 
             if (method.IsOverride)
             {
@@ -1084,7 +1035,6 @@ public sealed class InferTypesPass() : Pass(PassName, PassScope.PerBuild)
         var fieldNames = new HashSet<string>(StringComparer.Ordinal);
         foreach (var field in cd.Fields)
         {
-            if (field.IsLocal) continue;
             if (fieldNames.Add(field.Name.Name)) continue;
 
             pc.Diag.Report(field.Name.Span, Diagnostics.DiagnosticCode.ErrDuplicateClassMember, field.Name.Name);
@@ -1101,8 +1051,6 @@ public sealed class InferTypesPass() : Pass(PassName, PassScope.PerBuild)
         var methodKeys = new HashSet<string>(StringComparer.Ordinal);
         foreach (var method in cd.Methods)
         {
-            if (method.IsLocal) continue;
-
             var side = Nebra.Compiler.Annotations.BuiltinAnnotations.ExtractSide(method.Annotations, (_, _) => { });
             var key = $"{(method.IsStatic ? "static " : "")}{method.Name.Name}({MethodParamKey(pc, method)}) @{side}";
             if (methodKeys.Add(key)) continue;
@@ -2858,11 +2806,33 @@ public sealed class InferTypesPass() : Pass(PassName, PassScope.PerBuild)
     /// </summary>
     private void CheckProtectedAccess(PassContext pc, TextSpan span, ClassType classType, string memberName)
     {
+        var privateOwner = FindPrivateOwner(classType, memberName);
+        if (privateOwner != null)
+        {
+            if (!ReferenceEquals(_currentClass, privateOwner))
+                pc.Diag.Report(span, DiagnosticCode.ErrPrivateAccess, memberName, privateOwner.Name);
+            return;
+        }
+
         var owner = FindProtectedOwner(classType, memberName);
         if (owner == null) return;
         if (_currentClass != null && DerivesFrom(_currentClass, owner)) return;
 
         pc.Diag.Report(span, DiagnosticCode.ErrProtectedAccess, memberName, owner.Name);
+    }
+
+    /// <summary>
+    /// Finds the class in <paramref name="classType"/>'s chain that declares
+    /// <paramref name="memberName"/> private, or <c>null</c> when none does.
+    /// </summary>
+    private static ClassType? FindPrivateOwner(ClassType classType, string memberName)
+    {
+        for (var cur = classType; cur != null; cur = cur.BaseClass)
+        {
+            if (cur.PrivateMembers.Contains(memberName)) return cur;
+        }
+
+        return null;
     }
 
     /// <summary>

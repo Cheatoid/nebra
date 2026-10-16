@@ -179,6 +179,19 @@ class Product extends Labelled
     end
 end
 
+class Tally
+    local count: number = 0
+
+    local function bump(by: number): number
+        self.count = self.count + by
+        return self.count
+    end
+
+    function add(by: number): number
+        return self:bump(by)
+    end
+end
+
 export function run(): nil
     section("classes")
 
@@ -265,5 +278,11 @@ export function run(): nil
     expectEq("constructor calls a later method", (new Ordered(3)).base, 4)
     expectEq("method calls a later method and getter", (new Ordered(3)):describe(), "ordered:8:2")
     expectEq("abstract base calls a later abstract method", (new Product()):label(), "labelled:lamp")
+
+    -- Members declared local are private members of each instance
+    local tally = new Tally()
+    tally:add(2)
+    expectEq("private field and method keep state per instance", tally:add(3), 5)
+    expectEq("a second instance has its own private field", (new Tally()):add(1), 1)
 
 end

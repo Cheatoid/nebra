@@ -121,12 +121,12 @@ public static class SideMarkers
     {
         Add(markers, classDecl.Name, side);
 
-        foreach (var field in classDecl.Fields.Where(field => !field.IsLocal))
+        foreach (var field in classDecl.Fields)
         {
             Add(markers, field.Name, Resolve(field.Annotations, side));
         }
 
-        foreach (var method in classDecl.Methods.Where(method => !method.IsLocal))
+        foreach (var method in classDecl.Methods)
         {
             Add(markers, method.Name, Resolve(method.Annotations, side));
         }

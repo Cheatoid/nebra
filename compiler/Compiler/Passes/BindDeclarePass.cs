@@ -468,7 +468,6 @@ public sealed class BindDeclarePass() : Pass(PassName, PassScope.PerFile)
                 var classScope = pkg.Scopes.NewScope(scope);
                 pkg.Scopes.BindNode(classDecl.ID, classScope);
                 DeclareTypeParams(ctx, classScope, classDecl.TypeParams);
-                DeclareClassLocals(ctx, classDecl, classScope);
 
                 if (classDecl.Constructor != null)
                 {
@@ -491,7 +490,7 @@ public sealed class BindDeclarePass() : Pass(PassName, PassScope.PerFile)
                 {
                     var methodScope = pkg.Scopes.NewScope(classScope);
                     DeclareTypeParams(ctx, methodScope, method.TypeParams);
-                    if (!method.IsStatic && !method.IsLocal)
+                    if (!method.IsStatic)
                         DeclareSymbol(ctx, methodScope, "self", SymbolKind.Variable, classDecl.ID);
                     foreach (var param in method.Parameters)
                     {
@@ -796,24 +795,6 @@ public sealed class BindDeclarePass() : Pass(PassName, PassScope.PerFile)
     {
         if (pkg.Scopes.LookupOnlyCurrent(armScope, binding.Name, out var sym))
             binding.Sym = sym;
-    }
-
-    /// <summary>
-    /// Declares the <c>local</c> fields and functions of a class in its own scope: they are file
-    /// locals the generated code places before the class, which its methods reach by name and
-    /// which never land on the class table or an instance.
-    /// </summary>
-    private static void DeclareClassLocals(PassContext ctx, ClassDecl classDecl, ScopeID classScope)
-    {
-        foreach (var field in classDecl.Fields.Where(field => field.IsLocal))
-        {
-            DeclareSymbol(ctx, classScope, field.Name.Name, SymbolKind.Variable, classDecl.ID, field.Name.Span);
-        }
-
-        foreach (var method in classDecl.Methods.Where(method => method.IsLocal))
-        {
-            DeclareSymbol(ctx, classScope, method.Name.Name, SymbolKind.Function, classDecl.ID, method.Name.Span);
-        }
     }
 
     private static void DeclareSymbol(PassContext ctx, ScopeID scope, string name, SymbolKind kind, NodeID decl, params SymbolFlags[] flags)

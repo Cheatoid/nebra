@@ -582,6 +582,12 @@ public sealed class ClassType(
     public FunctionType? ConstructorType { get; set; }
     public HashSet<string> AbstractMethods { get; } = new();
     public HashSet<string> ProtectedMembers { get; } = new();
+
+    /// <summary>
+    /// Members declared <c>local</c>: reachable only from the methods of this class itself, not
+    /// from subclasses and not from outside.
+    /// </summary>
+    public HashSet<string> PrivateMembers { get; } = new();
     public List<TypeParameterType> TypeParams { get; } = new();
 
     /// <summary>
