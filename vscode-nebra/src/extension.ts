@@ -74,6 +74,14 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     )
   );
 
+  context.subscriptions.push(
+    vscode.commands.registerCommand("nebra.restartServer", async () => {
+      if (!client) return;
+      await client.restart();
+      vscode.window.setStatusBarMessage("Nebra language server restarted", 3000);
+    }),
+  );
+
   await client.start();
   context.subscriptions.push(new SideMarkerDecorator(client));
 }

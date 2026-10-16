@@ -121,6 +121,11 @@
         "command": "nebra.openConfig",
         "title": "Open the nearest nebra.toml",
         "category": "Nebra"
+      },
+      {
+        "command": "nebra.restartServer",
+        "title": "Restart the language server",
+        "category": "Nebra"
       }
     ],
     "colors": [
