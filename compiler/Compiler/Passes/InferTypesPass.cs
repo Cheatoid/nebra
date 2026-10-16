@@ -613,8 +613,7 @@ public sealed class InferTypesPass() : Pass(PassName, PassScope.PerBuild)
                     break;
                 }
 
-                var tCond = SynthesizeExpr(pc, ifStmt.Condition);
-                EnsureBoolLike(pc, ifStmt.Condition.Span, tCond);
+                SynthesizeExpr(pc, ifStmt.Condition);
 
                 var (thenNarrows, elseNarrows) = AnalyzeCondition(pc, ifStmt.Condition);
                 var thenSaved = PushAllNarrows(thenNarrows);
@@ -623,8 +622,7 @@ public sealed class InferTypesPass() : Pass(PassName, PassScope.PerBuild)
 
                 foreach (var elseIf in ifStmt.ElseIfs)
                 {
-                    var tEC = SynthesizeExpr(pc, elseIf.Condition);
-                    EnsureBoolLike(pc, elseIf.Condition.Span, tEC);
+                    SynthesizeExpr(pc, elseIf.Condition);
                     var (eiThen, _) = AnalyzeCondition(pc, elseIf.Condition);
                     var eiSaved = PushAllNarrows(eiThen);
                     ResolveStmts(pc, elseIf.Body);
@@ -2028,7 +2026,7 @@ public sealed class InferTypesPass() : Pass(PassName, PassScope.PerBuild)
         {
             var variable = ld.Variables[i];
             var annotated = variable.TypeAnnotation?.ResolvedType ?? TypID.Invalid;
-            var inferred = i < valueTypes.Count ? CollapseVariadic(pc, valueTypes[i]) : pc.Types.PrimNil.ID;
+            var inferred = i < valueTypes.Count ? FirstValue(pc, valueTypes[i]) : pc.Types.PrimNil.ID;
 
             TypID finalType;
             if (annotated != TypID.Invalid)
@@ -2081,7 +2079,7 @@ public sealed class InferTypesPass() : Pass(PassName, PassScope.PerBuild)
             {
                 var valueType = i < stmt.Values.Count && IsEmptyTable(stmt.Values[i]) && IsTableShape(pc, targetType)
                     ? targetType
-                    : valueTypes[i];
+                    : FirstValue(pc, valueTypes[i]);
                 if (!IsTypeAssignable(pc, targetType, valueType))
                 {
                     pc.Diag.Report(target.Span, DiagnosticCode.ErrTypeMismatch,
@@ -2172,6 +2170,17 @@ public sealed class InferTypesPass() : Pass(PassName, PassScope.PerBuild)
     {
         if (pc.Pkg!.Types.GetByID(id, out var t) && t is VariadicType v) return v.ElementType.ID;
         return id;
+    }
+
+    /// <summary>
+    /// The type a single slot receives from a value: Lua keeps only the first of several values,
+    /// so <c>local year = civil(days)</c> with a call returning <c>(number, number, number)</c>
+    /// is a <c>number</c>, and a call returning nothing gives <c>nil</c>.
+    /// </summary>
+    private TypID FirstValue(PassContext pc, TypID id)
+    {
+        if (!pc.Pkg!.Types.GetByID(id, out var type) || type is not TupleType tuple) return CollapseVariadic(pc, id);
+        return tuple.Fields.Count == 0 ? pc.Types.PrimNil.ID : FirstValue(pc, tuple.Fields[0].Type.ID);
     }
 
     /// <summary>
@@ -2439,9 +2448,8 @@ public sealed class InferTypesPass() : Pass(PassName, PassScope.PerBuild)
             case BinaryOp.Or:
                 if (l == tt.PrimNever.ID) return tt.PrimNever.ID;
                 if (r == tt.PrimNever.ID) return bin.Op == BinaryOp.Or ? StripNil(pc, l) : l;
-                if (l == r) return l;
                 if (l == tt.PrimAny.ID || r == tt.PrimAny.ID) return tt.PrimAny.ID;
-                return pc.Types.UnionOf([GetType(pc, l), GetType(pc, r)]);
+                return bin.Op == BinaryOp.And ? InferAnd(pc, l, r) : InferOr(pc, bin, l, r);
             case BinaryOp.NilCoalesce:
             {
                 if (l == tt.PrimNever.ID) return tt.PrimNever.ID;
@@ -2455,6 +2463,64 @@ public sealed class InferTypesPass() : Pass(PassName, PassScope.PerBuild)
                 pc.Diag.Report(bin.Span, DiagnosticCode.ErrInvalidOperator, bin.Op.ToString());
                 return tt.PrimAny.ID;
         }
+    }
+
+    /// <summary>
+    /// The type of <c>l and r</c>: <paramref name="l"/> when it is falsy, else <paramref name="r"/>.
+    /// A left side that can never be falsy always gives the right one, and one that can only be
+    /// falsy by being nil adds just <c>nil</c>.
+    /// </summary>
+    private TypID InferAnd(PassContext pc, TypID l, TypID r)
+    {
+        if (!CanBeFalsy(pc, l)) return r;
+        if (l == r) return l;
+        if (!CanBeFalse(pc, l)) return MakeNullable(pc, r);
+        return pc.Types.UnionOf([GetType(pc, l), GetType(pc, r)]);
+    }
+
+    /// <summary>
+    /// The type of <c>l or r</c>: <paramref name="l"/> when it is truthy, else <paramref name="r"/>,
+    /// so the nil of <paramref name="l"/> never reaches the result. In the conditional idiom
+    /// <c>cond and a or b</c> the result is <c>a</c> or <c>b</c>, whatever <c>cond</c> is.
+    /// </summary>
+    private TypID InferOr(PassContext pc, BinaryExpr bin, TypID l, TypID r)
+    {
+        if (!CanBeFalsy(pc, l)) return l;
+
+        var truthy = bin.Left is BinaryExpr { Op: BinaryOp.And } conditional && conditional.Right.Type != TypID.Invalid
+            ? StripNil(pc, conditional.Right.Type)
+            : StripNil(pc, l);
+        if (truthy == pc.Types.PrimAny.ID || truthy == r) return r == pc.Types.PrimAny.ID ? truthy : r;
+        if (IsTypeAssignable(pc, truthy, r)) return truthy;
+        return pc.Types.UnionOf([GetType(pc, truthy), GetType(pc, r)]);
+    }
+
+    private bool CanBeFalsy(PassContext pc, TypID id)
+    {
+        return MembersOf(pc, id).Any(member => MayBeFalse(member) || MayBeNil(member));
+    }
+
+    private bool CanBeFalse(PassContext pc, TypID id)
+    {
+        return MembersOf(pc, id).Any(MayBeFalse);
+    }
+
+    private IEnumerable<Type> MembersOf(PassContext pc, TypID id)
+    {
+        if (!pc.Pkg!.Types.GetByID(id, out var type)) return [pc.Types.PrimAny];
+        return type is UnionType union ? union.Types : [type];
+    }
+
+    private static bool MayBeFalse(Type type)
+    {
+        return type.Kind is TypeKind.PrimitiveAny or TypeKind.PrimitiveBool or TypeKind.Predicate
+            or TypeKind.TypeParameter or TypeKind.Tuple or TypeKind.Variadic;
+    }
+
+    private static bool MayBeNil(Type type)
+    {
+        return type.Kind is TypeKind.PrimitiveNil or TypeKind.PrimitiveAny
+            or TypeKind.TypeParameter or TypeKind.Tuple or TypeKind.Variadic;
     }
 
     private TypID InferUnary(PassContext pc, UnaryExpr un)
@@ -4129,11 +4195,18 @@ public sealed class InferTypesPass() : Pass(PassName, PassScope.PerBuild)
 
             // A tuple return ending in a variadic tail, e.g. `(string, ...number)`, matches a
             // longer tuple of actual return values: fixed prefix positionally, the rest against
-            // the tail element. Non-variadic tuples keep their existing exact-match semantics.
+            // the tail element. Tuples of one length match value by value.
             if (dstTypeNode is TupleType dstTuple && srcTypeNode is TupleType srcTuple
                 && dstTuple.Fields.Count > 0 && dstTuple.Fields[^1].Type is VariadicType)
             {
                 if (TupleWithVariadicTailAssignable(pc, dstTuple, srcTuple)) return true;
+            }
+
+            if (dstTypeNode is TupleType dstValues && srcTypeNode is TupleType srcValues
+                && dstValues.Fields.Count == srcValues.Fields.Count
+                && dstValues.Fields.Zip(srcValues.Fields).All(pair => IsTypeAssignable(pc, pair.First.Type.ID, pair.Second.Type.ID)))
+            {
+                return true;
             }
         }
 
@@ -4229,12 +4302,6 @@ public sealed class InferTypesPass() : Pass(PassName, PassScope.PerBuild)
         }
 
         pc.Diag.Report(span, DiagnosticCode.ErrTypeMismatch, TypeName(pc, expected), TypeName(pc, actual));
-    }
-
-    private void EnsureBoolLike(PassContext pc, TextSpan span, TypID t)
-    {
-        if (t == pc.Types.PrimAny.ID || t == pc.Types.PrimBool.ID) return;
-        pc.Diag.Report(span, DiagnosticCode.ErrTypeMismatch, "boolean", TypeName(pc, t));
     }
 
     private void EnsureConcatable(PassContext pc, TextSpan span, TypID t)
@@ -4513,7 +4580,24 @@ public sealed class InferTypesPass() : Pass(PassName, PassScope.PerBuild)
             return (thenN, elseN);
         }
 
+        NarrowTruthiness(pc, GetAccessPath(c), thenN, elseN);
         return (thenN, elseN);
+    }
+
+    /// <summary>
+    /// A value tested on its own, as in <c>if name then</c>, is not nil in the then-branch. In the
+    /// else-branch it is nil, unless it could also be <c>false</c>.
+    /// </summary>
+    private void NarrowTruthiness(PassContext pc, AccessPath? path, List<(AccessPath, TypID)> thenN, List<(AccessPath, TypID)> elseN)
+    {
+        if (path == null) return;
+
+        var current = ResolveAccessPathType(pc, path);
+        if (!IsNullable(pc, current)) return;
+
+        thenN.Add((path, StripNil(pc, current)));
+        if (!CanBeFalse(pc, current))
+            elseN.Add((path, pc.Types.PrimNil.ID));
     }
 
     /// <summary>
