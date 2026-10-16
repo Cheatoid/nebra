@@ -1587,6 +1587,19 @@ public interface INebraVisitor<Result> : IParseTreeVisitor<Result> {
 	/// <return>The visitor result.</return>
 	Result VisitOptCallSuffix([NotNull] NebraParser.OptCallSuffixContext context);
 	/// <summary>
+	/// Visit a parse tree produced by the <c>NonNilSuffix</c>
+	/// labeled alternative in <see cref="NebraParser.suffix"/>.
+	/// </summary>
+	/// <param name="context">The parse tree.</param>
+	/// <return>The visitor result.</return>
+	Result VisitNonNilSuffix([NotNull] NebraParser.NonNilSuffixContext context);
+	/// <summary>
+	/// Visit a parse tree produced by <see cref="NebraParser.memberName"/>.
+	/// </summary>
+	/// <param name="context">The parse tree.</param>
+	/// <return>The visitor result.</return>
+	Result VisitMemberName([NotNull] NebraParser.MemberNameContext context);
+	/// <summary>
 	/// Visit a parse tree produced by the <c>NameVar</c>
 	/// labeled alternative in <see cref="NebraParser.var"/>.
 	/// </summary>

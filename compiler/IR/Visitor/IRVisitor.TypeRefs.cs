@@ -114,7 +114,7 @@ internal partial class IRVisitor
     public override Node VisitStructType(NebraParser.StructTypeContext context)
     {
         var fields = context.structField().Select(f => new StructTypeField(
-            NameRefFromTerm(f.NAME()),
+            NameRefFromMember(f.memberName()),
             (TypeRef)Visit(f.typeExpr()),
             f.META() != null,
             SpanFromCtx(f)

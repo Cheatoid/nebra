@@ -353,7 +353,7 @@ internal partial class IRVisitor
     public override Node VisitFieldVar(NebraParser.FieldVarContext context)
     {
         var obj = BuildSuffixChain(context.varOrExp(), context.suffix());
-        return new DotAccessExpr(NewNodeID, SpanFromCtx(context), obj, NameRefFromTerm(context.NAME()));
+        return new DotAccessExpr(NewNodeID, SpanFromCtx(context), obj, NameRefFromMember(context.memberName()));
     }
 
     public override Node VisitIndexVar(NebraParser.IndexVarContext context)
@@ -375,7 +375,7 @@ internal partial class IRVisitor
     public override Node VisitMethodCall(NebraParser.MethodCallContext context)
     {
         var obj = BuildSuffixChain(context.varOrExp(), context.suffix());
-        return new MethodCallExpr(NewNodeID, SpanFromCtx(context), obj, NameRefFromTerm(context.NAME()), VisitArgsContent(context.args()));
+        return new MethodCallExpr(NewNodeID, SpanFromCtx(context), obj, NameRefFromMember(context.memberName()), VisitArgsContent(context.args()));
     }
 
     #endregion
@@ -440,7 +440,7 @@ internal partial class IRVisitor
             NebraParser.BracketFieldContext bf => new TableField(
                 TableFieldKind.Bracket, (Expr)Visit(bf.expr(0)), null, (Expr)Visit(bf.expr(1)), SpanFromCtx(bf)),
             NebraParser.NameFieldContext nf => new TableField(
-                TableFieldKind.Named, null, NameRefFromTerm(nf.NAME()), (Expr)Visit(nf.expr()), SpanFromCtx(nf)),
+                TableFieldKind.Named, null, NameRefFromMember(nf.memberName()), (Expr)Visit(nf.expr()), SpanFromCtx(nf)),
             NebraParser.FunctionFieldContext ff => new TableField(
                 TableFieldKind.Named, null, NameRefFromTerm(ff.NAME()), BuildFieldFunction(ff), SpanFromCtx(ff)),
             NebraParser.ValueFieldContext vf => new TableField(

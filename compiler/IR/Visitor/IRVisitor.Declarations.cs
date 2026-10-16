@@ -499,7 +499,7 @@ internal partial class IRVisitor
             {
                 case NebraParser.DeclareInterfaceFieldMemberContext field:
                 {
-                    var fieldName = NameRefFromTerm(field.NAME());
+                    var fieldName = NameRefFromMember(field.memberName());
                     var typeAnn = (TypeRef)Visit(field.typeAnnotation().typeExpr());
                     var fnode = new InterfaceFieldNode(fieldName, typeAnn, SpanFromCtx(field));
                     fnode.Annotations = VisitAnnotationListContent(field.annotationList());
@@ -508,7 +508,7 @@ internal partial class IRVisitor
                 }
                 case NebraParser.DeclareInterfaceMethodMemberContext method:
                 {
-                    var methodName = NameRefFromTerm(method.NAME());
+                    var methodName = NameRefFromMember(method.memberName());
                     var (parameters, returnType) = VisitFuncSignatureContent(method.funcSignature());
                     var imNode = new InterfaceMethodNode(methodName, parameters, returnType, method.ASYNC() != null, SpanFromCtx(method))
                     {
@@ -736,7 +736,7 @@ internal partial class IRVisitor
             {
                 case NebraParser.InterfaceFieldMemberContext field:
                 {
-                    var fieldName = NameRefFromTerm(field.NAME());
+                    var fieldName = NameRefFromMember(field.memberName());
                     var typeAnn = (TypeRef)Visit(field.typeAnnotation().typeExpr());
                     var ifaceField = new InterfaceFieldNode(fieldName, typeAnn, SpanFromCtx(field));
                     ifaceField.Annotations = VisitAnnotationListContent(field.annotationList());
@@ -746,7 +746,7 @@ internal partial class IRVisitor
                 case NebraParser.InterfaceMethodMemberContext method:
                 {
                     var isAsync = method.ASYNC() != null;
-                    var methodName = NameRefFromTerm(method.NAME());
+                    var methodName = NameRefFromMember(method.memberName());
                     var (parameters, returnType) = VisitFuncSignatureContent(method.funcSignature());
                     var imTypeParams = VisitTypeParamListContent(method.funcSignature().typeParamList());
                     var imNode = new InterfaceMethodNode(methodName, parameters, returnType, isAsync, SpanFromCtx(method))
@@ -761,7 +761,7 @@ internal partial class IRVisitor
                 case NebraParser.InterfaceDefaultMethodMemberContext method:
                 {
                     var isAsync = method.ASYNC() != null;
-                    var methodName = NameRefFromTerm(method.NAME());
+                    var methodName = NameRefFromMember(method.memberName());
                     var (parameters, returnType, body, ret) = VisitFuncBodyContent(method.funcBody());
                     var imTypeParams = VisitTypeParamListContent(method.funcBody().typeParamList());
                     var imNode = new InterfaceMethodNode(methodName, parameters, returnType, isAsync,

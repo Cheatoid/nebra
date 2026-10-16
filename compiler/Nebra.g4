@@ -348,9 +348,9 @@ classRef
     ;
 
 interfaceMember
-    : annotationList NAME typeAnnotation                           # InterfaceFieldMember
-    | annotationList ASYNC? interfaceMemberKind NAME funcBody      # InterfaceDefaultMethodMember
-    | annotationList ASYNC? interfaceMemberKind NAME funcSignature # InterfaceMethodMember
+    : annotationList memberName typeAnnotation                           # InterfaceFieldMember
+    | annotationList ASYNC? interfaceMemberKind memberName funcBody      # InterfaceDefaultMethodMember
+    | annotationList ASYNC? interfaceMemberKind memberName funcSignature # InterfaceMethodMember
     ;
 
 // A member of an interface in a declaration file: fields and method signatures, never a body.
@@ -358,8 +358,8 @@ interfaceMember
 // a default method whose body opens with a function statement; telling them apart there needs
 // lookahead to the end of the interface, which is quadratic in its size.
 declareInterfaceMember
-    : annotationList NAME typeAnnotation                           # DeclareInterfaceFieldMember
-    | annotationList ASYNC? interfaceMemberKind NAME funcSignature # DeclareInterfaceMethodMember
+    : annotationList memberName typeAnnotation                           # DeclareInterfaceFieldMember
+    | annotationList ASYNC? interfaceMemberKind memberName funcSignature # DeclareInterfaceMethodMember
     ;
 
 interfaceMemberKind
@@ -519,7 +519,7 @@ declareExtendMethod
 // -----------------------------------------------------------------------------
 
 funcName
-    : NAME (DOT NAME)* (COLON NAME)?
+    : NAME (DOT memberName)* (COLON memberName)?
     ;
 
 // Function body with optional return type after closing paren.
@@ -703,7 +703,7 @@ tableType
     ;
 
 structField
-    : META? NAME COLON typeExpr
+    : META? memberName COLON typeExpr
     ;
 
 
@@ -820,19 +820,30 @@ varOrExp
     ;
 
 suffix
-    : DOT NAME                                                  # DotSuffix
-    | QDOT NAME                                                 # OptDotSuffix
+    : DOT memberName                                            # DotSuffix
+    | QDOT memberName                                           # OptDotSuffix
     | LBRACK expr RBRACK                                        # IndexSuffix
-    | COLON NAME args                                           # MethodCallSuffix
+    | COLON memberName args                                     # MethodCallSuffix
     | args                                                      # CallSuffix
     | QMARK args                                                # OptCallSuffix
+    | BANG                                                      # NonNilSuffix
+    ;
+
+// A name after '.' or ':' and the key of a table field. Lua has none of Nebra's own keywords,
+// so a library may well use one of them as a member name, such as string.match or ffi.new.
+memberName
+    : NAME
+    | AS | DECLARE | ENUM | EXPORT | FROM | IMPORT | IS | CASE | MATCH | META | MODULE | MUT | WHEN
+    | ASYNC | AWAIT | ABSTRACT | CLASS | INTERFACE | EXTENDS | EXTEND | IMPLEMENTS | CONSTRUCTOR
+    | STATIC | NEW | SUPER | OVERRIDE | PROTECTED | TYPEOF | INSTANCEOF | OPERATOR | DEFER | GUARD
+    | CONTINUE
     ;
 
 // --- Variables (assignment targets) ---
 
 var
     : NAME                                                      # NameVar
-    | varOrExp suffix* DOT NAME                                 # FieldVar
+    | varOrExp suffix* DOT memberName                           # FieldVar
     | varOrExp suffix* LBRACK expr RBRACK                       # IndexVar
     ;
 
@@ -840,7 +851,7 @@ var
 
 functionCall
     : varOrExp suffix* args                                     # DirectCall
-    | varOrExp suffix* COLON NAME args                          # MethodCall
+    | varOrExp suffix* COLON memberName args                    # MethodCall
     ;
 
 // --- Call Arguments ---
@@ -883,7 +894,7 @@ fieldList
 
 field
     : LBRACK expr RBRACK ASSIGN expr                            # BracketField
-    | NAME ASSIGN expr                                          # NameField
+    | memberName ASSIGN expr                                    # NameField
     | ASYNC? FUNCTION NAME funcBody                             # FunctionField
     | expr                                                      # ValueField
     ;

@@ -3146,6 +3146,32 @@ public partial class NebraBaseListener : INebraListener {
 	/// <param name="context">The parse tree.</param>
 	public virtual void ExitOptCallSuffix([NotNull] NebraParser.OptCallSuffixContext context) { }
 	/// <summary>
+	/// Enter a parse tree produced by the <c>NonNilSuffix</c>
+	/// labeled alternative in <see cref="NebraParser.suffix"/>.
+	/// <para>The default implementation does nothing.</para>
+	/// </summary>
+	/// <param name="context">The parse tree.</param>
+	public virtual void EnterNonNilSuffix([NotNull] NebraParser.NonNilSuffixContext context) { }
+	/// <summary>
+	/// Exit a parse tree produced by the <c>NonNilSuffix</c>
+	/// labeled alternative in <see cref="NebraParser.suffix"/>.
+	/// <para>The default implementation does nothing.</para>
+	/// </summary>
+	/// <param name="context">The parse tree.</param>
+	public virtual void ExitNonNilSuffix([NotNull] NebraParser.NonNilSuffixContext context) { }
+	/// <summary>
+	/// Enter a parse tree produced by <see cref="NebraParser.memberName"/>.
+	/// <para>The default implementation does nothing.</para>
+	/// </summary>
+	/// <param name="context">The parse tree.</param>
+	public virtual void EnterMemberName([NotNull] NebraParser.MemberNameContext context) { }
+	/// <summary>
+	/// Exit a parse tree produced by <see cref="NebraParser.memberName"/>.
+	/// <para>The default implementation does nothing.</para>
+	/// </summary>
+	/// <param name="context">The parse tree.</param>
+	public virtual void ExitMemberName([NotNull] NebraParser.MemberNameContext context) { }
+	/// <summary>
 	/// Enter a parse tree produced by the <c>NameVar</c>
 	/// labeled alternative in <see cref="NebraParser.var"/>.
 	/// <para>The default implementation does nothing.</para>

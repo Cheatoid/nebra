@@ -2681,6 +2681,28 @@ public interface INebraListener : IParseTreeListener {
 	/// <param name="context">The parse tree.</param>
 	void ExitOptCallSuffix([NotNull] NebraParser.OptCallSuffixContext context);
 	/// <summary>
+	/// Enter a parse tree produced by the <c>NonNilSuffix</c>
+	/// labeled alternative in <see cref="NebraParser.suffix"/>.
+	/// </summary>
+	/// <param name="context">The parse tree.</param>
+	void EnterNonNilSuffix([NotNull] NebraParser.NonNilSuffixContext context);
+	/// <summary>
+	/// Exit a parse tree produced by the <c>NonNilSuffix</c>
+	/// labeled alternative in <see cref="NebraParser.suffix"/>.
+	/// </summary>
+	/// <param name="context">The parse tree.</param>
+	void ExitNonNilSuffix([NotNull] NebraParser.NonNilSuffixContext context);
+	/// <summary>
+	/// Enter a parse tree produced by <see cref="NebraParser.memberName"/>.
+	/// </summary>
+	/// <param name="context">The parse tree.</param>
+	void EnterMemberName([NotNull] NebraParser.MemberNameContext context);
+	/// <summary>
+	/// Exit a parse tree produced by <see cref="NebraParser.memberName"/>.
+	/// </summary>
+	/// <param name="context">The parse tree.</param>
+	void ExitMemberName([NotNull] NebraParser.MemberNameContext context);
+	/// <summary>
 	/// Enter a parse tree produced by the <c>NameVar</c>
 	/// labeled alternative in <see cref="NebraParser.var"/>.
 	/// </summary>

@@ -9,10 +9,6 @@
 --
 -- Top-level globals (e.g. "print") and packages (e.g. "math") use bare names.
 -- Members of a package are referenced with a dotted path ("string.format").
---
--- A few Lua identifiers (string.match, ffi.new, ffi.typeof, ...) collide with
--- reserved Nebra keywords and are therefore not declared here; reach them via
--- bracket access (e.g. string["match"](...)) at the call site.
 
 -- --- Built-in Globals ------------------------------------------------------
 
@@ -197,6 +193,12 @@ declare interface StringLib
     --- @param s string the string
     --- @return string the lowercase string
     function lower(s: string): string
+    --- Finds the first match of a pattern and returns its captures, or the whole match when the pattern has none.
+    --- @param s string the string to search
+    --- @param pattern string a Lua pattern
+    --- @param init number? where to start searching, negative to count from the end
+    --- @return string? the first capture, or nil when there is no match
+    function match(s: string, pattern: string, init: number?): ...string?
     --- Repeats a string `n` times, optionally separated by `sep`.
     --- @param s string the string to repeat
     --- @param n number how many times
@@ -689,9 +691,6 @@ end
 --- Control over LuaJIT's just-in-time compiler.
 declare jit: JitLib
 
--- Note: ffi.new and ffi.typeof aren't declared because `new` and `typeof` are
--- reserved Nebra keywords; access them via ffi["new"] / ffi["typeof"] at the
--- call site for now.
 --- LuaJIT's foreign function interface: declares C types and functions and calls them directly.
 declare interface FfiLib
     --- The default C library namespace; declared functions are called through it, such as `ffi.C.printf`.
@@ -707,6 +706,12 @@ declare interface FfiLib
     --- @param name string the library name or path
     --- @param global boolean? also make its symbols available through `ffi.C`
     function load(name: string, global: boolean?): any
+    --- Creates a C value of a C type, initialized from the remaining arguments.
+    --- @param ct any the C type, as a declaration string or a type created by `ffi.typeof`
+    --- @param ... any the size of a variable-length array, then the initializers
+    function new(ct: any, ...: any): any
+    --- Creates a C type from a declaration string, to be used with `ffi.new` and friends.
+    function typeof(ct: any, ...: any): any
     --- Converts a value to a C type, like a C cast.
     function cast(ct: any, init: any): any
     --- Creates a C type with a metatable, giving its values methods and operators.

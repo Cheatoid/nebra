@@ -257,7 +257,8 @@ internal partial class IRVisitor
 
     private (List<NameRef> namePath, NameRef? methodName) VisitFuncNameContent(NebraParser.FuncNameContext ctx)
     {
-        var allNames = ctx.NAME().Select(NameRefFromTerm).ToList();
+        var allNames = new List<NameRef> { NameRefFromTerm(ctx.NAME()) };
+        allNames.AddRange(ctx.memberName().Select(NameRefFromMember));
         NameRef? methodName = null;
         if (ctx.COLON() != null && allNames.Count > 0)
         {
@@ -346,17 +347,19 @@ internal partial class IRVisitor
         return suffix switch
         {
             NebraParser.DotSuffixContext dot =>
-                new DotAccessExpr(NewNodeID, Span(dot), obj, NameRefFromTerm(dot.NAME())),
+                new DotAccessExpr(NewNodeID, Span(dot), obj, NameRefFromMember(dot.memberName())),
             NebraParser.OptDotSuffixContext odot =>
-                new DotAccessExpr(NewNodeID, Span(odot), obj, NameRefFromTerm(odot.NAME()), isOptional: true),
+                new DotAccessExpr(NewNodeID, Span(odot), obj, NameRefFromMember(odot.memberName()), isOptional: true),
             NebraParser.IndexSuffixContext idx =>
                 new IndexAccessExpr(NewNodeID, Span(idx), obj, (Expr)Visit(idx.expr())),
             NebraParser.MethodCallSuffixContext mc =>
-                new MethodCallExpr(NewNodeID, Span(mc), obj, NameRefFromTerm(mc.NAME()), VisitArgsContent(mc.args())),
+                new MethodCallExpr(NewNodeID, Span(mc), obj, NameRefFromMember(mc.memberName()), VisitArgsContent(mc.args())),
             NebraParser.CallSuffixContext call =>
                 new FunctionCallExpr(NewNodeID, Span(call), obj, VisitArgsContent(call.args())),
             NebraParser.OptCallSuffixContext optCall =>
                 new FunctionCallExpr(NewNodeID, Span(optCall), obj, VisitArgsContent(optCall.args()), isOptional: true),
+            NebraParser.NonNilSuffixContext nonNil =>
+                new NonNilAssertExpr(NewNodeID, Span(nonNil), obj),
             _ => throw new InvalidOperationException($"Unknown suffix type: {suffix.GetType().Name}")
         };
     }
@@ -366,6 +369,11 @@ internal partial class IRVisitor
         return new NameRef(node.GetText(), SpanFromTerm(node));
     }
     
+    private NameRef NameRefFromMember(NebraParser.MemberNameContext member)
+    {
+        return new NameRef(member.GetText(), SpanFromCtx(member));
+    }
+
     private NameRef NameRefFromText(string name, TextSpan? span = null)
     {
         return new NameRef(name, span ?? TextSpan.Empty);
