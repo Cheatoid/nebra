@@ -784,7 +784,7 @@ compareOp
 
 shiftOp
     : LSHIFT                                                    # LshiftOp
-    | RSHIFT                                                    # RshiftOp
+    | GT GT                                                     # RshiftOp
     ;
 
 additiveOp
@@ -1001,7 +1001,6 @@ CONCAT   : '..';
 DCOLON   : '::';
 ARROW    : '->';
 LSHIFT   : '<<';
-RSHIFT   : '>>';
 DSLASH   : '//';
 EQ       : '==';
 NEQ      : '~=';

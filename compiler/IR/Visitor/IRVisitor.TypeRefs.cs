@@ -75,6 +75,13 @@ internal partial class IRVisitor
             return new PrimitiveTypeRef(NewNodeID, SpanFromCtx(context), TypeKind.PrimitiveNil);
         }
 
+        if (nameText == "table")
+        {
+            var span = SpanFromCtx(context);
+            return new MapTypeRef(NewNodeID, span, new PrimitiveTypeRef(NewNodeID, span, TypeKind.PrimitiveAny),
+                new PrimitiveTypeRef(NewNodeID, span, TypeKind.PrimitiveAny));
+        }
+
         return new NamedTypeRef(NewNodeID, SpanFromCtx(context), NameRefFromTerm(context.NAME()));
     }
 

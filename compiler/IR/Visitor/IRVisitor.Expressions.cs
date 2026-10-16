@@ -1,3 +1,4 @@
+using Antlr4.Runtime;
 using Nebra.Diagnostics;
 
 namespace Nebra.IR;
@@ -265,7 +266,18 @@ internal partial class IRVisitor
             NebraParser.RshiftOpContext => BinaryOp.RShift,
             _ => throw new InvalidOperationException("Unknown shift op")
         };
+        if (context.shiftOp() is NebraParser.RshiftOpContext shift && !AreAdjacent(shift.GT(0).Symbol, shift.GT(1).Symbol))
+            diag.Report(SpanFromCtx(shift), DiagnosticCode.ErrUnexpectedToken, "unexpected `>`; a right shift is written `>>` without a space");
         return new BinaryExpr(NewNodeID, SpanFromCtx(context), op, (Expr)Visit(context.expr(0)), (Expr)Visit(context.expr(1)));
+    }
+
+    /// <summary>
+    /// A right shift is lexed as two <c>&gt;</c>, so <c>&gt;&gt;</c> can also close two generic
+    /// argument lists; as an operator the two have to be written next to each other.
+    /// </summary>
+    private static bool AreAdjacent(IToken first, IToken second)
+    {
+        return first.StopIndex + 1 == second.StartIndex;
     }
 
     public override Node VisitConcatExpr(NebraParser.ConcatExprContext context)
