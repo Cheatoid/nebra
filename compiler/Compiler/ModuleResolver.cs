@@ -67,7 +67,7 @@ public sealed class ModuleResolver(Config config)
 
         foreach (var dir in searchDirs)
         {
-            var dnebra = Path.Combine(dir, moduleName + ".d.neb");
+            var dnebra = Path.GetFullPath(Path.Combine(dir, moduleName + ".d.neb"));
             if (File.Exists(dnebra))
             {
                 var file = LoadAndInject(dnebra, pkgs, diag, nodeAlloc);
@@ -75,7 +75,7 @@ public sealed class ModuleResolver(Config config)
                     return new ResolvedModule { Kind = ModuleKind.Declaration, File = file, FilePath = dnebra };
             }
 
-            var nebra = Path.Combine(dir, moduleName + ".neb");
+            var nebra = Path.GetFullPath(Path.Combine(dir, moduleName + ".neb"));
             if (File.Exists(nebra))
             {
                 var file = LoadAndInject(nebra, pkgs, diag, nodeAlloc);
@@ -83,7 +83,7 @@ public sealed class ModuleResolver(Config config)
                     return new ResolvedModule { Kind = ModuleKind.NebraSource, File = file, FilePath = nebra };
             }
 
-            var dnebraIdx = Path.Combine(dir, moduleName, "init.d.neb");
+            var dnebraIdx = Path.GetFullPath(Path.Combine(dir, moduleName, "init.d.neb"));
             if (File.Exists(dnebraIdx))
             {
                 var file = LoadAndInject(dnebraIdx, pkgs, diag, nodeAlloc);
@@ -91,7 +91,7 @@ public sealed class ModuleResolver(Config config)
                     return new ResolvedModule { Kind = ModuleKind.Declaration, File = file, FilePath = dnebraIdx };
             }
 
-            var nebraIdx = Path.Combine(dir, moduleName, "init.neb");
+            var nebraIdx = Path.GetFullPath(Path.Combine(dir, moduleName, "init.neb"));
             if (File.Exists(nebraIdx))
             {
                 var file = LoadAndInject(nebraIdx, pkgs, diag, nodeAlloc);
@@ -131,10 +131,10 @@ public sealed class ModuleResolver(Config config)
 
             foreach (var (candidate, kind) in new[]
                      {
-                         (Path.Combine(sourceRoot, rest + ".d.neb"), ModuleKind.Declaration),
-                         (Path.Combine(sourceRoot, rest + ".neb"), ModuleKind.NebraSource),
-                         (Path.Combine(sourceRoot, rest, "init.d.neb"), ModuleKind.Declaration),
-                         (Path.Combine(sourceRoot, rest, "init.neb"), ModuleKind.NebraSource),
+                         (Path.GetFullPath(Path.Combine(sourceRoot, rest + ".d.neb")), ModuleKind.Declaration),
+                         (Path.GetFullPath(Path.Combine(sourceRoot, rest + ".neb")), ModuleKind.NebraSource),
+                         (Path.GetFullPath(Path.Combine(sourceRoot, rest, "init.d.neb")), ModuleKind.Declaration),
+                         (Path.GetFullPath(Path.Combine(sourceRoot, rest, "init.neb")), ModuleKind.NebraSource),
                      })
             {
                 if (!File.Exists(candidate)) continue;
@@ -222,7 +222,7 @@ public sealed class ModuleResolver(Config config)
     {
         foreach (var existingPkg in pkgs)
         {
-            var existing = existingPkg.Files.FirstOrDefault(f => f.Filename == filePath);
+            var existing = existingPkg.Files.FirstOrDefault(f => Path.GetFullPath(f.Filename) == filePath);
             if (existing != null) return existing;
         }
 
