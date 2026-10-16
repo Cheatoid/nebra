@@ -203,4 +203,25 @@ public sealed class HoverTests
         Assert.Contains("method IoFile:read(...: any): any", hover);
         Assert.Contains("Reads from the file following formats", hover);
     }
+
+    [Fact]
+    public async Task TheSideLeavesTheHoverWhenSideMarkersAreOff()
+    {
+        await using var session = await LspSession.StartAsync(
+            ("nebra.toml", "name = \"lps-test\"\nversion = \"0.1.0\"\ntarget = \"5.4\"\nsource = \"src\"\noutput = \"out\"\nglobals = [\"types\"]\n"),
+            ("types/api.d.neb", "@side(server)\ndeclare function kick(reason: string): nil\n"),
+            ("src/main.neb", "{|call|}kick(\"bye\")\n"));
+
+        await session.OpenAsync("src/main.neb");
+        Assert.Contains("runs on the **server**", await session.HoverAsync("call"));
+
+        session.ChangeSettings(Newtonsoft.Json.Linq.JObject.Parse("{ \"sideMarkers\": \"off\" }"));
+
+        for (var attempt = 0; attempt < 50 && (await session.HoverAsync("call"))!.Contains("runs on"); attempt++)
+        {
+            await Task.Delay(100);
+        }
+
+        Assert.DoesNotContain("runs on", await session.HoverAsync("call"));
+    }
 }

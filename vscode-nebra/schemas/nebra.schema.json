@@ -1,0 +1,352 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "nebra.toml",
+  "description": "The configuration of a Nebra project.",
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string",
+      "description": "The project name. Used as the package name when the project is a dependency, and in generated documentation."
+    },
+    "version": {
+      "type": "string",
+      "description": "The project version. Version ranges such as `^1.2` work when it looks like semver."
+    },
+    "target": {
+      "type": "string",
+      "description": "The Lua dialect the compiler emits. It decides which operators and library calls the generated code may use.",
+      "enum": ["5.1", "5.2", "5.3", "5.4", "jit"],
+      "enumDescriptions": ["Lua 5.1", "Lua 5.2", "Lua 5.3", "Lua 5.4", "LuaJIT"],
+      "default": "5.4"
+    },
+    "entry": {
+      "type": "string",
+      "description": "The Nebra file `nebra run` and `nebra compile` start from."
+    },
+    "extends": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Other configuration files, relative to this one, loaded as a baseline before this file's keys override them.",
+      "default": []
+    },
+    "preset": {
+      "type": "string",
+      "description": "A rule preset loaded before this file. `strict` turns on every type-safety rule; `relaxed` enforces none.",
+      "enum": ["strict", "relaxed"],
+      "enumDescriptions": ["strict_nil, immutable_default and exhaustive_match = \"explicit\", without allow_any", "Plain Lua with types, no rules enforced"]
+    },
+    "source": {
+      "type": "string",
+      "description": "The directory the compiler reads `.neb` sources from. Imports are relative to it.",
+      "default": "src"
+    },
+    "output": {
+      "type": "string",
+      "description": "The directory the generated Lua is written to.",
+      "default": "out"
+    },
+    "minify": {
+      "type": "boolean",
+      "description": "Strip whitespace and comments from the generated Lua.",
+      "default": false
+    },
+    "generate_docs": {
+      "type": "boolean",
+      "description": "Also generate the documentation site on `nebra build`, as `nebra docs` does.",
+      "default": false
+    },
+    "generate_declarations": {
+      "type": "boolean",
+      "description": "Also emit `.d.neb` declarations on `nebra build`, so other projects can type-check against this one.",
+      "default": true
+    },
+    "globals": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Directories or `.d.neb` files whose declarations are loaded into every file, such as the API of a game engine.",
+      "default": []
+    },
+    "annotations": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Directories or `.neb` files holding annotation plugins.",
+      "default": []
+    },
+    "types_only": {
+      "type": "boolean",
+      "description": "The project ships only `.d.neb` declarations. `nebra build`, `compile`, `run` and `test` do nothing.",
+      "default": false
+    },
+    "assets": {
+      "type": "object",
+      "description": "Files copied into the output. Keys are paths from the project root, values paths in the output.",
+      "additionalProperties": { "type": "string" }
+    },
+    "dependencies": {
+      "type": "object",
+      "description": "Packages the project needs at runtime, by name. A value is a specifier such as `\"github:owner/repo@v1\"` or a table like `{ git = \"...\", tag = \"v1\" }`.",
+      "additionalProperties": { "type": ["string", "object"] }
+    },
+    "dev_dependencies": {
+      "type": "object",
+      "description": "Packages needed only locally and in CI; left out of published packages.",
+      "additionalProperties": { "type": ["string", "object"] }
+    },
+    "peer_dependencies": {
+      "type": "object",
+      "description": "Packages the consumer of this package has to provide; checked but not installed.",
+      "additionalProperties": { "type": ["string", "object"] }
+    },
+    "sides": {
+      "type": "object",
+      "description": "Which sides the files matching each glob may use: `\"src/Client/**\" = [\"client\", \"shared\"]`. Declarations marked `@side(...)` are only reachable from matching files.",
+      "additionalProperties": {
+        "type": "array",
+        "items": {
+          "type": "string",
+          "enum": ["client", "server", "shared"],
+          "enumDescriptions": ["Code that runs on the client", "Code that runs on the server", "Code that runs on both"]
+        }
+      }
+    },
+    "code": {
+      "type": "object",
+      "description": "How the generated Lua is written.",
+      "properties": {
+        "index_base": {
+          "type": "integer",
+          "description": "The first index of a list. `0` shifts every index by one so lists start at 0; `1` keeps Lua's indexing.",
+          "enum": [0, 1],
+          "default": 0
+        },
+        "concat_operator": {
+          "type": "string",
+          "description": "An operator that concatenates strings in addition to `..`.",
+          "default": "+"
+        },
+        "string_interpolation": {
+          "type": "boolean",
+          "description": "Allow template strings such as `` `hello {name}` ``.",
+          "default": true
+        },
+        "alt_boolean_operators": {
+          "type": "boolean",
+          "description": "Allow `&&`, `||`, `!` and `!=` besides `and`, `or`, `not` and `~=`.",
+          "default": true
+        },
+        "semicolons": {
+          "type": "string",
+          "description": "Whether statements may, must or must not end with `;`.",
+          "enum": ["optional", "required", "forbidden"],
+          "default": "optional"
+        },
+        "import_statement": {
+          "type": "string",
+          "description": "What an import becomes in Lua; `%s` stands for the quoted module path, such as `'Package.Require(%s)'`.",
+          "default": "require(%s)"
+        },
+        "import_extension": {
+          "type": "string",
+          "description": "A suffix added to every imported module path, such as `\".lua\"` for loaders that need it.",
+          "default": ""
+        },
+        "strip_unused": {
+          "type": "boolean",
+          "description": "Leave unused locals, functions and imports out of the generated Lua.",
+          "default": true
+        },
+        "libs": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Further directories imports are resolved in.",
+          "default": []
+        },
+        "auto_imports": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Modules imported into every file as a namespace named after their last path segment.",
+          "default": []
+        },
+        "auto_imports_emit": {
+          "type": "boolean",
+          "description": "Emit the `require` of the automatic imports. Turn off when the runtime loads those modules itself.",
+          "default": true
+        }
+      },
+      "additionalProperties": false
+    },
+    "mangle": {
+      "type": "object",
+      "description": "Renaming symbols to short names to shrink the output.",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Rename symbols to short names.",
+          "default": false
+        },
+        "mangle_locals": {
+          "type": "boolean",
+          "description": "Rename local variables.",
+          "default": true
+        },
+        "mangle_params": {
+          "type": "boolean",
+          "description": "Rename function parameters.",
+          "default": true
+        },
+        "mangle_top_level": {
+          "type": "boolean",
+          "description": "Rename top-level names too, which are the public surface of the output.",
+          "default": false
+        },
+        "keep_function_names": {
+          "type": "boolean",
+          "description": "Keep the names of functions, which code outside the output may look up by name.",
+          "default": true
+        }
+      },
+      "additionalProperties": false
+    },
+    "rules": {
+      "type": "object",
+      "description": "How strictly the compiler checks types.",
+      "properties": {
+        "allow_any": {
+          "type": "boolean",
+          "description": "Allow the `any` type. When off, every type has to be spelled out.",
+          "default": true
+        },
+        "strict_nil": {
+          "type": "boolean",
+          "description": "Assigning `nil` to a type not marked with `?` is an error.",
+          "default": false
+        },
+        "immutable_default": {
+          "type": "boolean",
+          "description": "Locals are immutable unless declared `local mut`.",
+          "default": false
+        },
+        "deep_freeze": {
+          "type": "boolean",
+          "description": "With `immutable_default`, also freeze the tables immutable locals refer to, at a runtime cost.",
+          "default": false
+        },
+        "exhaustive_match": {
+          "type": "string",
+          "description": "How strictly `if` chains and `match` over unions and enums have to cover every case.",
+          "enum": ["none", "relaxed", "explicit"],
+          "enumDescriptions": ["No check", "An else branch covers the rest", "Every case needs its own branch"],
+          "default": "none"
+        }
+      },
+      "additionalProperties": false
+    },
+    "stdlib": {
+      "type": "object",
+      "description": "The declarations of the standard Lua library.",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Load the standard library declarations. Turn off for runtimes without the Lua globals.",
+          "default": true
+        },
+        "disabled": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Names to remove: a global or library such as `\"io\"`, or one member such as `\"string.dump\"`.",
+          "default": []
+        }
+      },
+      "additionalProperties": false
+    },
+    "scripts": {
+      "type": "object",
+      "description": "Shell commands run at points of the build and install.",
+      "properties": {
+        "pre_build": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Run before every `nebra build`.",
+          "default": []
+        },
+        "post_build": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Run after every `nebra build`.",
+          "default": []
+        },
+        "pre_install": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Run before this package is linked as a dependency; only with `nebra install --allow-scripts`.",
+          "default": []
+        },
+        "post_install": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Run after this package is linked as a dependency; only with `nebra install --allow-scripts`.",
+          "default": []
+        }
+      },
+      "additionalProperties": false
+    },
+    "install": {
+      "type": "object",
+      "description": "How `nebra install` places packages.",
+      "properties": {
+        "linker": {
+          "type": "string",
+          "description": "How packages from the global store are placed in `nebra_modules/`.",
+          "enum": ["auto", "symlink", "junction", "copy"],
+          "enumDescriptions": ["A symlink on Unix, a junction on Windows", "Always a symlink", "Always a directory junction", "A physical copy"],
+          "default": "auto"
+        },
+        "allow_scripts": {
+          "type": "boolean",
+          "description": "Let dependencies run their install scripts.",
+          "default": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "test": {
+      "type": "object",
+      "description": "Where `nebra test` finds tests.",
+      "properties": {
+        "dirs": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Directories whose every `.neb` file is a test; the source directory is always searched as well.",
+          "default": ["tests", "test"]
+        },
+        "patterns": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "File name endings that mark a test file outside the test directories.",
+          "default": ["_test.neb", ".test.neb"]
+        },
+        "quiet": {
+          "type": "boolean",
+          "description": "Print only the summary, not a line per test.",
+          "default": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "reflection": {
+      "type": "object",
+      "description": "Which declarations runtime reflection can describe.",
+      "properties": {
+        "mode": {
+          "type": "string",
+          "description": "Which declarations are recorded for `reflect`.",
+          "enum": ["all", "annotated", "none"],
+          "enumDescriptions": ["Every class, interface, enum, function and variable", "Only declarations marked @reflectable", "Nothing; reflection is left out entirely"],
+          "default": "all"
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

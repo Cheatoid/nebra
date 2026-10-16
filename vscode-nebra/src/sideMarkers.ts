@@ -7,7 +7,7 @@ interface SideMarker {
   kind: "declaration" | "reference";
 }
 
-type MarkerMode = "all" | "declarations" | "off";
+type MarkerMode = "hover" | "declarations" | "all" | "off";
 
 const sides = ["client", "server", "shared"] as const;
 const themeColors: Record<(typeof sides)[number], string> = {
@@ -32,9 +32,11 @@ function createDecoration(side: (typeof sides)[number]): vscode.TextEditorDecora
 }
 
 /**
- * Draws a colored box in front of every declaration and side-restricted use in Nebra editors,
- * showing where the code runs: client, server or shared. The server reports the markers through
- * the `nebra/sideMarkers` request; they are refreshed when an editor is shown or edited.
+ * Draws a colored box in front of declarations, and with `nebra.sideMarkers` set to `all` also in
+ * front of side-restricted uses, showing where the code runs: client, server or shared. In the
+ * default `hover` mode nothing is drawn and the hover tells the side instead. The server reports
+ * the markers through the `nebra/sideMarkers` request; they are refreshed when an editor is shown
+ * or edited.
  */
 export class SideMarkerDecorator implements vscode.Disposable {
   private readonly decorations = new Map(sides.map((side) => [side, createDecoration(side)]));
@@ -91,8 +93,8 @@ export class SideMarkerDecorator implements vscode.Disposable {
   }
 
   private async request(document: vscode.TextDocument): Promise<SideMarker[]> {
-    const mode = vscode.workspace.getConfiguration("nebra").get<MarkerMode>("sideMarkers", "all");
-    if (mode === "off") return [];
+    const mode = vscode.workspace.getConfiguration("nebra").get<MarkerMode>("sideMarkers", "hover");
+    if (mode === "off" || mode === "hover") return [];
 
     try {
       const markers = await this.client.sendRequest<SideMarker[]>("nebra/sideMarkers", {

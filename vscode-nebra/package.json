@@ -28,7 +28,8 @@
     "Programming Languages"
   ],
   "activationEvents": [
-    "onLanguage:nebra"
+    "onLanguage:nebra",
+    "workspaceContains:**/nebra.toml"
   ],
   "main": "./out/extension.js",
   "contributes": {
@@ -75,23 +76,80 @@
         "command": "nebra.compileFile",
         "title": "Nebra: Compile this file",
         "category": "Nebra"
+      },
+      {
+        "command": "nebra.build",
+        "title": "Build the project",
+        "category": "Nebra"
+      },
+      {
+        "command": "nebra.run",
+        "title": "Run the project",
+        "category": "Nebra"
+      },
+      {
+        "command": "nebra.test",
+        "title": "Run the tests",
+        "category": "Nebra"
+      },
+      {
+        "command": "nebra.watch",
+        "title": "Watch and rebuild the project",
+        "category": "Nebra"
+      },
+      {
+        "command": "nebra.install",
+        "title": "Install the dependencies",
+        "category": "Nebra"
+      },
+      {
+        "command": "nebra.compile",
+        "title": "Compile a standalone binary",
+        "category": "Nebra"
+      },
+      {
+        "command": "nebra.docs",
+        "title": "Generate the documentation",
+        "category": "Nebra"
+      },
+      {
+        "command": "nebra.runCommand",
+        "title": "Run a nebra command...",
+        "category": "Nebra"
+      },
+      {
+        "command": "nebra.openConfig",
+        "title": "Open the nearest nebra.toml",
+        "category": "Nebra"
       }
     ],
     "colors": [
       {
         "id": "nebra.sideClient",
         "description": "Marker in front of code that runs on the client.",
-        "defaults": { "dark": "#E8A33D", "light": "#D9891A", "highContrast": "#FFB347" }
+        "defaults": {
+          "dark": "#E8A33D",
+          "light": "#D9891A",
+          "highContrast": "#FFB347"
+        }
       },
       {
         "id": "nebra.sideServer",
         "description": "Marker in front of code that runs on the server.",
-        "defaults": { "dark": "#33B5E5", "light": "#1E8FC4", "highContrast": "#5FD3FF" }
+        "defaults": {
+          "dark": "#33B5E5",
+          "light": "#1E8FC4",
+          "highContrast": "#5FD3FF"
+        }
       },
       {
         "id": "nebra.sideShared",
         "description": "Marker in front of code that runs on both client and server.",
-        "defaults": { "dark": "#5CC26B", "light": "#3A9A4A", "highContrast": "#7FE08C" }
+        "defaults": {
+          "dark": "#5CC26B",
+          "light": "#3A9A4A",
+          "highContrast": "#7FE08C"
+        }
       }
     ],
     "taskDefinitions": [
@@ -139,17 +197,19 @@
         "nebra.sideMarkers": {
           "type": "string",
           "enum": [
-            "all",
+            "hover",
             "declarations",
+            "all",
             "off"
           ],
           "enumDescriptions": [
-            "Mark declarations and every use of something restricted to a side.",
-            "Mark declarations only.",
-            "Show no side markers."
+            "Show where code runs only in the hover of a declaration or use.",
+            "Also mark every declaration with a colored box.",
+            "Also mark declarations and every use of something restricted to a side with a colored box.",
+            "Show where code runs nowhere."
           ],
-          "default": "all",
-          "description": "Show where code runs with a colored marker: orange for client, blue for server, green for shared."
+          "default": "hover",
+          "description": "Where to show which side code runs on: orange for client, blue for server, green for shared."
         },
         "nebra.diagnostics.delay": {
           "type": "number",
@@ -158,7 +218,13 @@
           "description": "Milliseconds the language server waits after typing stops before it updates diagnostics."
         }
       }
-    }
+    },
+    "tomlValidation": [
+      {
+        "fileMatch": "nebra.toml",
+        "url": "./schemas/nebra.schema.json"
+      }
+    ]
   },
   "scripts": {
     "vscode:prepublish": "npm run compile",

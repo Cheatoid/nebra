@@ -196,7 +196,7 @@ public sealed class HoverRenderer(AnalysisResult result, NebraWorkspace workspac
         var markdown = new StringBuilder();
         markdown.Append("```nebra\n").Append(text.Code).Append("\n```");
 
-        var side = SideMarkers.NameOf(text.Side);
+        var side = workspace.Settings.SideInHover ? SideMarkers.NameOf(text.Side) : null;
         if (side != null)
         {
             markdown.Append("\n\n").Append(SideIcon(side)).Append(" runs on the **").Append(side).Append("**");

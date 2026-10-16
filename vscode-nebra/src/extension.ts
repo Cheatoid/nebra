@@ -1,5 +1,7 @@
 import { execFileSync } from "child_process";
 import * as vscode from "vscode";
+import { registerConfigSupport } from "./configSupport";
+import { registerProjectCommands, runNebra } from "./projectCommands";
 import { SideMarkerDecorator } from "./sideMarkers";
 import {
   LanguageClient,
@@ -25,16 +27,7 @@ function resolveCommand(name: string): string {
 async function runTests(executable: string, uri: string, filter: string | null, root: string): Promise<void> {
   const file = vscode.Uri.parse(uri).fsPath;
   const args = filter ? ["test", file, filter] : ["test", file];
-  const scope = vscode.workspace.getWorkspaceFolder(vscode.Uri.file(root)) ?? vscode.TaskScope.Workspace;
-  const task = new vscode.Task(
-    { type: "nebra", task: "test" },
-    scope,
-    filter ?? "tests",
-    "nebra",
-    new vscode.ProcessExecution(executable, args, { cwd: root }),
-  );
-  task.presentationOptions = { reveal: vscode.TaskRevealKind.Always, clear: true };
-  await vscode.tasks.executeTask(task);
+  await runNebra(executable, args, root, filter ?? "tests");
 }
 
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
@@ -59,6 +52,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   };
 
   client = new LanguageClient("nebra", "Nebra Language Server", serverOptions, clientOptions);
+
+  registerConfigSupport(context);
+  registerProjectCommands(context, serverPath);
 
   context.subscriptions.push(
     vscode.commands.registerCommand("nebra.compileFile", async (uri: string | undefined) => {
