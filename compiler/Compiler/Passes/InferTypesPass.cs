@@ -109,6 +109,10 @@ public sealed class InferTypesPass() : Pass(PassName, PassScope.PerBuild)
                 ResolveImportsPass.PropagateImportTypes(context, pkg, file);
 
         foreach (var pkg in ordered)
+            foreach (var file in pkg.Files)
+                ResolveClassSignatures(MakeFileContext(context, pkg, file), file.Hir.Body);
+
+        foreach (var pkg in ordered)
         {
             foreach (var file in pkg.Files)
             {
@@ -856,23 +860,7 @@ public sealed class InferTypesPass() : Pass(PassName, PassScope.PerBuild)
         var ctorTemplate = Nebra.Compiler.Annotations.BuiltinAnnotations.ExtractOverrideCtor(cd.Annotations);
         if (ctorTemplate != null) classType.CtorTemplate = ctorTemplate;
 
-        if (cd.BaseClass != null && cd.BaseClass.Sym != SymID.Invalid)
-        {
-            var baseTyp = LookupSymbolType(pc, cd.BaseClass.Sym);
-            if (baseTyp != TypID.Invalid && pc.Types.GetByID(baseTyp, out var bt) && bt is ClassType baseCls)
-            {
-                // The cycle is rejected before it reaches the type graph. Every walk over the base
-                // chain assumes it ends, so letting one in makes the compiler spin instead of
-                // reporting anything.
-                if (ReachesThroughBaseClasses(baseCls, classType))
-                    pc.Diag.Report(cd.BaseClass.Span, Diagnostics.DiagnosticCode.ErrCyclicInheritance,
-                        cd.Name.Name, cd.BaseClass.Name);
-                else
-                    classType.BaseClass = baseCls;
-            }
-            else if (baseTyp != TypID.Invalid)
-                pc.Diag.Report(cd.BaseClass.Span, Diagnostics.DiagnosticCode.ErrExtendsNonClass, cd.BaseClass.Name);
-        }
+        LinkBaseClass(pc, cd, classType, report: true);
 
         foreach (var iface in cd.Interfaces)
         {
@@ -905,22 +893,9 @@ public sealed class InferTypesPass() : Pass(PassName, PassScope.PerBuild)
 
         if (cd.Constructor != null)
         {
-            var ctorParams = new List<Tuple<string, Type>>();
-            var ctorDefaults = new List<int>();
-            for (var i = 0; i < cd.Constructor.Parameters.Count; i++)
-            {
-                var p = cd.Constructor.Parameters[i];
-                var t = ResolveParamType(pc, p);
-                if (p.Name.Sym != SymID.Invalid) pc.Pkg!.Syms.SetType(p.Name.Sym, t.ID);
-                ctorParams.Add(new Tuple<string, Type>(p.Name.Name, t));
-                if (p.DefaultValue != null)
-                {
-                    SynthesizeExpr(pc, p.DefaultValue);
-                    ctorDefaults.Add(i);
-                }
-            }
-            classType.ConstructorType = (FunctionType)GetType(pc, pc.Types.FuncOf(ctorParams, classType,
-                defaultParams: ctorDefaults.Count > 0 ? ctorDefaults : null));
+            foreach (var parameter in cd.Constructor.Parameters.Where(parameter => parameter.DefaultValue != null))
+                SynthesizeExpr(pc, parameter.DefaultValue!);
+            classType.ConstructorType = ConstructorTypeOf(pc, cd.Constructor, classType);
             var ctorSide = Nebra.Compiler.Annotations.BuiltinAnnotations.ExtractSide(cd.Constructor.Annotations,
                 (ann, badName) => ReportBadSide(pc, ann, badName));
             classType.ConstructorSide = ctorSide;
@@ -1118,6 +1093,130 @@ public sealed class InferTypesPass() : Pass(PassName, PassScope.PerBuild)
         }
 
         return string.Join(", ", parts);
+    }
+
+    /// <summary>
+    /// Gives every class of <paramref name="stmts"/> its base class and constructor before any class
+    /// body is resolved. A body may construct a class declared further down, or extend one, and
+    /// either has to see that class's constructor to check the arguments it is given.
+    /// </summary>
+    private void ResolveClassSignatures(PassContext pc, List<Stmt> stmts)
+    {
+        foreach (var cd in ClassDeclsIn(stmts))
+        {
+            if (!pc.Pkg!.Syms.GetByID(cd.Name.Sym, out var classSym)) continue;
+            if (!pc.Types.GetByID(classSym.Type, out var rawType) || rawType is not ClassType classType) continue;
+
+            LinkBaseClass(pc, cd, classType, report: false);
+            if (cd.Constructor != null)
+                classType.ConstructorType = ConstructorTypeOf(pc, cd.Constructor, classType);
+        }
+    }
+
+    private static IEnumerable<ClassDecl> ClassDeclsIn(List<Stmt> stmts)
+    {
+        foreach (var stmt in stmts)
+        {
+            switch (stmt)
+            {
+                case ClassDecl cd:
+                    yield return cd;
+                    break;
+                case ExportStmt { Declaration: ClassDecl exported }:
+                    yield return exported;
+                    break;
+                case DeclareModuleDecl module:
+                    foreach (var member in module.Members.OfType<ClassDecl>())
+                        yield return member;
+                    break;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Sets the base class <paramref name="cd"/> extends. The cycle is rejected before it reaches
+    /// the type graph: every walk over the base chain assumes it ends, so letting one in makes the
+    /// compiler spin instead of reporting anything. Problems are only reported when
+    /// <paramref name="report"/> is set, so linking early and again later reports them once.
+    /// </summary>
+    private void LinkBaseClass(PassContext pc, ClassDecl cd, ClassType classType, bool report)
+    {
+        if (cd.BaseClass == null || cd.BaseClass.Sym == SymID.Invalid) return;
+
+        var baseTyp = LookupSymbolType(pc, cd.BaseClass.Sym);
+        if (baseTyp == TypID.Invalid) return;
+
+        if (!pc.Types.GetByID(baseTyp, out var bt) || bt is not ClassType baseCls)
+        {
+            if (report)
+                pc.Diag.Report(cd.BaseClass.Span, Diagnostics.DiagnosticCode.ErrExtendsNonClass, cd.BaseClass.Name);
+            return;
+        }
+
+        if (classType.BaseClass?.ID == baseCls.ID) return;
+
+        if (ReachesThroughBaseClasses(baseCls, classType))
+        {
+            if (report)
+                pc.Diag.Report(cd.BaseClass.Span, Diagnostics.DiagnosticCode.ErrCyclicInheritance, cd.Name.Name, cd.BaseClass.Name);
+            return;
+        }
+
+        classType.BaseClass = baseCls;
+    }
+
+    /// <summary>
+    /// The type of a class constructor, typing its parameters on the way.
+    /// </summary>
+    private FunctionType ConstructorTypeOf(PassContext pc, ClassConstructorNode ctor, ClassType classType)
+    {
+        var parameters = new List<Tuple<string, Type>>();
+        var defaults = new List<int>();
+        for (var i = 0; i < ctor.Parameters.Count; i++)
+        {
+            var parameter = ctor.Parameters[i];
+            var type = ResolveParamType(pc, parameter);
+            if (parameter.Name.Sym != SymID.Invalid) pc.Pkg!.Syms.SetType(parameter.Name.Sym, type.ID);
+            parameters.Add(new Tuple<string, Type>(parameter.Name.Name, type));
+            if (parameter.DefaultValue != null) defaults.Add(i);
+        }
+
+        return (FunctionType)GetType(pc, pc.Types.FuncOf(parameters, classType,
+            defaultParams: defaults.Count > 0 ? defaults : null));
+    }
+
+    /// <summary>
+    /// Checks the arguments of a <c>super(...)</c> against the constructor of the base class it
+    /// runs, the nearest one up the chain.
+    /// </summary>
+    private void CheckSuperArguments(PassContext pc, SuperCallExpr superCall, List<TypID> argTypes)
+    {
+        var baseClass = _currentClass?.BaseClass;
+        if (baseClass == null) return;
+
+        var ctorType = ResolveConstructorType(baseClass);
+        if (ctorType == null)
+        {
+            if (superCall.Arguments.Count > 0)
+                pc.Diag.Report(superCall.Span, DiagnosticCode.ErrNoConstructor, baseClass.Name);
+            return;
+        }
+
+        CheckConstructorArguments(pc, superCall.Span, baseClass.Name, ctorType, superCall.Arguments.Count, argTypes);
+    }
+
+    private void CheckConstructorArguments(PassContext pc, TextSpan span, string className, FunctionType ctorType, int argCount, List<TypID> argTypes)
+    {
+        var paramCount = ctorType.ParamTypes.Count;
+        var minParams = ctorType.MinParamCount;
+        if (argCount >= minParams && (argCount <= paramCount || ctorType.IsVararg))
+        {
+            CheckCallArguments(pc, span, ctorType, argTypes);
+            return;
+        }
+
+        var expected = minParams == paramCount ? paramCount.ToString() : $"{minParams}..{paramCount}";
+        pc.Diag.Report(span, DiagnosticCode.ErrConstructorParamMismatch, className, expected, argCount.ToString());
     }
 
     /// <summary>
@@ -2243,7 +2342,7 @@ public sealed class InferTypesPass() : Pass(PassName, PassScope.PerBuild)
                 result = InferNewExpr(pc, newExpr);
                 break;
             case SuperCallExpr superCall:
-                foreach (var arg in superCall.Arguments) SynthesizeExpr(pc, arg);
+                CheckSuperArguments(pc, superCall, superCall.Arguments.Select(arg => SynthesizeExpr(pc, arg)).ToList());
                 result = tt.PrimAny.ID;
                 break;
             default:
@@ -2562,21 +2661,7 @@ public sealed class InferTypesPass() : Pass(PassName, PassScope.PerBuild)
         }
         else
         {
-            var argCount = newExpr.Arguments.Count;
-            var paramCount = ctorType.ParamTypes.Count;
-            var minParams = ctorType.MinParamCount;
-            if (argCount < minParams || (argCount > paramCount && !ctorType.IsVararg))
-            {
-                var expected = minParams == paramCount
-                    ? paramCount.ToString()
-                    : $"{minParams}..{paramCount}";
-                pc.Diag.Report(newExpr.Span, DiagnosticCode.ErrConstructorParamMismatch,
-                    newExpr.ClassName.Name, expected, argCount.ToString());
-            }
-            else
-            {
-                CheckCallArguments(pc, newExpr.Span, ctorType, argTypes);
-            }
+            CheckConstructorArguments(pc, newExpr.Span, newExpr.ClassName.Name, ctorType, newExpr.Arguments.Count, argTypes);
         }
 
         return classTypId;
