@@ -153,6 +153,36 @@ public class ResolveTypeRefsPass() : Pass(PassName, PassScope.PerBuild)
         MaterializeTypeParams(pkg, decl.TypeParams, $"iface:{decl.Name.Name}", interfaceType.TypeParams, ScopeOfDecl(decl.ID));
     }
 
+    /// <summary>
+    /// Resolves the types of a method's signature and body in the method's own scope, where its
+    /// type parameters are declared, so <c>function first&lt;T&gt;(items: T[]): T</c> can name them.
+    /// </summary>
+    private void ResolveMethodTypes(TypeTable tt, string ownerKey, List<TypeParamDef> typeParams, List<Parameter> parameters,
+        TypeRef? returnType, List<Stmt>? body, ReturnStmt? returnStmt)
+    {
+        var prev = _currentScope;
+        var anchor = parameters.Count > 0 ? parameters[0].ID : returnType?.ID;
+        if (anchor is { } node && _pkg.Scopes.EnclosingScope(node, out var methodScope))
+            _currentScope = methodScope;
+
+        MaterializeFunctionTypeParams(_pkg, typeParams, $"{ownerKey}@{anchor}", _currentScope);
+        foreach (var tp in typeParams)
+        {
+            if (tp.ExtendsBound != null) ResolveTypeRef(tt, tp.ExtendsBound);
+            foreach (var ib in tp.ImplementsBounds) ResolveTypeRef(tt, ib);
+        }
+        PopulateTypeParamBounds(tt, typeParams);
+
+        foreach (var parameter in parameters)
+        {
+            if (parameter.TypeAnnotation != null) ResolveTypeRef(tt, parameter.TypeAnnotation);
+        }
+        if (returnType != null) ResolveTypeRef(tt, returnType);
+        if (body != null) ResolveStmtListTypes(tt, body);
+        if (returnStmt != null) ResolveStmtTypes(tt, returnStmt);
+        _currentScope = prev;
+    }
+
     private void MaterializeFunctionTypeParams(PackageContext pkg, List<TypeParamDef> defs, string ownerKey, ScopeID declScope)
     {
         var sink = new List<TypeParameterType>();
@@ -490,13 +520,8 @@ public class ResolveTypeRefsPass() : Pass(PassName, PassScope.PerBuild)
                 }
                 foreach (var method in classDecl.Methods)
                 {
-                    foreach (var p in method.Parameters)
-                    {
-                        if (p.TypeAnnotation != null) ResolveTypeRef(tt, p.TypeAnnotation);
-                    }
-                    if (method.ReturnType != null) ResolveTypeRef(tt, method.ReturnType);
-                    ResolveStmtListTypes(tt, method.Body);
-                    if (method.ReturnStmt != null) ResolveStmtTypes(tt, method.ReturnStmt);
+                    ResolveMethodTypes(tt, $"method:{classDecl.Name.Name}.{method.Name.Name}", method.TypeParams,
+                        method.Parameters, method.ReturnType, method.Body, method.ReturnStmt);
                 }
                 if (classDecl.Constructor != null)
                 {
@@ -536,12 +561,8 @@ public class ResolveTypeRefsPass() : Pass(PassName, PassScope.PerBuild)
                 }
                 foreach (var method in interfaceDecl.Methods)
                 {
-                    foreach (var p in method.Parameters)
-                    {
-                        if (p.TypeAnnotation != null) ResolveTypeRef(tt, p.TypeAnnotation);
-                    }
-                    if (method.ReturnType != null) ResolveTypeRef(tt, method.ReturnType);
-                    if (method.IsDefault) ResolveStmtListTypes(tt, method.Body!);
+                    ResolveMethodTypes(tt, $"method:{interfaceDecl.Name.Name}.{method.Name.Name}", method.TypeParams,
+                        method.Parameters, method.ReturnType, method.Body, method.ReturnStmt);
                 }
                 _currentScope = prev;
                 break;
@@ -555,12 +576,8 @@ public class ResolveTypeRefsPass() : Pass(PassName, PassScope.PerBuild)
                 if (extendDecl.TargetType != null) ResolveTypeRef(tt, extendDecl.TargetType);
                 foreach (var method in extendDecl.Methods)
                 {
-                    foreach (var p in method.Parameters)
-                    {
-                        if (p.TypeAnnotation != null) ResolveTypeRef(tt, p.TypeAnnotation);
-                    }
-                    if (method.ReturnType != null) ResolveTypeRef(tt, method.ReturnType);
-                    ResolveStmtListTypes(tt, method.Body);
+                    ResolveMethodTypes(tt, $"extension:{method.Name.Name}", method.TypeParams,
+                        method.Parameters, method.ReturnType, method.Body, method.ReturnStmt);
                 }
                 _currentScope = prev;
                 break;

@@ -491,6 +491,7 @@ public sealed class BindDeclarePass() : Pass(PassName, PassScope.PerFile)
                 {
                     var methodScope = pkg.Scopes.NewScope(classScope);
                     DeclareTypeParams(ctx, methodScope, method.TypeParams);
+                    if (method.ReturnType != null) pkg.Scopes.BindNode(method.ReturnType.ID, methodScope);
                     if (!method.IsStatic)
                         DeclareSymbol(ctx, methodScope, "self", SymbolKind.Variable, classDecl.ID);
                     foreach (var param in method.Parameters)
@@ -542,9 +543,14 @@ public sealed class BindDeclarePass() : Pass(PassName, PassScope.PerFile)
                 // the body — the same shape as a class instance method.
                 foreach (var method in interfaceDecl.Methods)
                 {
-                    if (!method.IsDefault) continue;
+                    if (!method.IsDefault)
+                    {
+                        BindSignatureScope(ctx, ifaceScope, method.TypeParams, method.Parameters, method.ReturnType);
+                        continue;
+                    }
                     var methodScope = pkg.Scopes.NewScope(ifaceScope);
                     DeclareTypeParams(ctx, methodScope, method.TypeParams);
+                    if (method.ReturnType != null) pkg.Scopes.BindNode(method.ReturnType.ID, methodScope);
                     DeclareSymbol(ctx, methodScope, "self", SymbolKind.Variable, interfaceDecl.ID);
                     foreach (var param in method.Parameters)
                     {
@@ -569,6 +575,7 @@ public sealed class BindDeclarePass() : Pass(PassName, PassScope.PerFile)
                 {
                     var methodScope = pkg.Scopes.NewScope(extScope);
                     DeclareTypeParams(ctx, methodScope, method.TypeParams);
+                    if (method.ReturnType != null) pkg.Scopes.BindNode(method.ReturnType.ID, methodScope);
                     DeclareSymbol(ctx, methodScope, "self", SymbolKind.Variable, extendDecl.ID);
                     foreach (var param in method.Parameters)
                     {
@@ -848,6 +855,22 @@ public sealed class BindDeclarePass() : Pass(PassName, PassScope.PerFile)
             if (!string.IsNullOrEmpty(badName))
                 ctx.Diag.Report(ann.Span, DiagnosticCode.ErrUnknownSideName, badName);
         });
+    }
+
+    /// <summary>
+    /// Gives a method without a body a scope of its own when it declares type parameters, so its
+    /// signature can name them.
+    /// </summary>
+    private static void BindSignatureScope(PassContext ctx, ScopeID parent, List<TypeParamDef> typeParams, List<Parameter> parameters, TypeRef? returnType)
+    {
+        if (typeParams.Count == 0) return;
+
+        var pkg = ctx.Pkg!;
+        var signatureScope = pkg.Scopes.NewScope(parent);
+        DeclareTypeParams(ctx, signatureScope, typeParams);
+        foreach (var parameter in parameters)
+            pkg.Scopes.BindNode(parameter.ID, signatureScope);
+        if (returnType != null) pkg.Scopes.BindNode(returnType.ID, signatureScope);
     }
 
     private static void DeclareTypeParams(PassContext ctx, ScopeID scope, List<TypeParamDef> typeParams)
