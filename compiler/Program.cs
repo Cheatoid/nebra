@@ -22,6 +22,9 @@ internal static class Program
         }
 #endif
 
+        if (Trampoline.TryForward(args) is { } forwarded)
+            return forwarded;
+
         Upgrader.CleanupStaleBackup();
 
         var command = args.Length > 0 ? args[0].ToLowerInvariant() : "help";
@@ -47,6 +50,8 @@ internal static class Program
             "upgrade" => await Upgrader.RunUpgradeAsync(args.Skip(1).ToArray()),
             "check" => await Upgrader.RunCheckAsync(),
             "_upgrade_apply" => await Upgrader.RunDeferredApplyAsync(args.Skip(1).ToArray()),
+            "use" => Trampoline.RunUse(args.Skip(1).ToArray()),
+            "unuse" => Trampoline.RunUnuse(),
             "version" => RunVersion(),
             "help" or "--help" or "-h" => RunHelp(),
             _ => RunUnknown(command)
@@ -842,6 +847,9 @@ internal static class Program
         Console.WriteLine("  check              Check whether a newer Nebra release is available");
         Console.WriteLine("  upgrade            Download and install the latest Nebra release");
         Console.WriteLine("                     Flags: --force (reinstall even if already up to date)");
+        Console.WriteLine("  use [path]         Forward every nebra call to another build, such as a local");
+        Console.WriteLine("                     nebra executable, nebra.dll or its directory; shows the current one");
+        Console.WriteLine("  unuse              Go back to the installed version");
         Console.WriteLine("  version            Print the Nebra version");
         Console.WriteLine("  help               Show this help message");
         return 0;
