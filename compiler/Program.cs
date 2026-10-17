@@ -825,7 +825,7 @@ internal static class Program
         Console.WriteLine("  init               Create a new Nebra project in the current directory");
         Console.WriteLine("  migrate [dir]      Convert a project from the old 'lux' toolchain to Nebra");
         Console.WriteLine("                     Flags: --dry-run, --no-backup");
-        Console.WriteLine("  create <spec>      Scaffold a new project from a template (git spec or setup URL)");
+        Console.WriteLine("  create <spec>      Scaffold a new project from a template (git spec, setup URL, local setup script or directory)");
         Console.WriteLine("                     Flags: [dir], --skip-setup, --offline, --no-cache");
         Console.WriteLine("  install            Install declared dependencies into nebra_modules/");
         Console.WriteLine("  add <spec>         Add a dependency (e.g. github:owner/repo@v1)");

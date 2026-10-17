@@ -35,7 +35,63 @@ public sealed class ProjectCreator
         if (IsDirectScriptUrl(specString))
             return await CreateFromDirectUrlAsync(specString, opts);
 
+        if (IsSetupScript(specString) && File.Exists(specString))
+            return await CreateFromLocalScriptAsync(Path.GetFullPath(specString), opts);
+
+        if (Directory.Exists(specString))
+            return await CreateFromLocalDirectoryAsync(Path.GetFullPath(specString), opts);
+
         return await CreateFromPackageSpecAsync(specString, opts);
+    }
+
+    private static bool IsSetupScript(string path)
+    {
+        return path.EndsWith(".neb", StringComparison.OrdinalIgnoreCase) || path.EndsWith(".lua", StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// Runs a setup script from disk, such as one being written, the way a downloaded one is run.
+    /// The project directory defaults to the name of the directory the script is in.
+    /// </summary>
+    private static async Task<int> CreateFromLocalScriptAsync(string scriptPath, CreateOptions opts)
+    {
+        var targetDir = Path.GetFullPath(opts.TargetDirectory ?? Path.GetFileName(Path.GetDirectoryName(scriptPath)) ?? "project");
+        if (!EnsureEmptyDirectory(targetDir, out var err))
+        {
+            await Console.Error.WriteLineAsync($"error: {err}");
+            return 1;
+        }
+
+        Directory.CreateDirectory(targetDir);
+        if (opts.SkipSetup)
+        {
+            File.Copy(scriptPath, Path.Combine(targetDir, Path.GetFileName(scriptPath)));
+            Console.WriteLine($"Setup script saved to '{targetDir}/{Path.GetFileName(scriptPath)}'. Setup skipped.");
+            return 0;
+        }
+
+        return await RunSetupAsync(scriptPath, targetDir);
+    }
+
+    /// <summary>
+    /// Creates a project from a template directory on disk, running its setup script if it has one.
+    /// </summary>
+    private async Task<int> CreateFromLocalDirectoryAsync(string templateDir, CreateOptions opts)
+    {
+        var targetDir = Path.GetFullPath(opts.TargetDirectory ?? new DirectoryInfo(templateDir).Name);
+        if (targetDir.StartsWith(templateDir.TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar, StringComparison.Ordinal))
+        {
+            await Console.Error.WriteLineAsync($"error: the project directory '{targetDir}' cannot be inside the template '{templateDir}'.");
+            return 1;
+        }
+
+        if (!EnsureEmptyDirectory(targetDir, out var err))
+        {
+            await Console.Error.WriteLineAsync($"error: {err}");
+            return 1;
+        }
+
+        return await PopulateTargetDirAsync(templateDir, targetDir, opts);
     }
 
     private static bool IsDirectScriptUrl(string spec)
