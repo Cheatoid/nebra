@@ -395,6 +395,7 @@ exportStat
     | annotationList EXPORT enumDecl                             # ExportEnum
     | annotationList EXPORT classDecl                            # ExportClass
     | annotationList EXPORT interfaceDecl                        # ExportInterface
+    | EXPORT LBRACE importName (COMMA importName)* COMMA? RBRACE FROM str # ExportFrom
     ;
 
 // -----------------------------------------------------------------------------

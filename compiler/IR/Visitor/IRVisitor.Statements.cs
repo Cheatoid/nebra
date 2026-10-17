@@ -340,6 +340,20 @@ internal partial class IRVisitor
         return new ExportStmt(NewNodeID, SpanFromCtx(context), decl);
     }
 
+    public override Node VisitExportFrom(NebraParser.ExportFromContext context)
+    {
+        return new ImportStmt(NewNodeID, SpanFromCtx(context), ImportKind.Named, NameRefFromString(context.str()))
+        {
+            IsReExport = true,
+            Specifiers = context.importName().Select(name =>
+            {
+                var names = name.NAME();
+                return new ImportSpecifier(NewNodeID, NameRefFromTerm(names[0]),
+                    names.Length > 1 ? NameRefFromTerm(names[1]) : null, SpanFromCtx(name));
+            }).ToList()
+        };
+    }
+
     public override Node VisitExportLocal(NebraParser.ExportLocalContext context)
     {
         var decl = (Decl)Visit(context.localDecl());

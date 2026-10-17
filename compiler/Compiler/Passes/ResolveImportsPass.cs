@@ -211,6 +211,10 @@ public sealed class ResolveImportsPass() : Pass(PassName, PassScope.PerBuild)
 
             ctx.Cache[$"import_resolved:{file.Filename}:{import.Module.Name}"] = resolved;
 
+            if (resolved is { RuntimeGlobal: not null, IsPackageRoot: false } && !import.IsTypeImport && !import.IsTypeOnly)
+                ctx.Diag.Report(import.Module.Span, Diagnostics.DiagnosticCode.ErrRuntimeGlobalSubpath,
+                    import.Module.Name, resolved.RuntimePackage ?? "", resolved.RuntimeGlobal);
+
             if (resolved is { Kind: ModuleKind.NebraSource or ModuleKind.Declaration, File: not null })
             {
                 if (!newFiles.Contains(resolved.File))
@@ -440,6 +444,18 @@ public sealed class ResolveImportsPass() : Pass(PassName, PassScope.PerBuild)
 
         foreach (var stmt in file.Hir.Body)
         {
+            if (stmt is ImportStmt { IsReExport: true } reExport)
+            {
+                foreach (var spec in reExport.Specifiers)
+                {
+                    var exported = spec.Alias ?? spec.Name;
+                    if (exported.Sym != SymID.Invalid)
+                        exports[exported.Name] = exported.Sym;
+                    else if (pkg.Scopes.Lookup(lookupScope, exported.Name, out var reExportedSym))
+                        exports[exported.Name] = reExportedSym;
+                }
+            }
+
             if (stmt is not ExportStmt export) continue;
 
             switch (export.Declaration)

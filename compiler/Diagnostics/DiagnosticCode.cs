@@ -119,6 +119,12 @@ public enum DiagnosticCode
     ErrTypeImportUsedAsValue = 0x100A,
 
     [Level(DiagnosticLevel.Error)]
+    [Category(DiagnosticCategory.Semantic)]
+    [Format("'{0}' is part of the package '{1}', which is loaded at runtime from the global '{2}' that holds only its root module")]
+    [Help("import from '{1}' instead, or use 'import type' for types")]
+    ErrRuntimeGlobalSubpath = 0x100B,
+
+    [Level(DiagnosticLevel.Error)]
     [Category(DiagnosticCategory.Syntax)]
     [Format("Alternative boolean operator '{0}' is disabled in the configuration. Enable [code] alt_boolean_operators = true to use it, or use '{1}' instead.")]
     ErrAltBooleanOperatorsDisabled = 0x0006,

@@ -19,6 +19,18 @@ public sealed class ResolvedModule
     public PreparsedFile? File { get; init; }
     public DeclareModuleDecl? DeclareModule { get; init; }
     public string? FilePath { get; init; }
+
+    /// <summary>
+    /// The global the module's package is reachable as at runtime, when the module belongs to an
+    /// installed package with a <c>runtime_global</c> and is imported from outside that package.
+    /// </summary>
+    public string? RuntimeGlobal { get; init; }
+
+    /// <summary>The name of the package <see cref="RuntimeGlobal"/> belongs to.</summary>
+    public string? RuntimePackage { get; init; }
+
+    /// <summary>Whether the module is the root module of its package, the one its global holds.</summary>
+    public bool IsPackageRoot { get; init; }
 }
 
 public sealed class ModuleResolver(Config config)
@@ -40,8 +52,47 @@ public sealed class ModuleResolver(Config config)
 
         var result = DoResolve(moduleName, importerPath, pkgs, diag, nodeAlloc);
         if (result != null)
+        {
+            result = WithRuntimeGlobal(result, importerPath);
             _cache[cacheKey] = result;
+        }
         return result;
+    }
+
+    /// <summary>
+    /// Marks a module of an installed package that is reachable through a <c>runtime_global</c>,
+    /// when the import comes from outside that package. Imports inside the package keep loading
+    /// its files.
+    /// </summary>
+    private ResolvedModule WithRuntimeGlobal(ResolvedModule resolved, string? importerPath)
+    {
+        if (resolved.FilePath == null) return resolved;
+
+        var file = Path.GetFullPath(resolved.FilePath);
+        foreach (var package in InstalledPackagesOnDisk())
+        {
+            var global = package.Manifest?.RuntimeGlobal;
+            if (string.IsNullOrWhiteSpace(global)) continue;
+
+            var root = Path.GetFullPath(package.RootPath);
+            if (!IsInside(file, root) || (importerPath != null && IsInside(Path.GetFullPath(importerPath), root))) continue;
+
+            var sourceRoot = Path.GetFullPath(Path.Combine(root, package.Manifest?.Source ?? "."));
+            var isRoot = Path.GetDirectoryName(file) == sourceRoot && Path.GetFileName(file) is "init.neb" or "init.d.neb";
+            return new ResolvedModule
+            {
+                Kind = resolved.Kind, File = resolved.File, DeclareModule = resolved.DeclareModule, FilePath = resolved.FilePath,
+                RuntimeGlobal = global, RuntimePackage = package.Name, IsPackageRoot = isRoot,
+            };
+        }
+
+        return resolved;
+    }
+
+    private static bool IsInside(string path, string root)
+    {
+        var prefix = root.EndsWith(Path.DirectorySeparatorChar) ? root : root + Path.DirectorySeparatorChar;
+        return path.StartsWith(prefix, StringComparison.Ordinal);
     }
 
     private static string ImporterDirectory(string? importerPath)

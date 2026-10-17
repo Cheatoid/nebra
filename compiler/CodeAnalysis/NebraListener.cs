@@ -1215,6 +1215,18 @@ public interface INebraListener : IParseTreeListener {
 	/// <param name="context">The parse tree.</param>
 	void ExitExportInterface([NotNull] NebraParser.ExportInterfaceContext context);
 	/// <summary>
+	/// Enter a parse tree produced by the <c>ExportFrom</c>
+	/// labeled alternative in <see cref="NebraParser.exportStat"/>.
+	/// </summary>
+	/// <param name="context">The parse tree.</param>
+	void EnterExportFrom([NotNull] NebraParser.ExportFromContext context);
+	/// <summary>
+	/// Exit a parse tree produced by the <c>ExportFrom</c>
+	/// labeled alternative in <see cref="NebraParser.exportStat"/>.
+	/// </summary>
+	/// <param name="context">The parse tree.</param>
+	void ExitExportFrom([NotNull] NebraParser.ExportFromContext context);
+	/// <summary>
 	/// Enter a parse tree produced by <see cref="NebraParser.matchStat"/>.
 	/// </summary>
 	/// <param name="context">The parse tree.</param>

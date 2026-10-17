@@ -16,6 +16,7 @@ public sealed partial class CodegenPass() : Pass(PassName, PassScope.PerBuild, t
     private readonly HashSet<int> _neededBreakLabels = [];
     private readonly Dictionary<ScopeID, string> _staticMemberTables = [];
     private readonly HashSet<string> _hoistedNames = [];
+    private string? _currentFile;
 
     public override bool Run(PassContext context)
     {
@@ -36,6 +37,7 @@ public sealed partial class CodegenPass() : Pass(PassName, PassScope.PerBuild, t
 
     private void EmitFile(PassContext ctx, PackageContext pkg, LuaGenerator gen, PreparsedFile file)
     {
+        _currentFile = file.Filename;
         var exportedNames = new List<ExportName>();
         CollectExportNames(ctx, pkg, file.Hir.Body, exportedNames);
 
@@ -54,7 +56,8 @@ public sealed partial class CodegenPass() : Pass(PassName, PassScope.PerBuild, t
             }
             else
             {
-                gen.Write("return {");
+                var setsGlobal = IsRuntimeGlobalRoot(ctx, file);
+                gen.Write(setsGlobal ? "local __nebra_exports = {" : "return {");
                 if (!gen.Minify) gen.NewLine();
                 gen.Indent();
                 for (var i = 0; i < exportedNames.Count; i++)
@@ -68,12 +71,39 @@ public sealed partial class CodegenPass() : Pass(PassName, PassScope.PerBuild, t
                 }
                 gen.Dedent();
                 gen.WriteLine("}");
+                if (setsGlobal) EmitRuntimeGlobal(ctx, gen);
             }
         }
         else if (file.Hir.Return != null)
         {
             EmitReturn(ctx, pkg, gen, file.Hir.Return);
         }
+    }
+
+    /// <summary>
+    /// Whether <paramref name="file"/> is the root module of a package that declares a
+    /// <c>runtime_global</c>: the <c>init</c> module of its source directory, which consumers
+    /// import by the package's name.
+    /// </summary>
+    private static bool IsRuntimeGlobalRoot(PassContext ctx, PreparsedFile file)
+    {
+        if (string.IsNullOrWhiteSpace(ctx.Config.RuntimeGlobal) || file.Filename == null) return false;
+
+        var root = Path.GetFullPath(Path.Combine(ctx.Config.ProjectRoot, ctx.Config.Source, "init.neb"));
+        return Path.GetFullPath(file.Filename) == root;
+    }
+
+    /// <summary>
+    /// Sets the package's <c>runtime_global</c> to the root module's exports through the
+    /// configured <c>runtime_export</c> statement, then returns them as the module's value.
+    /// </summary>
+    private static void EmitRuntimeGlobal(PassContext ctx, LuaGenerator gen)
+    {
+        var template = string.IsNullOrWhiteSpace(ctx.Config.RuntimeExport) ? "_G[%name] = %value" : ctx.Config.RuntimeExport;
+        gen.WriteLine(template
+            .Replace("%name", "\"" + EscapeLuaString(ctx.Config.RuntimeGlobal!) + "\"")
+            .Replace("%value", "__nebra_exports"));
+        gen.WriteLine("return __nebra_exports");
     }
 
     /// <summary>
@@ -116,6 +146,15 @@ public sealed partial class CodegenPass() : Pass(PassName, PassScope.PerBuild, t
     {
         foreach (var stmt in stmts)
         {
+            if (stmt is ImportStmt { IsReExport: true } reExport)
+            {
+                foreach (var spec in reExport.Specifiers)
+                {
+                    var exported = spec.Alias ?? spec.Name;
+                    names.Add(new ExportName(exported.Name, ResolveName(ctx, pkg, exported)));
+                }
+            }
+
             if (stmt is not ExportStmt export) continue;
             switch (export.Declaration)
             {
@@ -1554,10 +1593,14 @@ public sealed partial class CodegenPass() : Pass(PassName, PassScope.PerBuild, t
     {
         if (import.IsTypeOnly || import.IsTypeImport) return;
 
-        var modExpr = gen.EmitImport(import.Module.Name);
+        var runtimeGlobal = RuntimeGlobalOf(ctx, import);
+        var modExpr = runtimeGlobal ?? gen.EmitImport(import.Module.Name);
 
         switch (import.Kind)
         {
+            case ImportKind.SideEffect when runtimeGlobal != null:
+                gen.WriteLine($"assert({RequireGlobal(ctx, import)})");
+                break;
             case ImportKind.SideEffect:
                 gen.WriteLine(modExpr);
                 break;
@@ -1604,6 +1647,28 @@ public sealed partial class CodegenPass() : Pass(PassName, PassScope.PerBuild, t
             }
         }
         gen.WriteSemicolon();
+    }
+
+    /// <summary>
+    /// The global an import reads instead of loading a file, when it imports the root module of a
+    /// package that declares a <c>runtime_global</c>. A missing global fails with the package's
+    /// name rather than as an index of <c>nil</c> wherever an imported name is used.
+    /// </summary>
+    private string? RuntimeGlobalOf(PassContext ctx, ImportStmt import)
+    {
+        return ResolvedImport(ctx, import) is { RuntimeGlobal: not null, IsPackageRoot: true } ? RequireGlobal(ctx, import) : null;
+    }
+
+    private string RequireGlobal(PassContext ctx, ImportStmt import)
+    {
+        var resolved = ResolvedImport(ctx, import)!;
+        var message = $"the package '{resolved.RuntimePackage}' is not loaded: the global {resolved.RuntimeGlobal} is missing";
+        return $"{resolved.RuntimeGlobal} or error(\"{EscapeLuaString(message)}\", 0)";
+    }
+
+    private ResolvedModule? ResolvedImport(PassContext ctx, ImportStmt import)
+    {
+        return ctx.Cache.TryGetValue($"import_resolved:{_currentFile}:{import.Module.Name}", out var entry) ? entry as ResolvedModule : null;
     }
 
     /// <summary>

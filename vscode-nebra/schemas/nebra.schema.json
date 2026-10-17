@@ -77,6 +77,15 @@
       "description": "The project ships only `.d.neb` declarations. `nebra build`, `compile`, `run` and `test` do nothing.",
       "default": false
     },
+    "runtime_global": {
+      "type": "string",
+      "description": "The global this package is reachable as at runtime, for runtimes where another package cannot load its files. Its root module sets the global from its exports, and `import { X } from \"<package>\"` in a consumer reads `Global.X` instead of loading a file."
+    },
+    "runtime_export": {
+      "type": "string",
+      "description": "How the root module sets `runtime_global`: `%name` stands for the quoted global name and `%value` for the exports, such as `\"Package.Export(%name, %value)\"` in nanos world.",
+      "default": "_G[%name] = %value"
+    },
     "assets": {
       "type": "object",
       "description": "Files copied into the output. Keys are paths from the project root, values paths in the output.",

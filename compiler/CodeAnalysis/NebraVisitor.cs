@@ -728,6 +728,13 @@ public interface INebraVisitor<Result> : IParseTreeVisitor<Result> {
 	/// <return>The visitor result.</return>
 	Result VisitExportInterface([NotNull] NebraParser.ExportInterfaceContext context);
 	/// <summary>
+	/// Visit a parse tree produced by the <c>ExportFrom</c>
+	/// labeled alternative in <see cref="NebraParser.exportStat"/>.
+	/// </summary>
+	/// <param name="context">The parse tree.</param>
+	/// <return>The visitor result.</return>
+	Result VisitExportFrom([NotNull] NebraParser.ExportFromContext context);
+	/// <summary>
 	/// Visit a parse tree produced by <see cref="NebraParser.matchStat"/>.
 	/// </summary>
 	/// <param name="context">The parse tree.</param>

@@ -145,6 +145,12 @@ public sealed class ImportStmt(NodeID id, TextSpan span, ImportKind kind, NameRe
     /// loaded at runtime, and the import may be part of a cycle of imports.
     /// </summary>
     public bool IsTypeImport { get; set; }
+
+    /// <summary>
+    /// Written <c>export { ... } from</c>: the names are imported and exported again under the
+    /// name each specifier gives them, so a module can gather the exports of others.
+    /// </summary>
+    public bool IsReExport { get; init; }
 }
 
 public sealed class ExportStmt(NodeID id, TextSpan span, Decl declaration) : Stmt(id, span)

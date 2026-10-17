@@ -126,6 +126,20 @@ public sealed class Config
     /// </summary>
     public bool TypesOnly { get; set; } = false;
 
+    /// <summary>
+    /// The global the package's root module is reachable as at runtime, for runtimes where another
+    /// package cannot load its files. The package sets it from the exports of its root module, and
+    /// a consumer's imports from the package read it instead of loading files.
+    /// </summary>
+    public string? RuntimeGlobal { get; set; }
+
+    /// <summary>
+    /// How the package sets <see cref="RuntimeGlobal"/>: a statement where <c>%name</c> stands for
+    /// the quoted global name and <c>%value</c> for the exports, such as
+    /// <c>Package.Export(%name, %value)</c>. Assigns <c>_G</c> when not set.
+    /// </summary>
+    public string? RuntimeExport { get; set; }
+
     public ScriptsSection Scripts { get; set; } = new();
 
     public CodeSection Code { get; set; } = new();
@@ -219,6 +233,8 @@ public sealed class Config
         GenerateDeclarations = MergeVal(GenerateDeclarations, config.GenerateDeclarations, true);
         Source = MergeVal(Source, config.Source, "src");
         TypesOnly = MergeVal(TypesOnly, config.TypesOnly, false);
+        RuntimeGlobal = MergeVal(RuntimeGlobal, config.RuntimeGlobal, null);
+        RuntimeExport = MergeVal(RuntimeExport, config.RuntimeExport, null);
         Globals.AddRange(config.Globals);
         Annotations.AddRange(config.Annotations);
 
@@ -319,6 +335,8 @@ public sealed class Config
             SourceOverrides = SourceOverrides,
             AnnotationFile = AnnotationFile,
             TypesOnly = TypesOnly,
+            RuntimeGlobal = RuntimeGlobal,
+            RuntimeExport = RuntimeExport,
             Globals = [..Globals],
             Annotations = [..Annotations],
             Scripts = Scripts,

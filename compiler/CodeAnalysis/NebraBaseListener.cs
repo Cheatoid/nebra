@@ -1428,6 +1428,20 @@ public partial class NebraBaseListener : INebraListener {
 	/// <param name="context">The parse tree.</param>
 	public virtual void ExitExportInterface([NotNull] NebraParser.ExportInterfaceContext context) { }
 	/// <summary>
+	/// Enter a parse tree produced by the <c>ExportFrom</c>
+	/// labeled alternative in <see cref="NebraParser.exportStat"/>.
+	/// <para>The default implementation does nothing.</para>
+	/// </summary>
+	/// <param name="context">The parse tree.</param>
+	public virtual void EnterExportFrom([NotNull] NebraParser.ExportFromContext context) { }
+	/// <summary>
+	/// Exit a parse tree produced by the <c>ExportFrom</c>
+	/// labeled alternative in <see cref="NebraParser.exportStat"/>.
+	/// <para>The default implementation does nothing.</para>
+	/// </summary>
+	/// <param name="context">The parse tree.</param>
+	public virtual void ExitExportFrom([NotNull] NebraParser.ExportFromContext context) { }
+	/// <summary>
 	/// Enter a parse tree produced by <see cref="NebraParser.matchStat"/>.
 	/// <para>The default implementation does nothing.</para>
 	/// </summary>
