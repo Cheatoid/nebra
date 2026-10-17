@@ -31,6 +31,8 @@ public sealed class CheckAnnotationFilePass() : Pass(PassName, PassScope.PerFile
             context.Diag.Report(annotation.Span, DiagnosticCode.ErrAnnotationInAnnotationFile);
         }
 
+        if (!ResolveAnnotationsPass.LooksLikeAnnotationSource(context.File.Content)) return true;
+
         if (ResolveAnnotationsPass.TryExtractMeta(body, out _, out var parameters, out var error))
         {
             TypeArguments(context, body, parameters);

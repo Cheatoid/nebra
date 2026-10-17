@@ -11,7 +11,7 @@ public abstract class TypeRef(NodeID id, TextSpan span, TypeKind kind) : Node(id
 
 public sealed class PrimitiveTypeRef(NodeID id, TextSpan span, TypeKind kind) : TypeRef(id, span, kind);
 
-public sealed class NamedTypeRef(NodeID id, TextSpan span, NameRef name) : TypeRef(id, span, TypeKind.Enum)
+public sealed class NamedTypeRef(NodeID id, TextSpan span, NameRef name) : TypeRef(id, span, TypeKind.Named)
 {
     public NameRef Name { get; } = name;
 }
@@ -79,7 +79,7 @@ public sealed class VariadicTypeRef(NodeID id, TextSpan span, TypeRef elementTyp
 /// The head <see cref="Name"/> points at a generic class or interface definition; <see cref="Arguments"/> are the
 /// type arguments supplied at the use site.
 /// </summary>
-public sealed class GenericTypeRef(NodeID id, TextSpan span, NameRef name, List<TypeArgRef> arguments) : TypeRef(id, span, TypeKind.Class)
+public sealed class GenericTypeRef(NodeID id, TextSpan span, NameRef name, List<TypeArgRef> arguments) : TypeRef(id, span, TypeKind.Named)
 {
     public NameRef Name { get; } = name;
     public List<TypeArgRef> Arguments { get; } = arguments;

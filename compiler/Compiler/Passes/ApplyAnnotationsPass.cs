@@ -40,7 +40,9 @@ public sealed class ApplyAnnotationsPass()
     /// Walks a statement list in place, expanding each annotated declaration into the result of
     /// its apply function. Also recurses into nested block-bearing statements so annotations on
     /// inner decls still execute, and processes member-level annotations inside class/interface/enum
-    /// decls and parameter annotations on function signatures.
+    /// decls and parameter annotations on function signatures. A declaration's own annotations run
+    /// before those of its members, so a class annotation sees its fields as they are written; the
+    /// member annotations then run on what it returned.
     /// </summary>
     private static void RewriteStmtList(PassContext ctx, AnnotationRegistry registry, List<Stmt> stmts)
     {
@@ -49,13 +51,18 @@ public sealed class ApplyAnnotationsPass()
             var stmt = stmts[i];
             RecurseInto(ctx, registry, stmt);
 
-            ProcessMemberAnnotations(ctx, registry, stmt);
-
             var annotated = ExtractAnnotatedDecl(stmt);
-            if (annotated.decl == null || annotated.annotations.Count == 0) continue;
+            var replacement = annotated.decl != null && annotated.annotations.Count > 0
+                ? ApplyAnnotationsToDecl(ctx, registry, annotated.decl, annotated.annotations, stmt)
+                : null;
+            if (replacement == null)
+            {
+                ProcessMemberAnnotations(ctx, registry, stmt);
+                continue;
+            }
 
-            var replacement = ApplyAnnotationsToDecl(ctx, registry, annotated.decl, annotated.annotations, stmt);
-            if (replacement == null) continue;
+            foreach (var produced in replacement)
+                ProcessMemberAnnotations(ctx, registry, produced);
 
             stmts.RemoveAt(i);
             stmts.InsertRange(i, replacement);
@@ -151,7 +158,7 @@ public sealed class ApplyAnnotationsPass()
             var encoded = codec.Encode(current);
 
             using var runtime = NebraRuntime.CreateSandboxed();
-            var loadErr = runtime.LoadAndRun(def.CompiledLua, def.Name);
+            var loadErr = LoadDefinition(runtime, def);
             if (loadErr != null)
             {
                 ctx.Diag.Report(ann.Span, DiagnosticCode.ErrAnnotationRuntimeError, ann.Name.Name, loadErr);
@@ -340,7 +347,7 @@ public sealed class ApplyAnnotationsPass()
                 if (encoded == null) continue;
 
                 using var runtime = NebraRuntime.CreateSandboxed();
-                var loadErr = runtime.LoadAndRun(def.CompiledLua, def.Name);
+                var loadErr = LoadDefinition(runtime, def);
                 if (loadErr != null)
                 {
                     ctx.Diag.Report(ann.Span, DiagnosticCode.ErrAnnotationRuntimeError, ann.Name.Name, loadErr);
@@ -450,7 +457,7 @@ public sealed class ApplyAnnotationsPass()
             var encoded = codec.Encode(node);
 
             using var runtime = NebraRuntime.CreateSandboxed();
-            var loadErr = runtime.LoadAndRun(def.CompiledLua, def.Name);
+            var loadErr = LoadDefinition(runtime, def);
             if (loadErr != null)
             {
                 ctx.Diag.Report(ann.Span, DiagnosticCode.ErrAnnotationRuntimeError, ann.Name.Name, loadErr);
@@ -502,7 +509,7 @@ public sealed class ApplyAnnotationsPass()
                 var encoded = codec.Encode(current);
 
                 using var runtime = NebraRuntime.CreateSandboxed();
-                var loadErr = runtime.LoadAndRun(def.CompiledLua, def.Name);
+                var loadErr = LoadDefinition(runtime, def);
                 if (loadErr != null)
                 {
                     ctx.Diag.Report(ann.Span, DiagnosticCode.ErrAnnotationRuntimeError, ann.Name.Name, loadErr);
@@ -749,5 +756,13 @@ public sealed class ApplyAnnotationsPass()
             default:
                 return false;
         }
+    }
+
+    /// <summary>
+    /// Loads an annotation definition into a fresh runtime, together with the modules it imports.
+    /// </summary>
+    private static string? LoadDefinition(NebraRuntime runtime, AnnotationDefinition def)
+    {
+        return runtime.InstallModules(def.SourcePath, def.Modules, def.Imports) ?? runtime.LoadAndRun(def.CompiledLua, def.Name);
     }
 }

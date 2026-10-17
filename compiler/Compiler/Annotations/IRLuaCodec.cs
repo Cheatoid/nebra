@@ -67,6 +67,7 @@ public sealed class IRLuaCodec
         typeof(AttribVar),
         typeof(ImportSpecifier),
         typeof(ElseIfClause),
+        typeof(TableField),
     };
 
     public object? Encode(Node? node)
@@ -284,7 +285,7 @@ public sealed class IRLuaCodec
 
         foreach (var prop in type.GetProperties(BindingFlags.Instance | BindingFlags.Public))
         {
-            if (!prop.CanWrite || SkippedProperties.Contains(prop.Name)) continue;
+            if (!prop.CanWrite || IsSkipped(prop)) continue;
             var key = CamelCase(prop.Name);
             if (!dict.TryGetValue(key, out var raw)) continue;
             if (parameters.Any(p => CamelCase(p.Name ?? "") == key)) continue;
@@ -414,7 +415,7 @@ public sealed class IRLuaCodec
 
         foreach (var prop in target.GetProperties(BindingFlags.Instance | BindingFlags.Public))
         {
-            if (!prop.CanWrite || SkippedProperties.Contains(prop.Name)) continue;
+            if (!prop.CanWrite || IsSkipped(prop)) continue;
             var key = CamelCase(prop.Name);
             if (!dict.TryGetValue(key, out var raw)) continue;
             if (parameters.Any(p => CamelCase(p.Name ?? "") == key)) continue;
@@ -481,12 +482,22 @@ public sealed class IRLuaCodec
         return ctors[0];
     }
 
+    /// <summary>
+    /// Whether a property is compiler state rather than source. <c>Type</c> is skipped only as the
+    /// inferred type of an expression; the type a type argument names is part of the source.
+    /// </summary>
+    private static bool IsSkipped(PropertyInfo property)
+    {
+        if (!SkippedProperties.Contains(property.Name)) return false;
+        return property.Name != "Type" || !typeof(Node).IsAssignableFrom(property.PropertyType);
+    }
+
     private static PropertyInfo[] GetSerializableProperties(System.Type type)
     {
         if (PropCache.TryGetValue(type, out var cached)) return cached;
         var props = type
             .GetProperties(BindingFlags.Instance | BindingFlags.Public)
-            .Where(p => !SkippedProperties.Contains(p.Name))
+            .Where(p => !IsSkipped(p))
             .ToArray();
         PropCache[type] = props;
         return props;

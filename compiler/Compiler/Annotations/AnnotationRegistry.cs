@@ -46,7 +46,9 @@ public sealed class AnnotationDefinition(
     HashSet<AnnotationTargetKind> targets,
     List<AnnotationParamSpec> parameters,
     string compiledLua,
-    string sourcePath)
+    string sourcePath,
+    IReadOnlyDictionary<string, string>? modules = null,
+    IReadOnlyDictionary<string, IReadOnlyDictionary<string, string>>? imports = null)
 {
     public string Name { get; } = name;
     /// <summary>
@@ -62,6 +64,10 @@ public sealed class AnnotationDefinition(
     /// <summary>The transpiled Lua code for this annotation's definition file.</summary>
     public string CompiledLua { get; } = compiledLua;
     public string SourcePath { get; } = sourcePath;
+    /// <summary>The transpiled Lua of every module the definition file imports, by file path.</summary>
+    public IReadOnlyDictionary<string, string> Modules { get; } = modules ?? new Dictionary<string, string>();
+    /// <summary>For each file, the file every module name it imports resolves to.</summary>
+    public IReadOnlyDictionary<string, IReadOnlyDictionary<string, string>> Imports { get; } = imports ?? new Dictionary<string, IReadOnlyDictionary<string, string>>();
 }
 
 /// <summary>

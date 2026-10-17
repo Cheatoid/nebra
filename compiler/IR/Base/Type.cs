@@ -40,6 +40,11 @@ public enum TypeKind
     Parameterized,
     Variadic,
     Predicate,
+    /// <summary>
+    /// A type written by its name, as a type reference carries it before the name is resolved:
+    /// it may still turn out to be a class, an interface, an enum or an alias.
+    /// </summary>
+    Named,
 }
 
 /// <summary>

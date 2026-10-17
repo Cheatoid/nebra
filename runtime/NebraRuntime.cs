@@ -234,6 +234,55 @@ public sealed class NebraRuntime : IDisposable
     }
 
     /// <summary>
+    /// Gives a sandboxed runtime a <c>require</c> that serves only the modules handed to it, such
+    /// as the helpers an annotation imports. Each module receives a <c>require</c> of its own that
+    /// resolves the names it imports through <paramref name="imports"/>, so a relative name means
+    /// the file next to the importing one. <paramref name="entry"/> is the file whose imports the
+    /// global <c>require</c> resolves. Returns <c>null</c> on success, else the failure.
+    /// </summary>
+    public string? InstallModules(string entry, IReadOnlyDictionary<string, string> sources,
+        IReadOnlyDictionary<string, IReadOnlyDictionary<string, string>> imports)
+    {
+        State.NewTable();
+        foreach (var (file, source) in sources)
+        {
+            var loadStatus = State.LoadString("return function(require) " + source + "\nend", Path.GetFileNameWithoutExtension(file));
+            if (loadStatus != LuaStatus.OK || State.PCall(0, 1, 0) != LuaStatus.OK)
+            {
+                var err = State.ToString(-1) ?? "unknown load error";
+                State.Pop(2);
+                return err;
+            }
+
+            State.SetField(-2, file);
+        }
+
+        State.SetGlobal("__nebra_modules");
+
+        var table = string.Join(", ", imports.Select(importer =>
+            $"[{EscapeLuaString(importer.Key)}] = {{ {string.Join(", ", importer.Value.Select(import => $"[{EscapeLuaString(import.Key)}] = {EscapeLuaString(import.Value)}"))} }}"));
+        var installer = $$"""
+            local loaders, imports, cache = __nebra_modules, { {{table}} }, {}
+            __nebra_modules = nil
+            local function requireFrom(file)
+                return function(name)
+                    local target = imports[file] and imports[file][name]
+                    if target == nil then
+                        error("module '" .. tostring(name) .. "' is not available here", 2)
+                    end
+                    if cache[target] == nil then
+                        cache[target] = loaders[target](requireFrom(target))
+                        if cache[target] == nil then cache[target] = true end
+                    end
+                    return cache[target]
+                end
+            end
+            require = requireFrom({{EscapeLuaString(entry)}})
+            """;
+        return LoadAndRun(installer, "modules");
+    }
+
+    /// <summary>
     /// Loads a Lua source chunk and executes it as the module body (so any globals or
     /// functions defined at the top level become visible). Returns <c>null</c> on success
     /// or a string describing the failure.

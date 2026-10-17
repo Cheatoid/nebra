@@ -29,7 +29,10 @@ public sealed class ResolveAnnotationsPass() : Pass(PassName, PassScope.PerBuild
             if (Directory.Exists(fullPath))
             {
                 foreach (var file in Directory.EnumerateFiles(fullPath, "*.neb", SearchOption.AllDirectories))
+                {
+                    if (file.EndsWith(".d.neb", StringComparison.OrdinalIgnoreCase) || !LooksLikeAnnotationFile(file)) continue;
                     LoadAnnotationFile(context, registry, file);
+                }
             }
             else if (File.Exists(fullPath))
             {
@@ -70,8 +73,9 @@ public sealed class ResolveAnnotationsPass() : Pass(PassName, PassScope.PerBuild
     }
 
     /// <summary>
-    /// Cheap textual heuristic to avoid sub-compiling every <c>.neb</c> file in a package. A
-    /// valid annotation file must export an <c>annotation</c> table and an <c>apply</c> function.
+    /// Cheap textual heuristic that tells annotation files from the helper modules next to them,
+    /// and avoids sub-compiling every <c>.neb</c> file in a package. A valid annotation file must
+    /// export an <c>annotation</c> table and an <c>apply</c> function.
     /// </summary>
     private static bool LooksLikeAnnotationFile(string path)
     {
@@ -92,7 +96,27 @@ public sealed class ResolveAnnotationsPass() : Pass(PassName, PassScope.PerBuild
     /// The outcome of compiling one annotation file: its definition, or the problems that kept it
     /// from being one.
     /// </summary>
-    private sealed record AnnotationLoad(AnnotationDefinition? Definition, IReadOnlyList<(DiagnosticCode Code, object[] Args)> Problems);
+    private sealed record AnnotationLoad(AnnotationDefinition? Definition, IReadOnlyList<(DiagnosticCode Code, object[] Args)> Problems,
+        IReadOnlyDictionary<string, string>? Dependencies = null)
+    {
+        /// <summary>Whether every module the file imported still reads as it did when it was compiled.</summary>
+        public bool IsCurrent()
+        {
+            return Dependencies == null || Dependencies.All(dependency => ReadsAs(dependency.Key, dependency.Value));
+        }
+
+        private static bool ReadsAs(string path, string source)
+        {
+            try
+            {
+                return File.ReadAllText(path) == source;
+            }
+            catch (IOException)
+            {
+                return false;
+            }
+        }
+    }
 
     /// <summary>
     /// Compiled annotation files, keyed by everything the compilation depends on. Annotation
@@ -112,7 +136,6 @@ public sealed class ResolveAnnotationsPass() : Pass(PassName, PassScope.PerBuild
             StringInterpolation = ctx.Config.Code.StringInterpolation,
             AltBooleanOperators = ctx.Config.Code.AltBooleanOperators,
             Semicolons = ctx.Config.Code.Semicolons,
-            ImportStatement = ctx.Config.Code.ImportStatement,
             StripUnused = ctx.Config.Code.StripUnused,
             Libs = [..ctx.Config.Code.Libs],
         };
@@ -130,9 +153,13 @@ public sealed class ResolveAnnotationsPass() : Pass(PassName, PassScope.PerBuild
 
         var key = string.Join("\0", path, source, subConfig.Target, subConfig.ProjectRoot,
             subConfig.Code.ConcatOperator, subConfig.Code.StringInterpolation, subConfig.Code.AltBooleanOperators,
-            subConfig.Code.Semicolons, subConfig.Code.ImportStatement, subConfig.Code.StripUnused,
+            subConfig.Code.Semicolons, subConfig.Code.StripUnused,
             string.Join(",", subConfig.Code.Libs), string.Join(",", subConfig.Globals));
-        var load = Loads.GetOrAdd(key, _ => CompileAnnotationFile(path, source, subConfig));
+        if (!Loads.TryGetValue(key, out var load) || !load.IsCurrent())
+        {
+            load = CompileAnnotationFile(path, source, subConfig);
+            Loads[key] = load;
+        }
 
         foreach (var (code, args) in load.Problems)
         {
@@ -164,7 +191,8 @@ public sealed class ResolveAnnotationsPass() : Pass(PassName, PassScope.PerBuild
             return new AnnotationLoad(null, [(DiagnosticCode.ErrAnnotationCompileFailed, [annotationName])]);
         }
 
-        var file = subCompiler.Packages.Values.SelectMany(pkg => pkg.Files).FirstOrDefault();
+        var files = subCompiler.AllPackages.SelectMany(pkg => pkg.Files).Distinct().ToList();
+        var file = files.FirstOrDefault(candidate => candidate.Filename == path);
         if (file == null || file.GeneratedLua == null)
         {
             return new AnnotationLoad(null, [(DiagnosticCode.ErrAnnotationCompileFailed, [annotationName])]);
@@ -187,7 +215,36 @@ public sealed class ResolveAnnotationsPass() : Pass(PassName, PassScope.PerBuild
             return new AnnotationLoad(null, problems);
         }
 
-        return new AnnotationLoad(new AnnotationDefinition(annotationName, targets, parameters, file.GeneratedLua, path), problems);
+        var modules = files
+            .Where(module => module != file && module.Filename != null && module.GeneratedLua != null && !module.IsDeclarationFile)
+            .ToDictionary(module => module.Filename!, module => module.GeneratedLua!);
+        var imports = files
+            .Where(importer => importer.Filename != null)
+            .ToDictionary(importer => importer.Filename!, importer => ResolvedImports(subCompiler.Cache, importer, modules));
+        var dependencies = files
+            .Where(module => module != file && module.Filename != null && !module.IsDeclarationFile && File.Exists(module.Filename))
+            .ToDictionary(module => module.Filename!, module => module.Content);
+
+        var definition = new AnnotationDefinition(annotationName, targets, parameters, file.GeneratedLua, path, modules, imports);
+        return new AnnotationLoad(definition, problems, dependencies);
+    }
+
+    /// <summary>
+    /// The file each module name <paramref name="importer"/> imports resolved to, limited to the
+    /// modules that were compiled to Lua.
+    /// </summary>
+    private static IReadOnlyDictionary<string, string> ResolvedImports(Dictionary<string, object> cache, PreparsedFile importer,
+        IReadOnlyDictionary<string, string> modules)
+    {
+        var resolved = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (var import in importer.Hir.Body.OfType<ImportStmt>())
+        {
+            if (!cache.TryGetValue($"import_resolved:{importer.Filename}:{import.Module.Name}", out var entry)) continue;
+            if (entry is not ResolvedModule { File.Filename: { } target } || !modules.ContainsKey(target)) continue;
+            resolved[import.Module.Name] = target;
+        }
+
+        return resolved;
     }
 
     public static bool TryExtractMeta(List<Stmt> body, out HashSet<AnnotationTargetKind> targets, out List<AnnotationParamSpec> parameters, out string? error)

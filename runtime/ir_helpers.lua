@@ -92,6 +92,23 @@ function ir.localDecl(name, value)
     }
 end
 
+-- Builds a table constructor. Each entry of `fields` is either a bare expression (a positional
+-- value), { key = "name", value = expr } for a named field, or { key = expr, value = expr } for
+-- a bracketed key.
+function ir.table(fields)
+    local out = {}
+    for _, field in ipairs(fields or {}) do
+        if field.__kind ~= nil then
+            out[#out + 1] = { kind = "Positional", value = field }
+        elseif type(field.key) == "string" then
+            out[#out + 1] = { kind = "Named", name = nameRef(field.key), value = field.value }
+        else
+            out[#out + 1] = { kind = "Bracket", key = field.key, value = field.value }
+        end
+    end
+    return { __kind = "TableConstructorExpr", __span = span(), fields = out }
+end
+
 function ir.varargExpr()
     return { __kind = "VarargExpr", __span = span() }
 end

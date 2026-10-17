@@ -87,11 +87,12 @@ public sealed class PassManager
     /// <summary>
     /// Pipeline used by <see cref="ResolveAnnotationsPass"/> to sub-compile annotation definition files.
     /// Skips <see cref="ResolveAnnotationsPass"/> and <see cref="ApplyAnnotationsPass"/> to prevent
-    /// recursive loading and also skips imports (annotation files are standalone).
+    /// recursive loading. Imports are resolved, so an annotation can share helper modules.
     /// </summary>
     public static readonly string[] AnnotationFilePipeline = [
         ResolveLibsPass.PassName,
         BindDeclarePass.PassName,
+        ResolveImportsPass.PassName,
         CodegenPass.PassName
     ];
     

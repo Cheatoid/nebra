@@ -93,6 +93,8 @@ declare interface IRBuilder
     function localDecl(name: string, value: IRNode?): IRNode
     --- A `new` expression constructing `className`.
     function newExpr(className: string, args: IRNode[]?): IRNode
+    --- A table constructor. Each entry is a bare node for a positional value, `{ key = "name", value = node }` for a named field or `{ key = node, value = node }` for a bracketed key.
+    function table(fields: any[]): IRNode
     --- The vararg expression `...`.
     function varargExpr(): IRNode
     --- A function parameter.
