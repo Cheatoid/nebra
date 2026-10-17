@@ -201,6 +201,16 @@ public sealed class LuaGenerator(Config config)
         return "(" + indexExpr + " - " + (-diff) + ")";
     }
 
+    /// <summary>
+    /// A function a loop over a value of unknown type starts through: a table with an
+    /// <c>iterator()</c> method is iterated through it, anything else is used as it is.
+    /// </summary>
+    public string GetIterateHelper()
+    {
+        return RequireHelper("iterate", name =>
+            $"local function {name}(v) if type(v) == \"table\" and type(v.iterator) == \"function\" then return v:iterator() end return v end");
+    }
+
     public string GetIpairsHelper()
     {
         if (config.Code.IndexBase == 1) return "ipairs";

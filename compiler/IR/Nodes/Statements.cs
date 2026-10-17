@@ -111,6 +111,12 @@ public sealed class GenericForStmt(
     /// <c>for i, item in collection do</c>: the loop iterates what <c>collection:iterator()</c> returns.
     /// </summary>
     public bool CallsIteratorMethod { get; set; }
+
+    /// <summary>
+    /// Set when the loop runs over a single value typed <c>any</c> that is not a call: whether it
+    /// has an <c>iterator()</c> method is only known at runtime, so the loop asks there.
+    /// </summary>
+    public bool ChecksIteratorAtRuntime { get; set; }
 }
 
 public sealed class ReturnStmt(NodeID id, TextSpan span, List<Expr> values) : Stmt(id, span)

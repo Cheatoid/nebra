@@ -64,4 +64,13 @@ public sealed class ModuleShapeTests
 
         Assert.Contains("error(payload, 0)", lua);
     }
+
+    [Fact]
+    public void AValueOfUnknownTypeIsAskedForItsIteratorAtRuntime()
+    {
+        var lua = Build("local loose: any = {}\nfor i, item in loose do\n    print(i, item)\nend\n\nlocal map: any = {}\nfor key, value in pairs(map) do\n    print(key, value)\nend\n").Lua("src/main.neb");
+
+        Assert.Contains("for i, item in __nebra_iterate(loose) do", lua);
+        Assert.Contains("for key, value in pairs(map) do", lua);
+    }
 }

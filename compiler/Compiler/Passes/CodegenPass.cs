@@ -1424,6 +1424,12 @@ public sealed partial class CodegenPass() : Pass(PassName, PassScope.PerBuild, t
         gen.Write(" in ");
         if (gf.CallsIteratorMethod)
             EmitIteratorMethodCall(ctx, pkg, gen, gf.Iterators[0]);
+        else if (gf.ChecksIteratorAtRuntime)
+        {
+            gen.Write(gen.GetIterateHelper() + "(");
+            EmitExpr(ctx, pkg, gen, gf.Iterators[0]);
+            gen.Write(")");
+        }
         else
             EmitGenericForIterators(ctx, pkg, gen, gf.Iterators);
         gen.Write(" do");

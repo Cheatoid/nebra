@@ -699,6 +699,8 @@ public sealed class InferTypesPass() : Pass(PassName, PassScope.PerBuild)
                 }
                 else
                 {
+                    gf.ChecksIteratorAtRuntime = gf.Iterators.Count == 1 && iterTypes[0] == pc.Types.PrimAny.ID
+                        && gf.Iterators[0] is not (FunctionCallExpr or MethodCallExpr or VarargExpr);
                     InferGenericForVarTypes(pc, gf, iterTypes);
                 }
 
