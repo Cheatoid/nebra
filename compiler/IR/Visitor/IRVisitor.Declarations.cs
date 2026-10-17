@@ -17,6 +17,18 @@ internal partial class IRVisitor
     }
 
     /// <summary>
+    /// The name of a class method, which may be one of Nebra's keywords like a member name of an
+    /// interface. <c>new</c> is reported: it is the name of the class's constructor in Lua.
+    /// </summary>
+    private NameRef MethodName(NebraParser.MemberNameContext? member)
+    {
+        var name = NameRefFromMember(member);
+        if (name.Name == "new")
+            diag.Report(name.Span, Diagnostics.DiagnosticCode.ErrUnexpectedToken, "a method cannot be named `new`: that is the name of the class's constructor");
+        return name;
+    }
+
+    /// <summary>
     /// Tells whether a class member is declared with <c>operator</c>. <c>operator</c> is a
     /// contextual keyword, so the grammar accepts any identifier in its place and anything else
     /// is reported here.
@@ -263,7 +275,7 @@ internal partial class IRVisitor
                     var isProtected = method.PROTECTED() != null;
                     var isOverride = method.OVERRIDE() != null;
                     var isAbstract = method.ABSTRACT() != null;
-                    var methodName = NameRefFromTerm(method.NAME());
+                    var methodName = MethodName(method.memberName());
                     var (parameters, returnType) = VisitFuncSignatureContent(method.funcSignature());
                     var methodTypeParams = VisitTypeParamListContent(method.funcSignature().typeParamList());
                     var cmNode = new ClassMethodNode(methodName, parameters, returnType, [], null, isLocal, isStatic, isAsync, isProtected, isOverride, isAbstract, SpanFromCtx(method));
@@ -411,7 +423,7 @@ internal partial class IRVisitor
                     var isProtected = method.PROTECTED() != null;
                     var isOverride = method.OVERRIDE() != null;
                     var isAbstract = method.ABSTRACT() != null;
-                    var methodName = NameRefFromTerm(method.NAME());
+                    var methodName = MethodName(method.memberName());
                     var (parameters, returnType) = VisitFuncSignatureContent(method.funcSignature());
                     var methodTypeParams = VisitTypeParamListContent(method.funcSignature().typeParamList());
                     var cmNode = new ClassMethodNode(methodName, parameters, returnType, [], null, isLocal, isStatic, isAsync, isProtected, isOverride, isAbstract, SpanFromCtx(method));
@@ -603,7 +615,7 @@ internal partial class IRVisitor
                     var isAsync = method.ASYNC() != null;
                     var isProtected = method.PROTECTED() != null;
                     var isOverride = method.OVERRIDE() != null;
-                    var methodName = NameRefFromTerm(method.NAME());
+                    var methodName = MethodName(method.memberName());
                     var (parameters, returnType, body, ret) = VisitFuncBodyContent(method.funcBody());
                     var regMethodTypeParams = VisitTypeParamListContent(method.funcBody().typeParamList());
                     var regMethodNode = new ClassMethodNode(methodName, parameters, returnType, body, ret, isLocal, isStatic, isAsync, isProtected, isOverride, false, SpanFromCtx(method));
@@ -616,7 +628,7 @@ internal partial class IRVisitor
                 {
                     var isProtected = absMethod.PROTECTED() != null;
                     var isAsync = absMethod.ASYNC() != null;
-                    var methodName = NameRefFromTerm(absMethod.NAME());
+                    var methodName = MethodName(absMethod.memberName());
                     var (parameters, returnType) = VisitFuncSignatureContent(absMethod.funcSignature());
                     var absMethodTypeParams = VisitTypeParamListContent(absMethod.funcSignature().typeParamList());
                     var absMethodNode = new ClassMethodNode(methodName, parameters, returnType, [], null, false, false, isAsync, isProtected, false, true, SpanFromCtx(absMethod));

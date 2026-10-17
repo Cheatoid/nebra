@@ -364,14 +364,18 @@ internal partial class IRVisitor
         };
     }
 
-    private NameRef NameRefFromTerm(ITerminalNode node)
+    /// <summary>
+    /// The name a token spells. Error recovery can leave the token out, such as the name of a
+    /// method written as a keyword; the syntax error is reported already, so the name is empty.
+    /// </summary>
+    private NameRef NameRefFromTerm(ITerminalNode? node)
     {
-        return new NameRef(node.GetText(), SpanFromTerm(node));
+        return node == null ? new NameRef("", TextSpan.Empty) : new NameRef(node.GetText(), SpanFromTerm(node));
     }
     
-    private NameRef NameRefFromMember(NebraParser.MemberNameContext member)
+    private NameRef NameRefFromMember(NebraParser.MemberNameContext? member)
     {
-        return new NameRef(member.GetText(), SpanFromCtx(member));
+        return member == null ? new NameRef("", TextSpan.Empty) : new NameRef(member.GetText(), SpanFromCtx(member));
     }
 
     private NameRef NameRefFromText(string name, TextSpan? span = null)

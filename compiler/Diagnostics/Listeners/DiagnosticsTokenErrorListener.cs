@@ -33,7 +33,8 @@ internal sealed partial class DiagnosticsTokenErrorListener(DiagnosticsBag diag,
         if (msg.StartsWith("missing", StringComparison.Ordinal))
         {
             var m = MissingPattern().Match(msg);
-            var what = m.Success ? PrettifyToken(m.Groups[1].Value.Trim()) : "a token";
+            var token = m.Success ? m.Groups[1].Value.Trim() : "";
+            var what = !m.Success ? "a token" : token.StartsWith('{') && token.Contains("NAME") ? "a name" : PrettifyToken(token);
             return ($"missing {what}", $"insert {what} before {found}");
         }
 

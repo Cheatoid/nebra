@@ -300,8 +300,8 @@ classDecl
 
 classMember
     : annotationList (LOCAL | PROTECTED)? STATIC? NAME typeAnnotation? (ASSIGN expr)?     # ClassFieldMember
-    | annotationList (LOCAL | PROTECTED)? STATIC? OVERRIDE? ASYNC? FUNCTION NAME funcBody # ClassMethodMember
-    | annotationList PROTECTED? ABSTRACT ASYNC? FUNCTION NAME funcSignature               # ClassAbstractMethodMember
+    | annotationList (LOCAL | PROTECTED)? STATIC? OVERRIDE? ASYNC? FUNCTION memberName funcBody # ClassMethodMember
+    | annotationList PROTECTED? ABSTRACT ASYNC? FUNCTION memberName funcSignature         # ClassAbstractMethodMember
     | annotationList CONSTRUCTOR funcBody                                                  # ClassConstructorMember
     | annotationList operatorKeyword operatorSymbol funcBody                               # ClassOperatorMember
     | annotationList OVERRIDE? NAME NAME funcBody                                          # ClassAccessorMember
@@ -465,7 +465,7 @@ declareBody
 
 declareClassMember
     : annotationList (LOCAL | PROTECTED)? STATIC? NAME typeAnnotation?                              # DeclareClassFieldMember
-    | annotationList (LOCAL | PROTECTED)? STATIC? OVERRIDE? ABSTRACT? ASYNC? FUNCTION NAME funcSignature  # DeclareClassMethodMember
+    | annotationList (LOCAL | PROTECTED)? STATIC? OVERRIDE? ABSTRACT? ASYNC? FUNCTION memberName funcSignature  # DeclareClassMethodMember
     | annotationList CONSTRUCTOR funcSignature                                                       # DeclareClassConstructorMember
     | annotationList operatorKeyword operatorSymbol funcSignature                                    # DeclareClassOperatorMember
     | annotationList NAME NAME funcSignature                                                         # DeclareClassAccessorMember
