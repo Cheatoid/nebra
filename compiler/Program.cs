@@ -50,6 +50,9 @@ internal static class Program
             "upgrade" => await Upgrader.RunUpgradeAsync(args.Skip(1).ToArray()),
             "check" => await Upgrader.RunCheckAsync(),
             "_upgrade_apply" => await Upgrader.RunDeferredApplyAsync(args.Skip(1).ToArray()),
+            "publish" => await RunPublishAsync(args.Skip(1).ToArray()),
+            "unpublish" => await RunUnpublishAsync(args.Skip(1).ToArray()),
+            "scope" => await RunScopeAsync(args.Skip(1).ToArray()),
             "use" => Trampoline.RunUse(args.Skip(1).ToArray()),
             "unuse" => Trampoline.RunUnuse(),
             "version" => RunVersion(),
@@ -847,6 +850,11 @@ internal static class Program
         Console.WriteLine("  check              Check whether a newer Nebra release is available");
         Console.WriteLine("  upgrade            Download and install the latest Nebra release");
         Console.WriteLine("                     Flags: --force (reinstall even if already up to date)");
+        Console.WriteLine("  publish            Publish the project to the package registry as @scope/name");
+        Console.WriteLine("                     Flags: --scope <scope> (default: your GitHub account), --description <text>");
+        Console.WriteLine("  unpublish [pkg]    Remove a package from the registry (default: the current project)");
+        Console.WriteLine("  scope add-owner <scope> <user>     Let another GitHub account publish to a scope");
+        Console.WriteLine("  scope remove-owner <scope> <user>  Take that right away again");
         Console.WriteLine("  use [path]         Forward every nebra call to another build, such as a local");
         Console.WriteLine("                     nebra executable, nebra.dll or its directory; shows the current one");
         Console.WriteLine("  unuse              Go back to the installed version");
@@ -1879,6 +1887,63 @@ internal static class Program
             NoRegistryCache = noCache,
             Offline = offline,
         });
+    }
+
+    private static async Task<int> RunPublishAsync(string[] args)
+    {
+        var options = ReadOptions(args, out var positional);
+        if (options == null || positional.Count > 0)
+        {
+            await Console.Error.WriteLineAsync("Usage: nebra publish [--scope <scope>] [--description <text>]");
+            return 1;
+        }
+
+        return await RegistryPublisher.PublishAsync(options.GetValueOrDefault("--scope"), options.GetValueOrDefault("--description"));
+    }
+
+    private static async Task<int> RunUnpublishAsync(string[] args)
+    {
+        var options = ReadOptions(args, out var positional);
+        if (options == null || positional.Count > 1)
+        {
+            await Console.Error.WriteLineAsync("Usage: nebra unpublish [@scope/name] [--scope <scope>]");
+            return 1;
+        }
+
+        return await RegistryPublisher.UnpublishAsync(positional.FirstOrDefault(), options.GetValueOrDefault("--scope"));
+    }
+
+    private static async Task<int> RunScopeAsync(string[] args)
+    {
+        if (args.Length != 3 || args[0] is not ("add-owner" or "remove-owner"))
+        {
+            await Console.Error.WriteLineAsync("Usage: nebra scope add-owner|remove-owner <scope> <github-user>");
+            return 1;
+        }
+
+        return await RegistryPublisher.ChangeOwnerAsync(args[0] == "add-owner", args[1], args[2]);
+    }
+
+    /// <summary>
+    /// Splits <c>--flag value</c> pairs from positional arguments; <c>null</c> when a flag lacks its value.
+    /// </summary>
+    private static Dictionary<string, string>? ReadOptions(string[] args, out List<string> positional)
+    {
+        var options = new Dictionary<string, string>(StringComparer.Ordinal);
+        positional = [];
+        for (var i = 0; i < args.Length; i++)
+        {
+            if (!args[i].StartsWith("--"))
+            {
+                positional.Add(args[i]);
+                continue;
+            }
+
+            if (i + 1 >= args.Length) return null;
+            options[args[i]] = args[++i];
+        }
+
+        return options;
     }
 
     private static async Task<int> RunRegistryAsync(string[] args)
