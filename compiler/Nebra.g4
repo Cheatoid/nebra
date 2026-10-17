@@ -89,6 +89,7 @@ stmt
     | interfaceDecl                                             # InterfaceDeclStat
     | extendDecl                                                # ExtendDeclStat
     | SUPER LPAREN exprList? RPAREN                             # SuperCallStat
+    | SUPER COLON memberName args                               # SuperMethodStat
     ;
 
 // --- Block Statements ---
@@ -831,6 +832,7 @@ varOrExp
     : NAME                                                      # NameVarOrExp
     | LPAREN expr RPAREN                                        # ParenVarOrExp
     | NEW NAME LPAREN exprList? RPAREN                          # NewVarOrExp
+    | SUPER COLON memberName args                               # SuperMethodVarOrExp
     ;
 
 suffix

@@ -3493,6 +3493,16 @@ public sealed class InferTypesPass() : Pass(PassName, PassScope.PerBuild)
             objTyp = StripNil(pc, objTyp);
         }
         objTyp = MemberTypeOf(pc, objTyp);
+        if (mc.IsSuper)
+        {
+            if (_currentClass?.BaseClass is not { } baseClass)
+            {
+                pc.Diag.Report(mc.Span, DiagnosticCode.ErrSuperMethodWithoutBase, mc.MethodName.Name);
+                foreach (var arg in mc.Arguments) SynthesizeExpr(pc, arg);
+                return pc.Types.PrimAny.ID;
+            }
+            objTyp = baseClass.ID;
+        }
 
         var argTypes = new List<TypID>();
         foreach (var arg in mc.Arguments)

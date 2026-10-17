@@ -107,6 +107,12 @@ public sealed class MethodCallExpr(NodeID id, TextSpan span, Expr @object, NameR
     public List<Expr> Arguments { get; } = arguments;
 
     /// <summary>
+    /// Written <c>super:method(args)</c>: calls the base class's version of the method on
+    /// <c>self</c>, which <see cref="Object"/> then is, instead of the one the class declares.
+    /// </summary>
+    public bool IsSuper { get; init; }
+
+    /// <summary>
     /// Set by type inference when this call resolves to an extension method: the type the
     /// extension was declared on. Codegen lowers the call to a plain function invocation
     /// <c>fn(receiver, args...)</c> instead of a Lua <c>:</c> method call.

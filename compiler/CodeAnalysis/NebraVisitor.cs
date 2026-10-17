@@ -254,6 +254,13 @@ public interface INebraVisitor<Result> : IParseTreeVisitor<Result> {
 	/// <return>The visitor result.</return>
 	Result VisitSuperCallStat([NotNull] NebraParser.SuperCallStatContext context);
 	/// <summary>
+	/// Visit a parse tree produced by the <c>SuperMethodStat</c>
+	/// labeled alternative in <see cref="NebraParser.stmt"/>.
+	/// </summary>
+	/// <param name="context">The parse tree.</param>
+	/// <return>The visitor result.</return>
+	Result VisitSuperMethodStat([NotNull] NebraParser.SuperMethodStatContext context);
+	/// <summary>
 	/// Visit a parse tree produced by <see cref="NebraParser.doBlock"/>.
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
@@ -1576,6 +1583,13 @@ public interface INebraVisitor<Result> : IParseTreeVisitor<Result> {
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
 	Result VisitNewVarOrExp([NotNull] NebraParser.NewVarOrExpContext context);
+	/// <summary>
+	/// Visit a parse tree produced by the <c>SuperMethodVarOrExp</c>
+	/// labeled alternative in <see cref="NebraParser.varOrExp"/>.
+	/// </summary>
+	/// <param name="context">The parse tree.</param>
+	/// <return>The visitor result.</return>
+	Result VisitSuperMethodVarOrExp([NotNull] NebraParser.SuperMethodVarOrExpContext context);
 	/// <summary>
 	/// Visit a parse tree produced by the <c>DotSuffix</c>
 	/// labeled alternative in <see cref="NebraParser.suffix"/>.

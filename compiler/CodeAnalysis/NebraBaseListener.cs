@@ -480,6 +480,20 @@ public partial class NebraBaseListener : INebraListener {
 	/// <param name="context">The parse tree.</param>
 	public virtual void ExitSuperCallStat([NotNull] NebraParser.SuperCallStatContext context) { }
 	/// <summary>
+	/// Enter a parse tree produced by the <c>SuperMethodStat</c>
+	/// labeled alternative in <see cref="NebraParser.stmt"/>.
+	/// <para>The default implementation does nothing.</para>
+	/// </summary>
+	/// <param name="context">The parse tree.</param>
+	public virtual void EnterSuperMethodStat([NotNull] NebraParser.SuperMethodStatContext context) { }
+	/// <summary>
+	/// Exit a parse tree produced by the <c>SuperMethodStat</c>
+	/// labeled alternative in <see cref="NebraParser.stmt"/>.
+	/// <para>The default implementation does nothing.</para>
+	/// </summary>
+	/// <param name="context">The parse tree.</param>
+	public virtual void ExitSuperMethodStat([NotNull] NebraParser.SuperMethodStatContext context) { }
+	/// <summary>
 	/// Enter a parse tree produced by <see cref="NebraParser.doBlock"/>.
 	/// <para>The default implementation does nothing.</para>
 	/// </summary>
@@ -3125,6 +3139,20 @@ public partial class NebraBaseListener : INebraListener {
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	public virtual void ExitNewVarOrExp([NotNull] NebraParser.NewVarOrExpContext context) { }
+	/// <summary>
+	/// Enter a parse tree produced by the <c>SuperMethodVarOrExp</c>
+	/// labeled alternative in <see cref="NebraParser.varOrExp"/>.
+	/// <para>The default implementation does nothing.</para>
+	/// </summary>
+	/// <param name="context">The parse tree.</param>
+	public virtual void EnterSuperMethodVarOrExp([NotNull] NebraParser.SuperMethodVarOrExpContext context) { }
+	/// <summary>
+	/// Exit a parse tree produced by the <c>SuperMethodVarOrExp</c>
+	/// labeled alternative in <see cref="NebraParser.varOrExp"/>.
+	/// <para>The default implementation does nothing.</para>
+	/// </summary>
+	/// <param name="context">The parse tree.</param>
+	public virtual void ExitSuperMethodVarOrExp([NotNull] NebraParser.SuperMethodVarOrExpContext context) { }
 	/// <summary>
 	/// Enter a parse tree produced by the <c>DotSuffix</c>
 	/// labeled alternative in <see cref="NebraParser.suffix"/>.

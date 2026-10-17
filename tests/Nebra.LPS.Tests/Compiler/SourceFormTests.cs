@@ -53,6 +53,18 @@ public sealed class SourceFormTests
     }
 
     [Fact]
+    public void AnOverrideCallsTheMethodItOverridesWithSuper()
+    {
+        var build = Build("class Model\n    createdAt: number = 0\n\n    function onPrePersist(now: number): string\n        self.createdAt = now\n        return \"model\"\n    end\nend\n\nclass User extends Model\n    override function onPrePersist(now: number): string\n        local base = super:onPrePersist(now)\n        super:onPrePersist(now)\n        return base .. \"+user\"\n    end\nend\n\nprint(new User():onPrePersist(1))\n");
+
+        Assert.Empty(build.Errors);
+        var lua = build.Lua("src/main.neb");
+        Assert.Contains("local base = Model.onPrePersist(self, now)", lua);
+        Assert.Contains("\n\tModel.onPrePersist(self, now)", lua);
+        Assert.Equal(DiagnosticCode.ErrSuperMethodWithoutBase, Assert.Single(Build("class Lonely\n    function test(): nil\n        super:test()\n    end\nend\n\nprint(Lonely)\n").Errors).Code);
+    }
+
+    [Fact]
     public void MethodCallsFollowNewAndContinueOnTheNextLine()
     {
         var build = Build("class Builder\n    function column(name: string): Builder\n        return self\n    end\n\n    function build(): nil\n    end\nend\n\nnew Builder()\n    :column(\"a\")\n    :column(\"b\")\n    :build()\nprint(new Builder():column(\"c\"))\n");

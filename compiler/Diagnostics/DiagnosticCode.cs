@@ -143,6 +143,11 @@ public enum DiagnosticCode
     ErrDeferInAsyncOnLua51 = 0x100E,
 
     [Level(DiagnosticLevel.Error)]
+    [Category(DiagnosticCategory.Semantic)]
+    [Format("'super:{0}()' can only be used in a method of a class that extends another")]
+    ErrSuperMethodWithoutBase = 0x100F,
+
+    [Level(DiagnosticLevel.Error)]
     [Category(DiagnosticCategory.Syntax)]
     [Format("Alternative boolean operator '{0}' is disabled in the configuration. Enable [code] alt_boolean_operators = true to use it, or use '{1}' instead.")]
     ErrAltBooleanOperatorsDisabled = 0x0006,

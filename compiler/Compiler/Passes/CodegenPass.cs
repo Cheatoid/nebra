@@ -17,6 +17,7 @@ public sealed partial class CodegenPass() : Pass(PassName, PassScope.PerBuild, t
     private readonly Dictionary<ScopeID, string> _staticMemberTables = [];
     private readonly HashSet<string> _hoistedNames = [];
     private string? _currentFile;
+    private string? _superClassName;
 
     public override bool Run(PassContext context)
     {
@@ -476,7 +477,19 @@ public sealed partial class CodegenPass() : Pass(PassName, PassScope.PerBuild, t
             && sym.Flags.HasFlag(SymbolFlags.External);
     }
 
+    /// <summary>
+    /// Emits a class with the name of its base class at hand for the <c>super:method()</c> calls
+    /// of its methods.
+    /// </summary>
     private void EmitClassDecl(PassContext ctx, PackageContext pkg, LuaGenerator gen, ClassDecl cd)
+    {
+        var enclosingSuper = _superClassName;
+        _superClassName = cd.BaseClass != null ? ResolveName(ctx, pkg, cd.BaseClass) : null;
+        EmitClassDeclBody(ctx, pkg, gen, cd);
+        _superClassName = enclosingSuper;
+    }
+
+    private void EmitClassDeclBody(PassContext ctx, PackageContext pkg, LuaGenerator gen, ClassDecl cd)
     {
         var className = ResolveName(ctx, pkg, cd.Name);
         if (pkg.Scopes.EnclosingScope(cd.ID, out var classScope))
@@ -2353,7 +2366,8 @@ public sealed partial class CodegenPass() : Pass(PassName, PassScope.PerBuild, t
             var tmp = gen.FreshTemp("_t");
             gen.Write($"(function() local {tmp} = ");
             EmitExpr(ctx, pkg, gen, mc.Object);
-            gen.Write($"; return coroutine.yield({{{tmp}.{mc.MethodName.Name}, {tmp}");
+            var method = mc.IsSuper ? $"{_superClassName}.{mc.MethodName.Name}" : $"{tmp}.{mc.MethodName.Name}";
+            gen.Write($"; return coroutine.yield({{{method}, {tmp}");
             foreach (var arg in mc.Arguments)
             {
                 gen.Write(", ");
@@ -2425,6 +2439,19 @@ public sealed partial class CodegenPass() : Pass(PassName, PassScope.PerBuild, t
         {
             gen.Write(ExtensionFnName(ctx, extTarget, mc.MethodName.Name));
             gen.Write("(");
+            EmitExpr(ctx, pkg, gen, mc.Object);
+            if (mc.Arguments.Count > 0)
+            {
+                gen.Write(", ");
+                EmitExprList(ctx, pkg, gen, mc.Arguments);
+            }
+            gen.Write(")");
+            return;
+        }
+
+        if (mc.IsSuper)
+        {
+            gen.Write($"{_superClassName}.{mc.MethodName.Name}(");
             EmitExpr(ctx, pkg, gen, mc.Object);
             if (mc.Arguments.Count > 0)
             {

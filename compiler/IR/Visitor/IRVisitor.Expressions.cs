@@ -1,4 +1,5 @@
 using Antlr4.Runtime;
+using Antlr4.Runtime.Tree;
 using Nebra.Diagnostics;
 
 namespace Nebra.IR;
@@ -382,6 +383,20 @@ internal partial class IRVisitor
     {
         var callee = BuildSuffixChain(context.varOrExp(), context.suffix());
         return new FunctionCallExpr(NewNodeID, SpanFromCtx(context), callee, VisitArgsContent(context.args()));
+    }
+
+    public override Node VisitSuperMethodVarOrExp(NebraParser.SuperMethodVarOrExpContext context)
+        => SuperMethodCall(context, context.SUPER(), context.memberName(), context.args());
+
+    /// <summary>
+    /// <c>super:method(args)</c> as a call of the method on <c>self</c> that names the base
+    /// class's version of it.
+    /// </summary>
+    private MethodCallExpr SuperMethodCall(ParserRuleContext context, ITerminalNode super, NebraParser.MemberNameContext method, NebraParser.ArgsContext args)
+    {
+        var receiverSpan = SpanFromTerm(super);
+        var receiver = new NameExpr(NewNodeID, receiverSpan, new NameRef("self", receiverSpan));
+        return new MethodCallExpr(NewNodeID, SpanFromCtx(context), receiver, NameRefFromMember(method), VisitArgsContent(args)) { IsSuper = true };
     }
 
     public override Node VisitMethodCall(NebraParser.MethodCallContext context)
