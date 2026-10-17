@@ -113,7 +113,7 @@ public static class RegistryPublisher
     private static int OpenInBrowser(string title, string body)
     {
         var url = $"https://github.com/{RegistryRepository}/issues/new?title={Uri.EscapeDataString(title)}&body={Uri.EscapeDataString(body)}";
-        Console.WriteLine("No GitHub token found (GITHUB_TOKEN, GH_TOKEN or `gh auth login`).");
+        Console.WriteLine("Not logged in to GitHub; run `nebra login` to send requests directly.");
         Console.WriteLine("Submit the request in your browser instead:");
         Console.WriteLine(url);
         try
@@ -179,6 +179,8 @@ public static class RegistryPublisher
         {
             if (Environment.GetEnvironmentVariable(variable) is { Length: > 0 } token) return token;
         }
+
+        if (await GitHubLogin.TokenAsync() is { } stored) return stored;
 
         try
         {

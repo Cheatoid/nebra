@@ -50,6 +50,9 @@ internal static class Program
             "upgrade" => await Upgrader.RunUpgradeAsync(args.Skip(1).ToArray()),
             "check" => await Upgrader.RunCheckAsync(),
             "_upgrade_apply" => await Upgrader.RunDeferredApplyAsync(args.Skip(1).ToArray()),
+            "login" => await GitHubLogin.LoginAsync(),
+            "logout" => GitHubLogin.Logout(),
+            "whoami" => await GitHubLogin.WhoAmIAsync(),
             "publish" => await RunPublishAsync(args.Skip(1).ToArray()),
             "unpublish" => await RunUnpublishAsync(args.Skip(1).ToArray()),
             "scope" => await RunScopeAsync(args.Skip(1).ToArray()),
@@ -850,6 +853,9 @@ internal static class Program
         Console.WriteLine("  check              Check whether a newer Nebra release is available");
         Console.WriteLine("  upgrade            Download and install the latest Nebra release");
         Console.WriteLine("                     Flags: --force (reinstall even if already up to date)");
+        Console.WriteLine("  login              Log in to GitHub to publish packages (device flow in the browser)");
+        Console.WriteLine("  logout             Forget the GitHub login");
+        Console.WriteLine("  whoami             Show the GitHub account you are logged in as");
         Console.WriteLine("  publish            Publish the project to the package registry as @scope/name");
         Console.WriteLine("                     Flags: --scope <scope> (default: your GitHub account), --description <text>");
         Console.WriteLine("  unpublish [pkg]    Remove a package from the registry (default: the current project)");
