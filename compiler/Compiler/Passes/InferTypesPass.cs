@@ -4367,6 +4367,13 @@ public sealed class InferTypesPass() : Pass(PassName, PassScope.PerBuild)
                 if (IsTypeAssignable(pc, dstArr.ElementType.ID, srcArr.ElementType.ID)) return true;
             }
 
+            if (dstTypeNode is TableMapType dstEntries && srcTypeNode is TableMapType srcEntries
+                && IsTypeAssignable(pc, dstEntries.KeyType.ID, srcEntries.KeyType.ID)
+                && IsTypeAssignable(pc, dstEntries.ValueType.ID, srcEntries.ValueType.ID))
+            {
+                return true;
+            }
+
             // A tuple return ending in a variadic tail, e.g. `(string, ...number)`, matches a
             // longer tuple of actual return values: fixed prefix positionally, the rest against
             // the tail element. Tuples of one length match value by value.
