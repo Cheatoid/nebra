@@ -10455,32 +10455,6 @@ public partial class NebraParser : Parser {
 			else return visitor.VisitChildren(this);
 		}
 	}
-	public partial class NewExprContext : ExprContext {
-		[System.Diagnostics.DebuggerNonUserCode] public ITerminalNode NEW() { return GetToken(NebraParser.NEW, 0); }
-		[System.Diagnostics.DebuggerNonUserCode] public ITerminalNode NAME() { return GetToken(NebraParser.NAME, 0); }
-		[System.Diagnostics.DebuggerNonUserCode] public ITerminalNode LPAREN() { return GetToken(NebraParser.LPAREN, 0); }
-		[System.Diagnostics.DebuggerNonUserCode] public ITerminalNode RPAREN() { return GetToken(NebraParser.RPAREN, 0); }
-		[System.Diagnostics.DebuggerNonUserCode] public ExprListContext exprList() {
-			return GetRuleContext<ExprListContext>(0);
-		}
-		public NewExprContext(ExprContext context) { CopyFrom(context); }
-		[System.Diagnostics.DebuggerNonUserCode]
-		public override void EnterRule(IParseTreeListener listener) {
-			INebraListener typedListener = listener as INebraListener;
-			if (typedListener != null) typedListener.EnterNewExpr(this);
-		}
-		[System.Diagnostics.DebuggerNonUserCode]
-		public override void ExitRule(IParseTreeListener listener) {
-			INebraListener typedListener = listener as INebraListener;
-			if (typedListener != null) typedListener.ExitNewExpr(this);
-		}
-		[System.Diagnostics.DebuggerNonUserCode]
-		public override TResult Accept<TResult>(IParseTreeVisitor<TResult> visitor) {
-			INebraVisitor<TResult> typedVisitor = visitor as INebraVisitor<TResult>;
-			if (typedVisitor != null) return typedVisitor.VisitNewExpr(this);
-			else return visitor.VisitChildren(this);
-		}
-	}
 	public partial class BitwiseXorExprContext : ExprContext {
 		[System.Diagnostics.DebuggerNonUserCode] public ExprContext[] expr() {
 			return GetRuleContexts<ExprContext>();
@@ -10617,7 +10591,7 @@ public partial class NebraParser : Parser {
 			int _alt;
 			EnterOuterAlt(_localctx, 1);
 			{
-			State = 1259;
+			State = 1252;
 			ErrorHandler.Sync(this);
 			switch (TokenStream.LA(1)) {
 			case NIL:
@@ -10691,6 +10665,7 @@ public partial class NebraParser : Parser {
 				functionDef();
 				}
 				break;
+			case NEW:
 			case LPAREN:
 			case NAME:
 				{
@@ -10719,51 +10694,26 @@ public partial class NebraParser : Parser {
 				matchExpr();
 				}
 				break;
-			case NEW:
-				{
-				_localctx = new NewExprContext(_localctx);
-				Context = _localctx;
-				_prevctx = _localctx;
-				State = 1233;
-				Match(NEW);
-				State = 1234;
-				Match(NAME);
-				State = 1235;
-				Match(LPAREN);
-				State = 1237;
-				ErrorHandler.Sync(this);
-				_la = TokenStream.LA(1);
-				if ((((_la) & ~0x3f) == 0 && ((1L << _la) & 73394808484315776L) != 0) || ((((_la - 68)) & ~0x3f) == 0 && ((1L << (_la - 68)) & 1097375164483L) != 0)) {
-					{
-					State = 1236;
-					exprList();
-					}
-				}
-
-				State = 1239;
-				Match(RPAREN);
-				}
-				break;
 			case SUPER:
 				{
 				_localctx = new SuperCallExprContext(_localctx);
 				Context = _localctx;
 				_prevctx = _localctx;
-				State = 1240;
+				State = 1233;
 				Match(SUPER);
-				State = 1241;
+				State = 1234;
 				Match(LPAREN);
-				State = 1243;
+				State = 1236;
 				ErrorHandler.Sync(this);
 				_la = TokenStream.LA(1);
 				if ((((_la) & ~0x3f) == 0 && ((1L << _la) & 73394808484315776L) != 0) || ((((_la - 68)) & ~0x3f) == 0 && ((1L << (_la - 68)) & 1097375164483L) != 0)) {
 					{
-					State = 1242;
+					State = 1235;
 					exprList();
 					}
 				}
 
-				State = 1245;
+				State = 1238;
 				Match(RPAREN);
 				}
 				break;
@@ -10775,9 +10725,9 @@ public partial class NebraParser : Parser {
 				_localctx = new UnaryExprContext(_localctx);
 				Context = _localctx;
 				_prevctx = _localctx;
-				State = 1246;
+				State = 1239;
 				unaryOp();
-				State = 1247;
+				State = 1240;
 				expr(25);
 				}
 				break;
@@ -10786,9 +10736,9 @@ public partial class NebraParser : Parser {
 				_localctx = new AltLogicalNotExprContext(_localctx);
 				Context = _localctx;
 				_prevctx = _localctx;
-				State = 1249;
+				State = 1242;
 				Match(BANG);
-				State = 1250;
+				State = 1243;
 				expr(24);
 				}
 				break;
@@ -10797,9 +10747,9 @@ public partial class NebraParser : Parser {
 				_localctx = new AwaitExprContext(_localctx);
 				Context = _localctx;
 				_prevctx = _localctx;
-				State = 1251;
+				State = 1244;
 				Match(AWAIT);
-				State = 1252;
+				State = 1245;
 				expr(23);
 				}
 				break;
@@ -10808,9 +10758,9 @@ public partial class NebraParser : Parser {
 				_localctx = new TypeOfExprContext(_localctx);
 				Context = _localctx;
 				_prevctx = _localctx;
-				State = 1253;
+				State = 1246;
 				Match(TYPEOF);
-				State = 1254;
+				State = 1247;
 				expr(22);
 				}
 				break;
@@ -10819,9 +10769,9 @@ public partial class NebraParser : Parser {
 				_localctx = new PreIncExprContext(_localctx);
 				Context = _localctx;
 				_prevctx = _localctx;
-				State = 1255;
+				State = 1248;
 				Match(INC);
-				State = 1256;
+				State = 1249;
 				expr(21);
 				}
 				break;
@@ -10830,9 +10780,9 @@ public partial class NebraParser : Parser {
 				_localctx = new PreDecExprContext(_localctx);
 				Context = _localctx;
 				_prevctx = _localctx;
-				State = 1257;
+				State = 1250;
 				Match(DEC);
-				State = 1258;
+				State = 1251;
 				expr(20);
 				}
 				break;
@@ -10840,27 +10790,27 @@ public partial class NebraParser : Parser {
 				throw new NoViableAltException(this);
 			}
 			Context.Stop = TokenStream.LT(-1);
-			State = 1324;
+			State = 1317;
 			ErrorHandler.Sync(this);
-			_alt = Interpreter.AdaptivePredict(TokenStream,152,Context);
+			_alt = Interpreter.AdaptivePredict(TokenStream,151,Context);
 			while ( _alt!=2 && _alt!=global::Antlr4.Runtime.Atn.ATN.INVALID_ALT_NUMBER ) {
 				if ( _alt==1 ) {
 					if ( ParseListeners!=null )
 						TriggerExitRuleEvent();
 					_prevctx = _localctx;
 					{
-					State = 1322;
+					State = 1315;
 					ErrorHandler.Sync(this);
-					switch ( Interpreter.AdaptivePredict(TokenStream,151,Context) ) {
+					switch ( Interpreter.AdaptivePredict(TokenStream,150,Context) ) {
 					case 1:
 						{
 						_localctx = new PowerExprContext(new ExprContext(_parentctx, _parentState));
 						PushNewRecursionContext(_localctx, _startState, RULE_expr);
-						State = 1261;
+						State = 1254;
 						if (!(Precpred(Context, 26))) throw new FailedPredicateException(this, "Precpred(Context, 26)");
-						State = 1262;
+						State = 1255;
 						Match(CARET);
-						State = 1263;
+						State = 1256;
 						expr(26);
 						}
 						break;
@@ -10868,11 +10818,11 @@ public partial class NebraParser : Parser {
 						{
 						_localctx = new MultiplicativeExprContext(new ExprContext(_parentctx, _parentState));
 						PushNewRecursionContext(_localctx, _startState, RULE_expr);
-						State = 1264;
+						State = 1257;
 						if (!(Precpred(Context, 16))) throw new FailedPredicateException(this, "Precpred(Context, 16)");
-						State = 1265;
+						State = 1258;
 						multiplicativeOp();
-						State = 1266;
+						State = 1259;
 						expr(17);
 						}
 						break;
@@ -10880,11 +10830,11 @@ public partial class NebraParser : Parser {
 						{
 						_localctx = new AdditiveExprContext(new ExprContext(_parentctx, _parentState));
 						PushNewRecursionContext(_localctx, _startState, RULE_expr);
-						State = 1268;
+						State = 1261;
 						if (!(Precpred(Context, 15))) throw new FailedPredicateException(this, "Precpred(Context, 15)");
-						State = 1269;
+						State = 1262;
 						additiveOp();
-						State = 1270;
+						State = 1263;
 						expr(16);
 						}
 						break;
@@ -10892,11 +10842,11 @@ public partial class NebraParser : Parser {
 						{
 						_localctx = new ConcatExprContext(new ExprContext(_parentctx, _parentState));
 						PushNewRecursionContext(_localctx, _startState, RULE_expr);
-						State = 1272;
+						State = 1265;
 						if (!(Precpred(Context, 14))) throw new FailedPredicateException(this, "Precpred(Context, 14)");
-						State = 1273;
+						State = 1266;
 						Match(CONCAT);
-						State = 1274;
+						State = 1267;
 						expr(14);
 						}
 						break;
@@ -10904,11 +10854,11 @@ public partial class NebraParser : Parser {
 						{
 						_localctx = new BitShiftExprContext(new ExprContext(_parentctx, _parentState));
 						PushNewRecursionContext(_localctx, _startState, RULE_expr);
-						State = 1275;
+						State = 1268;
 						if (!(Precpred(Context, 13))) throw new FailedPredicateException(this, "Precpred(Context, 13)");
-						State = 1276;
+						State = 1269;
 						shiftOp();
-						State = 1277;
+						State = 1270;
 						expr(14);
 						}
 						break;
@@ -10916,11 +10866,11 @@ public partial class NebraParser : Parser {
 						{
 						_localctx = new BitwiseAndExprContext(new ExprContext(_parentctx, _parentState));
 						PushNewRecursionContext(_localctx, _startState, RULE_expr);
-						State = 1279;
+						State = 1272;
 						if (!(Precpred(Context, 12))) throw new FailedPredicateException(this, "Precpred(Context, 12)");
-						State = 1280;
+						State = 1273;
 						Match(AMP);
-						State = 1281;
+						State = 1274;
 						expr(13);
 						}
 						break;
@@ -10928,11 +10878,11 @@ public partial class NebraParser : Parser {
 						{
 						_localctx = new BitwiseXorExprContext(new ExprContext(_parentctx, _parentState));
 						PushNewRecursionContext(_localctx, _startState, RULE_expr);
-						State = 1282;
+						State = 1275;
 						if (!(Precpred(Context, 11))) throw new FailedPredicateException(this, "Precpred(Context, 11)");
-						State = 1283;
+						State = 1276;
 						Match(TILDE);
-						State = 1284;
+						State = 1277;
 						expr(12);
 						}
 						break;
@@ -10940,11 +10890,11 @@ public partial class NebraParser : Parser {
 						{
 						_localctx = new BitwiseOrExprContext(new ExprContext(_parentctx, _parentState));
 						PushNewRecursionContext(_localctx, _startState, RULE_expr);
-						State = 1285;
+						State = 1278;
 						if (!(Precpred(Context, 10))) throw new FailedPredicateException(this, "Precpred(Context, 10)");
-						State = 1286;
+						State = 1279;
 						Match(PIPE);
-						State = 1287;
+						State = 1280;
 						expr(11);
 						}
 						break;
@@ -10952,11 +10902,11 @@ public partial class NebraParser : Parser {
 						{
 						_localctx = new ComparisonExprContext(new ExprContext(_parentctx, _parentState));
 						PushNewRecursionContext(_localctx, _startState, RULE_expr);
-						State = 1288;
+						State = 1281;
 						if (!(Precpred(Context, 6))) throw new FailedPredicateException(this, "Precpred(Context, 6)");
-						State = 1289;
+						State = 1282;
 						compareOp();
-						State = 1290;
+						State = 1283;
 						expr(7);
 						}
 						break;
@@ -10964,11 +10914,11 @@ public partial class NebraParser : Parser {
 						{
 						_localctx = new LogicalAndExprContext(new ExprContext(_parentctx, _parentState));
 						PushNewRecursionContext(_localctx, _startState, RULE_expr);
-						State = 1292;
+						State = 1285;
 						if (!(Precpred(Context, 5))) throw new FailedPredicateException(this, "Precpred(Context, 5)");
-						State = 1293;
+						State = 1286;
 						Match(AND);
-						State = 1294;
+						State = 1287;
 						expr(6);
 						}
 						break;
@@ -10976,11 +10926,11 @@ public partial class NebraParser : Parser {
 						{
 						_localctx = new AltLogicalAndExprContext(new ExprContext(_parentctx, _parentState));
 						PushNewRecursionContext(_localctx, _startState, RULE_expr);
-						State = 1295;
+						State = 1288;
 						if (!(Precpred(Context, 4))) throw new FailedPredicateException(this, "Precpred(Context, 4)");
-						State = 1296;
+						State = 1289;
 						Match(ANDAND);
-						State = 1297;
+						State = 1290;
 						expr(5);
 						}
 						break;
@@ -10988,11 +10938,11 @@ public partial class NebraParser : Parser {
 						{
 						_localctx = new NilCoalesceExprContext(new ExprContext(_parentctx, _parentState));
 						PushNewRecursionContext(_localctx, _startState, RULE_expr);
-						State = 1298;
+						State = 1291;
 						if (!(Precpred(Context, 3))) throw new FailedPredicateException(this, "Precpred(Context, 3)");
-						State = 1299;
+						State = 1292;
 						Match(QQ);
-						State = 1300;
+						State = 1293;
 						expr(3);
 						}
 						break;
@@ -11000,11 +10950,11 @@ public partial class NebraParser : Parser {
 						{
 						_localctx = new LogicalOrExprContext(new ExprContext(_parentctx, _parentState));
 						PushNewRecursionContext(_localctx, _startState, RULE_expr);
-						State = 1301;
+						State = 1294;
 						if (!(Precpred(Context, 2))) throw new FailedPredicateException(this, "Precpred(Context, 2)");
-						State = 1302;
+						State = 1295;
 						Match(OR);
-						State = 1303;
+						State = 1296;
 						expr(3);
 						}
 						break;
@@ -11012,11 +10962,11 @@ public partial class NebraParser : Parser {
 						{
 						_localctx = new AltLogicalOrExprContext(new ExprContext(_parentctx, _parentState));
 						PushNewRecursionContext(_localctx, _startState, RULE_expr);
-						State = 1304;
+						State = 1297;
 						if (!(Precpred(Context, 1))) throw new FailedPredicateException(this, "Precpred(Context, 1)");
-						State = 1305;
+						State = 1298;
 						Match(OROR);
-						State = 1306;
+						State = 1299;
 						expr(2);
 						}
 						break;
@@ -11024,9 +10974,9 @@ public partial class NebraParser : Parser {
 						{
 						_localctx = new NonNilAssertExprContext(new ExprContext(_parentctx, _parentState));
 						PushNewRecursionContext(_localctx, _startState, RULE_expr);
-						State = 1307;
+						State = 1300;
 						if (!(Precpred(Context, 19))) throw new FailedPredicateException(this, "Precpred(Context, 19)");
-						State = 1308;
+						State = 1301;
 						Match(BANG);
 						}
 						break;
@@ -11034,9 +10984,9 @@ public partial class NebraParser : Parser {
 						{
 						_localctx = new PostIncExprContext(new ExprContext(_parentctx, _parentState));
 						PushNewRecursionContext(_localctx, _startState, RULE_expr);
-						State = 1309;
+						State = 1302;
 						if (!(Precpred(Context, 18))) throw new FailedPredicateException(this, "Precpred(Context, 18)");
-						State = 1310;
+						State = 1303;
 						Match(INC);
 						}
 						break;
@@ -11044,9 +10994,9 @@ public partial class NebraParser : Parser {
 						{
 						_localctx = new PostDecExprContext(new ExprContext(_parentctx, _parentState));
 						PushNewRecursionContext(_localctx, _startState, RULE_expr);
-						State = 1311;
+						State = 1304;
 						if (!(Precpred(Context, 17))) throw new FailedPredicateException(this, "Precpred(Context, 17)");
-						State = 1312;
+						State = 1305;
 						Match(DEC);
 						}
 						break;
@@ -11054,11 +11004,11 @@ public partial class NebraParser : Parser {
 						{
 						_localctx = new TypeCheckExprContext(new ExprContext(_parentctx, _parentState));
 						PushNewRecursionContext(_localctx, _startState, RULE_expr);
-						State = 1313;
+						State = 1306;
 						if (!(Precpred(Context, 9))) throw new FailedPredicateException(this, "Precpred(Context, 9)");
-						State = 1314;
+						State = 1307;
 						Match(IS);
-						State = 1315;
+						State = 1308;
 						typeExpr();
 						}
 						break;
@@ -11066,11 +11016,11 @@ public partial class NebraParser : Parser {
 						{
 						_localctx = new TypeCastExprContext(new ExprContext(_parentctx, _parentState));
 						PushNewRecursionContext(_localctx, _startState, RULE_expr);
-						State = 1316;
+						State = 1309;
 						if (!(Precpred(Context, 8))) throw new FailedPredicateException(this, "Precpred(Context, 8)");
-						State = 1317;
+						State = 1310;
 						Match(AS);
-						State = 1318;
+						State = 1311;
 						typeExpr();
 						}
 						break;
@@ -11078,20 +11028,20 @@ public partial class NebraParser : Parser {
 						{
 						_localctx = new InstanceOfExprContext(new ExprContext(_parentctx, _parentState));
 						PushNewRecursionContext(_localctx, _startState, RULE_expr);
-						State = 1319;
+						State = 1312;
 						if (!(Precpred(Context, 7))) throw new FailedPredicateException(this, "Precpred(Context, 7)");
-						State = 1320;
+						State = 1313;
 						Match(INSTANCEOF);
-						State = 1321;
+						State = 1314;
 						typeAtom();
 						}
 						break;
 					}
 					} 
 				}
-				State = 1326;
+				State = 1319;
 				ErrorHandler.Sync(this);
-				_alt = Interpreter.AdaptivePredict(TokenStream,152,Context);
+				_alt = Interpreter.AdaptivePredict(TokenStream,151,Context);
 			}
 			}
 		}
@@ -11264,14 +11214,14 @@ public partial class NebraParser : Parser {
 		CompareOpContext _localctx = new CompareOpContext(Context, State);
 		EnterRule(_localctx, 156, RULE_compareOp);
 		try {
-			State = 1334;
+			State = 1327;
 			ErrorHandler.Sync(this);
 			switch (TokenStream.LA(1)) {
 			case LT:
 				_localctx = new LtOpContext(_localctx);
 				EnterOuterAlt(_localctx, 1);
 				{
-				State = 1327;
+				State = 1320;
 				Match(LT);
 				}
 				break;
@@ -11279,7 +11229,7 @@ public partial class NebraParser : Parser {
 				_localctx = new GtOpContext(_localctx);
 				EnterOuterAlt(_localctx, 2);
 				{
-				State = 1328;
+				State = 1321;
 				Match(GT);
 				}
 				break;
@@ -11287,7 +11237,7 @@ public partial class NebraParser : Parser {
 				_localctx = new LteOpContext(_localctx);
 				EnterOuterAlt(_localctx, 3);
 				{
-				State = 1329;
+				State = 1322;
 				Match(LTE);
 				}
 				break;
@@ -11295,7 +11245,7 @@ public partial class NebraParser : Parser {
 				_localctx = new GteOpContext(_localctx);
 				EnterOuterAlt(_localctx, 4);
 				{
-				State = 1330;
+				State = 1323;
 				Match(GTE);
 				}
 				break;
@@ -11303,7 +11253,7 @@ public partial class NebraParser : Parser {
 				_localctx = new NeqOpContext(_localctx);
 				EnterOuterAlt(_localctx, 5);
 				{
-				State = 1331;
+				State = 1324;
 				Match(NEQ);
 				}
 				break;
@@ -11311,7 +11261,7 @@ public partial class NebraParser : Parser {
 				_localctx = new AltNeqOpContext(_localctx);
 				EnterOuterAlt(_localctx, 6);
 				{
-				State = 1332;
+				State = 1325;
 				Match(BANGEQ);
 				}
 				break;
@@ -11319,7 +11269,7 @@ public partial class NebraParser : Parser {
 				_localctx = new EqOpContext(_localctx);
 				EnterOuterAlt(_localctx, 7);
 				{
-				State = 1333;
+				State = 1326;
 				Match(EQ);
 				}
 				break;
@@ -11399,14 +11349,14 @@ public partial class NebraParser : Parser {
 		ShiftOpContext _localctx = new ShiftOpContext(Context, State);
 		EnterRule(_localctx, 158, RULE_shiftOp);
 		try {
-			State = 1339;
+			State = 1332;
 			ErrorHandler.Sync(this);
 			switch (TokenStream.LA(1)) {
 			case LSHIFT:
 				_localctx = new LshiftOpContext(_localctx);
 				EnterOuterAlt(_localctx, 1);
 				{
-				State = 1336;
+				State = 1329;
 				Match(LSHIFT);
 				}
 				break;
@@ -11414,9 +11364,9 @@ public partial class NebraParser : Parser {
 				_localctx = new RshiftOpContext(_localctx);
 				EnterOuterAlt(_localctx, 2);
 				{
-				State = 1337;
+				State = 1330;
 				Match(GT);
-				State = 1338;
+				State = 1331;
 				Match(GT);
 				}
 				break;
@@ -11493,14 +11443,14 @@ public partial class NebraParser : Parser {
 		AdditiveOpContext _localctx = new AdditiveOpContext(Context, State);
 		EnterRule(_localctx, 160, RULE_additiveOp);
 		try {
-			State = 1343;
+			State = 1336;
 			ErrorHandler.Sync(this);
 			switch (TokenStream.LA(1)) {
 			case PLUS:
 				_localctx = new AddOpContext(_localctx);
 				EnterOuterAlt(_localctx, 1);
 				{
-				State = 1341;
+				State = 1334;
 				Match(PLUS);
 				}
 				break;
@@ -11508,7 +11458,7 @@ public partial class NebraParser : Parser {
 				_localctx = new SubOpContext(_localctx);
 				EnterOuterAlt(_localctx, 2);
 				{
-				State = 1342;
+				State = 1335;
 				Match(MINUS);
 				}
 				break;
@@ -11625,14 +11575,14 @@ public partial class NebraParser : Parser {
 		MultiplicativeOpContext _localctx = new MultiplicativeOpContext(Context, State);
 		EnterRule(_localctx, 162, RULE_multiplicativeOp);
 		try {
-			State = 1349;
+			State = 1342;
 			ErrorHandler.Sync(this);
 			switch (TokenStream.LA(1)) {
 			case STAR:
 				_localctx = new MulOpContext(_localctx);
 				EnterOuterAlt(_localctx, 1);
 				{
-				State = 1345;
+				State = 1338;
 				Match(STAR);
 				}
 				break;
@@ -11640,7 +11590,7 @@ public partial class NebraParser : Parser {
 				_localctx = new DivOpContext(_localctx);
 				EnterOuterAlt(_localctx, 2);
 				{
-				State = 1346;
+				State = 1339;
 				Match(SLASH);
 				}
 				break;
@@ -11648,7 +11598,7 @@ public partial class NebraParser : Parser {
 				_localctx = new FloorDivOpContext(_localctx);
 				EnterOuterAlt(_localctx, 3);
 				{
-				State = 1347;
+				State = 1340;
 				Match(DSLASH);
 				}
 				break;
@@ -11656,7 +11606,7 @@ public partial class NebraParser : Parser {
 				_localctx = new ModOpContext(_localctx);
 				EnterOuterAlt(_localctx, 4);
 				{
-				State = 1348;
+				State = 1341;
 				Match(PERCENT);
 				}
 				break;
@@ -11773,14 +11723,14 @@ public partial class NebraParser : Parser {
 		UnaryOpContext _localctx = new UnaryOpContext(Context, State);
 		EnterRule(_localctx, 164, RULE_unaryOp);
 		try {
-			State = 1355;
+			State = 1348;
 			ErrorHandler.Sync(this);
 			switch (TokenStream.LA(1)) {
 			case NOT:
 				_localctx = new LogicalNotOpContext(_localctx);
 				EnterOuterAlt(_localctx, 1);
 				{
-				State = 1351;
+				State = 1344;
 				Match(NOT);
 				}
 				break;
@@ -11788,7 +11738,7 @@ public partial class NebraParser : Parser {
 				_localctx = new LengthOpContext(_localctx);
 				EnterOuterAlt(_localctx, 2);
 				{
-				State = 1352;
+				State = 1345;
 				Match(HASH);
 				}
 				break;
@@ -11796,7 +11746,7 @@ public partial class NebraParser : Parser {
 				_localctx = new NegateOpContext(_localctx);
 				EnterOuterAlt(_localctx, 3);
 				{
-				State = 1353;
+				State = 1346;
 				Match(MINUS);
 				}
 				break;
@@ -11804,7 +11754,7 @@ public partial class NebraParser : Parser {
 				_localctx = new BitwiseNotOpContext(_localctx);
 				EnterOuterAlt(_localctx, 4);
 				{
-				State = 1354;
+				State = 1347;
 				Match(TILDE);
 				}
 				break;
@@ -11864,23 +11814,23 @@ public partial class NebraParser : Parser {
 			int _alt;
 			EnterOuterAlt(_localctx, 1);
 			{
-			State = 1357;
+			State = 1350;
 			varOrExp();
-			State = 1361;
+			State = 1354;
 			ErrorHandler.Sync(this);
-			_alt = Interpreter.AdaptivePredict(TokenStream,158,Context);
+			_alt = Interpreter.AdaptivePredict(TokenStream,157,Context);
 			while ( _alt!=2 && _alt!=global::Antlr4.Runtime.Atn.ATN.INVALID_ALT_NUMBER ) {
 				if ( _alt==1 ) {
 					{
 					{
-					State = 1358;
+					State = 1351;
 					suffix();
 					}
 					} 
 				}
-				State = 1363;
+				State = 1356;
 				ErrorHandler.Sync(this);
-				_alt = Interpreter.AdaptivePredict(TokenStream,158,Context);
+				_alt = Interpreter.AdaptivePredict(TokenStream,157,Context);
 			}
 			}
 		}
@@ -11927,6 +11877,32 @@ public partial class NebraParser : Parser {
 			else return visitor.VisitChildren(this);
 		}
 	}
+	public partial class NewVarOrExpContext : VarOrExpContext {
+		[System.Diagnostics.DebuggerNonUserCode] public ITerminalNode NEW() { return GetToken(NebraParser.NEW, 0); }
+		[System.Diagnostics.DebuggerNonUserCode] public ITerminalNode NAME() { return GetToken(NebraParser.NAME, 0); }
+		[System.Diagnostics.DebuggerNonUserCode] public ITerminalNode LPAREN() { return GetToken(NebraParser.LPAREN, 0); }
+		[System.Diagnostics.DebuggerNonUserCode] public ITerminalNode RPAREN() { return GetToken(NebraParser.RPAREN, 0); }
+		[System.Diagnostics.DebuggerNonUserCode] public ExprListContext exprList() {
+			return GetRuleContext<ExprListContext>(0);
+		}
+		public NewVarOrExpContext(VarOrExpContext context) { CopyFrom(context); }
+		[System.Diagnostics.DebuggerNonUserCode]
+		public override void EnterRule(IParseTreeListener listener) {
+			INebraListener typedListener = listener as INebraListener;
+			if (typedListener != null) typedListener.EnterNewVarOrExp(this);
+		}
+		[System.Diagnostics.DebuggerNonUserCode]
+		public override void ExitRule(IParseTreeListener listener) {
+			INebraListener typedListener = listener as INebraListener;
+			if (typedListener != null) typedListener.ExitNewVarOrExp(this);
+		}
+		[System.Diagnostics.DebuggerNonUserCode]
+		public override TResult Accept<TResult>(IParseTreeVisitor<TResult> visitor) {
+			INebraVisitor<TResult> typedVisitor = visitor as INebraVisitor<TResult>;
+			if (typedVisitor != null) return typedVisitor.VisitNewVarOrExp(this);
+			else return visitor.VisitChildren(this);
+		}
+	}
 	public partial class ParenVarOrExpContext : VarOrExpContext {
 		[System.Diagnostics.DebuggerNonUserCode] public ITerminalNode LPAREN() { return GetToken(NebraParser.LPAREN, 0); }
 		[System.Diagnostics.DebuggerNonUserCode] public ExprContext expr() {
@@ -11956,6 +11932,7 @@ public partial class NebraParser : Parser {
 	public VarOrExpContext varOrExp() {
 		VarOrExpContext _localctx = new VarOrExpContext(Context, State);
 		EnterRule(_localctx, 168, RULE_varOrExp);
+		int _la;
 		try {
 			State = 1369;
 			ErrorHandler.Sync(this);
@@ -11964,7 +11941,7 @@ public partial class NebraParser : Parser {
 				_localctx = new NameVarOrExpContext(_localctx);
 				EnterOuterAlt(_localctx, 1);
 				{
-				State = 1364;
+				State = 1357;
 				Match(NAME);
 				}
 				break;
@@ -11972,11 +11949,35 @@ public partial class NebraParser : Parser {
 				_localctx = new ParenVarOrExpContext(_localctx);
 				EnterOuterAlt(_localctx, 2);
 				{
-				State = 1365;
+				State = 1358;
+				Match(LPAREN);
+				State = 1359;
+				expr(0);
+				State = 1360;
+				Match(RPAREN);
+				}
+				break;
+			case NEW:
+				_localctx = new NewVarOrExpContext(_localctx);
+				EnterOuterAlt(_localctx, 3);
+				{
+				State = 1362;
+				Match(NEW);
+				State = 1363;
+				Match(NAME);
+				State = 1364;
 				Match(LPAREN);
 				State = 1366;
-				expr(0);
-				State = 1367;
+				ErrorHandler.Sync(this);
+				_la = TokenStream.LA(1);
+				if ((((_la) & ~0x3f) == 0 && ((1L << _la) & 73394808484315776L) != 0) || ((((_la - 68)) & ~0x3f) == 0 && ((1L << (_la - 68)) & 1097375164483L) != 0)) {
+					{
+					State = 1365;
+					exprList();
+					}
+				}
+
+				State = 1368;
 				Match(RPAREN);
 				}
 				break;
@@ -13734,18 +13735,18 @@ public partial class NebraParser : Parser {
 		9,74,1,75,1,75,1,75,1,75,1,75,1,75,1,75,1,75,1,75,1,75,1,75,1,75,1,75,
 		1,75,5,75,1204,8,75,10,75,12,75,1207,9,75,1,75,3,75,1210,8,75,1,75,1,75,
 		3,75,1214,8,75,1,76,3,76,1217,8,76,1,76,1,76,1,76,1,76,1,77,1,77,1,77,
-		1,77,1,77,1,77,1,77,1,77,1,77,1,77,1,77,1,77,1,77,1,77,1,77,3,77,1238,
-		8,77,1,77,1,77,1,77,1,77,3,77,1244,8,77,1,77,1,77,1,77,1,77,1,77,1,77,
-		1,77,1,77,1,77,1,77,1,77,1,77,1,77,1,77,3,77,1260,8,77,1,77,1,77,1,77,
+		1,77,1,77,1,77,1,77,1,77,1,77,1,77,1,77,1,77,1,77,1,77,3,77,1237,8,77,
+		1,77,1,77,1,77,1,77,1,77,1,77,1,77,1,77,1,77,1,77,1,77,1,77,1,77,1,77,
+		3,77,1253,8,77,1,77,1,77,1,77,1,77,1,77,1,77,1,77,1,77,1,77,1,77,1,77,
 		1,77,1,77,1,77,1,77,1,77,1,77,1,77,1,77,1,77,1,77,1,77,1,77,1,77,1,77,
 		1,77,1,77,1,77,1,77,1,77,1,77,1,77,1,77,1,77,1,77,1,77,1,77,1,77,1,77,
 		1,77,1,77,1,77,1,77,1,77,1,77,1,77,1,77,1,77,1,77,1,77,1,77,1,77,1,77,
-		1,77,1,77,1,77,1,77,1,77,1,77,1,77,1,77,1,77,1,77,1,77,1,77,1,77,1,77,
-		1,77,1,77,5,77,1323,8,77,10,77,12,77,1326,9,77,1,78,1,78,1,78,1,78,1,78,
-		1,78,1,78,3,78,1335,8,78,1,79,1,79,1,79,3,79,1340,8,79,1,80,1,80,3,80,
-		1344,8,80,1,81,1,81,1,81,1,81,3,81,1350,8,81,1,82,1,82,1,82,1,82,3,82,
-		1356,8,82,1,83,1,83,5,83,1360,8,83,10,83,12,83,1363,9,83,1,84,1,84,1,84,
-		1,84,1,84,3,84,1370,8,84,1,85,1,85,1,85,1,85,1,85,1,85,1,85,1,85,1,85,
+		1,77,1,77,1,77,1,77,1,77,1,77,1,77,1,77,5,77,1316,8,77,10,77,12,77,1319,
+		9,77,1,78,1,78,1,78,1,78,1,78,1,78,1,78,3,78,1328,8,78,1,79,1,79,1,79,
+		3,79,1333,8,79,1,80,1,80,3,80,1337,8,80,1,81,1,81,1,81,1,81,3,81,1343,
+		8,81,1,82,1,82,1,82,1,82,3,82,1349,8,82,1,83,1,83,5,83,1353,8,83,10,83,
+		12,83,1356,9,83,1,84,1,84,1,84,1,84,1,84,1,84,1,84,1,84,1,84,3,84,1367,
+		8,84,1,84,3,84,1370,8,84,1,85,1,85,1,85,1,85,1,85,1,85,1,85,1,85,1,85,
 		1,85,1,85,1,85,1,85,1,85,1,85,1,85,3,85,1388,8,85,1,86,1,86,1,87,1,87,
 		1,87,5,87,1395,8,87,10,87,12,87,1398,9,87,1,87,1,87,1,87,1,87,1,87,5,87,
 		1405,8,87,10,87,12,87,1408,9,87,1,87,1,87,1,87,1,87,3,87,1414,8,87,1,88,
@@ -13779,8 +13780,8 @@ public partial class NebraParser : Parser {
 		0,128,1094,1,0,0,0,130,1098,1,0,0,0,132,1106,1,0,0,0,134,1109,1,0,0,0,
 		136,1117,1,0,0,0,138,1127,1,0,0,0,140,1150,1,0,0,0,142,1152,1,0,0,0,144,
 		1171,1,0,0,0,146,1173,1,0,0,0,148,1181,1,0,0,0,150,1213,1,0,0,0,152,1216,
-		1,0,0,0,154,1259,1,0,0,0,156,1334,1,0,0,0,158,1339,1,0,0,0,160,1343,1,
-		0,0,0,162,1349,1,0,0,0,164,1355,1,0,0,0,166,1357,1,0,0,0,168,1369,1,0,
+		1,0,0,0,154,1252,1,0,0,0,156,1327,1,0,0,0,158,1332,1,0,0,0,160,1336,1,
+		0,0,0,162,1342,1,0,0,0,164,1348,1,0,0,0,166,1350,1,0,0,0,168,1369,1,0,
 		0,0,170,1387,1,0,0,0,172,1389,1,0,0,0,174,1413,1,0,0,0,176,1435,1,0,0,
 		0,178,1444,1,0,0,0,180,1447,1,0,0,0,182,1452,1,0,0,0,184,1458,1,0,0,0,
 		186,1487,1,0,0,0,188,1489,1,0,0,0,190,1495,1,0,0,0,192,1501,1,0,0,0,194,
@@ -14083,114 +14084,114 @@ public partial class NebraParser : Parser {
 		1,0,0,0,1213,1199,1,0,0,0,1214,151,1,0,0,0,1215,1217,5,32,0,0,1216,1215,
 		1,0,0,0,1216,1217,1,0,0,0,1217,1218,1,0,0,0,1218,1219,3,172,86,0,1219,
 		1220,5,96,0,0,1220,1221,3,134,67,0,1221,153,1,0,0,0,1222,1223,6,77,-1,
-		0,1223,1260,5,14,0,0,1224,1260,5,20,0,0,1225,1260,5,7,0,0,1226,1260,3,
-		190,95,0,1227,1260,3,192,96,0,1228,1260,5,56,0,0,1229,1260,3,180,90,0,
-		1230,1260,3,166,83,0,1231,1260,3,182,91,0,1232,1260,3,84,42,0,1233,1234,
-		5,46,0,0,1234,1235,5,107,0,0,1235,1237,5,89,0,0,1236,1238,3,130,65,0,1237,
-		1236,1,0,0,0,1237,1238,1,0,0,0,1238,1239,1,0,0,0,1239,1260,5,90,0,0,1240,
-		1241,5,47,0,0,1241,1243,5,89,0,0,1242,1244,3,130,65,0,1243,1242,1,0,0,
-		0,1243,1244,1,0,0,0,1244,1245,1,0,0,0,1245,1260,5,90,0,0,1246,1247,3,164,
-		82,0,1247,1248,3,154,77,25,1248,1260,1,0,0,0,1249,1250,5,87,0,0,1250,1260,
-		3,154,77,24,1251,1252,5,37,0,0,1252,1260,3,154,77,23,1253,1254,5,50,0,
-		0,1254,1260,3,154,77,22,1255,1256,5,68,0,0,1256,1260,3,154,77,21,1257,
-		1258,5,69,0,0,1258,1260,3,154,77,20,1259,1222,1,0,0,0,1259,1224,1,0,0,
-		0,1259,1225,1,0,0,0,1259,1226,1,0,0,0,1259,1227,1,0,0,0,1259,1228,1,0,
-		0,0,1259,1229,1,0,0,0,1259,1230,1,0,0,0,1259,1231,1,0,0,0,1259,1232,1,
-		0,0,0,1259,1233,1,0,0,0,1259,1240,1,0,0,0,1259,1246,1,0,0,0,1259,1249,
-		1,0,0,0,1259,1251,1,0,0,0,1259,1253,1,0,0,0,1259,1255,1,0,0,0,1259,1257,
-		1,0,0,0,1260,1324,1,0,0,0,1261,1262,10,26,0,0,1262,1263,5,78,0,0,1263,
-		1323,3,154,77,26,1264,1265,10,16,0,0,1265,1266,3,162,81,0,1266,1267,3,
-		154,77,17,1267,1323,1,0,0,0,1268,1269,10,15,0,0,1269,1270,3,160,80,0,1270,
-		1271,3,154,77,16,1271,1323,1,0,0,0,1272,1273,10,14,0,0,1273,1274,5,57,
-		0,0,1274,1323,3,154,77,14,1275,1276,10,13,0,0,1276,1277,3,158,79,0,1277,
-		1278,3,154,77,14,1278,1323,1,0,0,0,1279,1280,10,12,0,0,1280,1281,5,80,
-		0,0,1281,1323,3,154,77,13,1282,1283,10,11,0,0,1283,1284,5,81,0,0,1284,
-		1323,3,154,77,12,1285,1286,10,10,0,0,1286,1287,5,82,0,0,1287,1323,3,154,
-		77,11,1288,1289,10,6,0,0,1289,1290,3,156,78,0,1290,1291,3,154,77,7,1291,
-		1323,1,0,0,0,1292,1293,10,5,0,0,1293,1294,5,1,0,0,1294,1323,3,154,77,6,
-		1295,1296,10,4,0,0,1296,1297,5,70,0,0,1297,1323,3,154,77,5,1298,1299,10,
-		3,0,0,1299,1300,5,66,0,0,1300,1323,3,154,77,3,1301,1302,10,2,0,0,1302,
-		1303,5,16,0,0,1303,1323,3,154,77,3,1304,1305,10,1,0,0,1305,1306,5,71,0,
-		0,1306,1323,3,154,77,2,1307,1308,10,19,0,0,1308,1323,5,87,0,0,1309,1310,
-		10,18,0,0,1310,1323,5,68,0,0,1311,1312,10,17,0,0,1312,1323,5,69,0,0,1313,
-		1314,10,9,0,0,1314,1315,5,29,0,0,1315,1323,3,134,67,0,1316,1317,10,8,0,
-		0,1317,1318,5,23,0,0,1318,1323,3,134,67,0,1319,1320,10,7,0,0,1320,1321,
-		5,51,0,0,1321,1323,3,140,70,0,1322,1261,1,0,0,0,1322,1264,1,0,0,0,1322,
-		1268,1,0,0,0,1322,1272,1,0,0,0,1322,1275,1,0,0,0,1322,1279,1,0,0,0,1322,
-		1282,1,0,0,0,1322,1285,1,0,0,0,1322,1288,1,0,0,0,1322,1292,1,0,0,0,1322,
-		1295,1,0,0,0,1322,1298,1,0,0,0,1322,1301,1,0,0,0,1322,1304,1,0,0,0,1322,
-		1307,1,0,0,0,1322,1309,1,0,0,0,1322,1311,1,0,0,0,1322,1313,1,0,0,0,1322,
-		1316,1,0,0,0,1322,1319,1,0,0,0,1323,1326,1,0,0,0,1324,1322,1,0,0,0,1324,
-		1325,1,0,0,0,1325,155,1,0,0,0,1326,1324,1,0,0,0,1327,1335,5,83,0,0,1328,
-		1335,5,84,0,0,1329,1335,5,64,0,0,1330,1335,5,65,0,0,1331,1335,5,63,0,0,
-		1332,1335,5,72,0,0,1333,1335,5,62,0,0,1334,1327,1,0,0,0,1334,1328,1,0,
-		0,0,1334,1329,1,0,0,0,1334,1330,1,0,0,0,1334,1331,1,0,0,0,1334,1332,1,
-		0,0,0,1334,1333,1,0,0,0,1335,157,1,0,0,0,1336,1340,5,60,0,0,1337,1338,
-		5,84,0,0,1338,1340,5,84,0,0,1339,1336,1,0,0,0,1339,1337,1,0,0,0,1340,159,
-		1,0,0,0,1341,1344,5,73,0,0,1342,1344,5,74,0,0,1343,1341,1,0,0,0,1343,1342,
-		1,0,0,0,1344,161,1,0,0,0,1345,1350,5,75,0,0,1346,1350,5,76,0,0,1347,1350,
-		5,61,0,0,1348,1350,5,77,0,0,1349,1345,1,0,0,0,1349,1346,1,0,0,0,1349,1347,
-		1,0,0,0,1349,1348,1,0,0,0,1350,163,1,0,0,0,1351,1356,5,15,0,0,1352,1356,
-		5,79,0,0,1353,1356,5,74,0,0,1354,1356,5,81,0,0,1355,1351,1,0,0,0,1355,
-		1352,1,0,0,0,1355,1353,1,0,0,0,1355,1354,1,0,0,0,1356,165,1,0,0,0,1357,
-		1361,3,168,84,0,1358,1360,3,170,85,0,1359,1358,1,0,0,0,1360,1363,1,0,0,
-		0,1361,1359,1,0,0,0,1361,1362,1,0,0,0,1362,167,1,0,0,0,1363,1361,1,0,0,
-		0,1364,1370,5,107,0,0,1365,1366,5,89,0,0,1366,1367,3,154,77,0,1367,1368,
-		5,90,0,0,1368,1370,1,0,0,0,1369,1364,1,0,0,0,1369,1365,1,0,0,0,1370,169,
-		1,0,0,0,1371,1372,5,98,0,0,1372,1388,3,172,86,0,1373,1374,5,67,0,0,1374,
-		1388,3,172,86,0,1375,1376,5,93,0,0,1376,1377,3,154,77,0,1377,1378,5,94,
-		0,0,1378,1388,1,0,0,0,1379,1380,5,96,0,0,1380,1381,3,172,86,0,1381,1382,
-		3,178,89,0,1382,1388,1,0,0,0,1383,1388,3,178,89,0,1384,1385,5,86,0,0,1385,
-		1388,3,178,89,0,1386,1388,5,87,0,0,1387,1371,1,0,0,0,1387,1373,1,0,0,0,
-		1387,1375,1,0,0,0,1387,1379,1,0,0,0,1387,1383,1,0,0,0,1387,1384,1,0,0,
-		0,1387,1386,1,0,0,0,1388,171,1,0,0,0,1389,1390,7,2,0,0,1390,173,1,0,0,
-		0,1391,1414,5,107,0,0,1392,1396,3,168,84,0,1393,1395,3,170,85,0,1394,1393,
-		1,0,0,0,1395,1398,1,0,0,0,1396,1394,1,0,0,0,1396,1397,1,0,0,0,1397,1399,
-		1,0,0,0,1398,1396,1,0,0,0,1399,1400,5,98,0,0,1400,1401,3,172,86,0,1401,
-		1414,1,0,0,0,1402,1406,3,168,84,0,1403,1405,3,170,85,0,1404,1403,1,0,0,
-		0,1405,1408,1,0,0,0,1406,1404,1,0,0,0,1406,1407,1,0,0,0,1407,1409,1,0,
-		0,0,1408,1406,1,0,0,0,1409,1410,5,93,0,0,1410,1411,3,154,77,0,1411,1412,
-		5,94,0,0,1412,1414,1,0,0,0,1413,1391,1,0,0,0,1413,1392,1,0,0,0,1413,1402,
-		1,0,0,0,1414,175,1,0,0,0,1415,1419,3,168,84,0,1416,1418,3,170,85,0,1417,
-		1416,1,0,0,0,1418,1421,1,0,0,0,1419,1417,1,0,0,0,1419,1420,1,0,0,0,1420,
-		1422,1,0,0,0,1421,1419,1,0,0,0,1422,1423,3,178,89,0,1423,1436,1,0,0,0,
-		1424,1428,3,168,84,0,1425,1427,3,170,85,0,1426,1425,1,0,0,0,1427,1430,
-		1,0,0,0,1428,1426,1,0,0,0,1428,1429,1,0,0,0,1429,1431,1,0,0,0,1430,1428,
-		1,0,0,0,1431,1432,5,96,0,0,1432,1433,3,172,86,0,1433,1434,3,178,89,0,1434,
-		1436,1,0,0,0,1435,1415,1,0,0,0,1435,1424,1,0,0,0,1436,177,1,0,0,0,1437,
-		1439,5,89,0,0,1438,1440,3,130,65,0,1439,1438,1,0,0,0,1439,1440,1,0,0,0,
-		1440,1441,1,0,0,0,1441,1445,5,90,0,0,1442,1445,3,182,91,0,1443,1445,3,
-		192,96,0,1444,1437,1,0,0,0,1444,1442,1,0,0,0,1444,1443,1,0,0,0,1445,179,
-		1,0,0,0,1446,1448,5,36,0,0,1447,1446,1,0,0,0,1447,1448,1,0,0,0,1448,1449,
-		1,0,0,0,1449,1450,5,9,0,0,1450,1451,3,112,56,0,1451,181,1,0,0,0,1452,1454,
-		5,91,0,0,1453,1455,3,184,92,0,1454,1453,1,0,0,0,1454,1455,1,0,0,0,1455,
-		1456,1,0,0,0,1456,1457,5,92,0,0,1457,183,1,0,0,0,1458,1464,3,186,93,0,
-		1459,1460,3,188,94,0,1460,1461,3,186,93,0,1461,1463,1,0,0,0,1462,1459,
-		1,0,0,0,1463,1466,1,0,0,0,1464,1462,1,0,0,0,1464,1465,1,0,0,0,1465,1468,
-		1,0,0,0,1466,1464,1,0,0,0,1467,1469,3,188,94,0,1468,1467,1,0,0,0,1468,
-		1469,1,0,0,0,1469,185,1,0,0,0,1470,1471,5,93,0,0,1471,1472,3,154,77,0,
-		1472,1473,5,94,0,0,1473,1474,5,85,0,0,1474,1475,3,154,77,0,1475,1488,1,
-		0,0,0,1476,1477,3,172,86,0,1477,1478,5,85,0,0,1478,1479,3,154,77,0,1479,
-		1488,1,0,0,0,1480,1482,5,36,0,0,1481,1480,1,0,0,0,1481,1482,1,0,0,0,1482,
-		1483,1,0,0,0,1483,1484,5,9,0,0,1484,1485,5,107,0,0,1485,1488,3,112,56,
-		0,1486,1488,3,154,77,0,1487,1470,1,0,0,0,1487,1476,1,0,0,0,1487,1481,1,
-		0,0,0,1487,1486,1,0,0,0,1488,187,1,0,0,0,1489,1490,7,3,0,0,1490,189,1,
-		0,0,0,1491,1496,5,103,0,0,1492,1496,5,104,0,0,1493,1496,5,105,0,0,1494,
-		1496,5,106,0,0,1495,1491,1,0,0,0,1495,1492,1,0,0,0,1495,1493,1,0,0,0,1495,
-		1494,1,0,0,0,1496,191,1,0,0,0,1497,1502,5,99,0,0,1498,1502,5,100,0,0,1499,
-		1502,5,101,0,0,1500,1502,5,102,0,0,1501,1497,1,0,0,0,1501,1498,1,0,0,0,
-		1501,1499,1,0,0,0,1501,1500,1,0,0,0,1502,193,1,0,0,0,177,200,204,216,223,
-		250,253,277,281,301,329,335,341,345,348,352,361,370,375,380,387,390,397,
-		401,407,416,424,428,436,441,449,457,461,466,470,478,481,486,493,496,500,
-		504,508,511,514,517,525,529,546,552,566,572,580,583,588,599,607,615,618,
-		622,630,638,644,652,658,668,675,705,712,721,729,738,746,753,771,776,781,
-		785,793,796,801,808,816,819,824,828,832,835,839,843,846,849,852,855,875,
-		878,882,886,894,899,904,908,924,930,935,939,947,950,955,964,972,975,980,
-		991,996,1000,1011,1016,1019,1023,1027,1037,1042,1045,1050,1054,1058,1061,
-		1068,1076,1084,1089,1092,1103,1114,1121,1127,1133,1143,1150,1158,1169,
-		1171,1175,1186,1205,1209,1213,1216,1237,1243,1259,1322,1324,1334,1339,
-		1343,1349,1355,1361,1369,1387,1396,1406,1413,1419,1428,1435,1439,1444,
-		1447,1454,1464,1468,1481,1487,1495,1501
+		0,1223,1253,5,14,0,0,1224,1253,5,20,0,0,1225,1253,5,7,0,0,1226,1253,3,
+		190,95,0,1227,1253,3,192,96,0,1228,1253,5,56,0,0,1229,1253,3,180,90,0,
+		1230,1253,3,166,83,0,1231,1253,3,182,91,0,1232,1253,3,84,42,0,1233,1234,
+		5,47,0,0,1234,1236,5,89,0,0,1235,1237,3,130,65,0,1236,1235,1,0,0,0,1236,
+		1237,1,0,0,0,1237,1238,1,0,0,0,1238,1253,5,90,0,0,1239,1240,3,164,82,0,
+		1240,1241,3,154,77,25,1241,1253,1,0,0,0,1242,1243,5,87,0,0,1243,1253,3,
+		154,77,24,1244,1245,5,37,0,0,1245,1253,3,154,77,23,1246,1247,5,50,0,0,
+		1247,1253,3,154,77,22,1248,1249,5,68,0,0,1249,1253,3,154,77,21,1250,1251,
+		5,69,0,0,1251,1253,3,154,77,20,1252,1222,1,0,0,0,1252,1224,1,0,0,0,1252,
+		1225,1,0,0,0,1252,1226,1,0,0,0,1252,1227,1,0,0,0,1252,1228,1,0,0,0,1252,
+		1229,1,0,0,0,1252,1230,1,0,0,0,1252,1231,1,0,0,0,1252,1232,1,0,0,0,1252,
+		1233,1,0,0,0,1252,1239,1,0,0,0,1252,1242,1,0,0,0,1252,1244,1,0,0,0,1252,
+		1246,1,0,0,0,1252,1248,1,0,0,0,1252,1250,1,0,0,0,1253,1317,1,0,0,0,1254,
+		1255,10,26,0,0,1255,1256,5,78,0,0,1256,1316,3,154,77,26,1257,1258,10,16,
+		0,0,1258,1259,3,162,81,0,1259,1260,3,154,77,17,1260,1316,1,0,0,0,1261,
+		1262,10,15,0,0,1262,1263,3,160,80,0,1263,1264,3,154,77,16,1264,1316,1,
+		0,0,0,1265,1266,10,14,0,0,1266,1267,5,57,0,0,1267,1316,3,154,77,14,1268,
+		1269,10,13,0,0,1269,1270,3,158,79,0,1270,1271,3,154,77,14,1271,1316,1,
+		0,0,0,1272,1273,10,12,0,0,1273,1274,5,80,0,0,1274,1316,3,154,77,13,1275,
+		1276,10,11,0,0,1276,1277,5,81,0,0,1277,1316,3,154,77,12,1278,1279,10,10,
+		0,0,1279,1280,5,82,0,0,1280,1316,3,154,77,11,1281,1282,10,6,0,0,1282,1283,
+		3,156,78,0,1283,1284,3,154,77,7,1284,1316,1,0,0,0,1285,1286,10,5,0,0,1286,
+		1287,5,1,0,0,1287,1316,3,154,77,6,1288,1289,10,4,0,0,1289,1290,5,70,0,
+		0,1290,1316,3,154,77,5,1291,1292,10,3,0,0,1292,1293,5,66,0,0,1293,1316,
+		3,154,77,3,1294,1295,10,2,0,0,1295,1296,5,16,0,0,1296,1316,3,154,77,3,
+		1297,1298,10,1,0,0,1298,1299,5,71,0,0,1299,1316,3,154,77,2,1300,1301,10,
+		19,0,0,1301,1316,5,87,0,0,1302,1303,10,18,0,0,1303,1316,5,68,0,0,1304,
+		1305,10,17,0,0,1305,1316,5,69,0,0,1306,1307,10,9,0,0,1307,1308,5,29,0,
+		0,1308,1316,3,134,67,0,1309,1310,10,8,0,0,1310,1311,5,23,0,0,1311,1316,
+		3,134,67,0,1312,1313,10,7,0,0,1313,1314,5,51,0,0,1314,1316,3,140,70,0,
+		1315,1254,1,0,0,0,1315,1257,1,0,0,0,1315,1261,1,0,0,0,1315,1265,1,0,0,
+		0,1315,1268,1,0,0,0,1315,1272,1,0,0,0,1315,1275,1,0,0,0,1315,1278,1,0,
+		0,0,1315,1281,1,0,0,0,1315,1285,1,0,0,0,1315,1288,1,0,0,0,1315,1291,1,
+		0,0,0,1315,1294,1,0,0,0,1315,1297,1,0,0,0,1315,1300,1,0,0,0,1315,1302,
+		1,0,0,0,1315,1304,1,0,0,0,1315,1306,1,0,0,0,1315,1309,1,0,0,0,1315,1312,
+		1,0,0,0,1316,1319,1,0,0,0,1317,1315,1,0,0,0,1317,1318,1,0,0,0,1318,155,
+		1,0,0,0,1319,1317,1,0,0,0,1320,1328,5,83,0,0,1321,1328,5,84,0,0,1322,1328,
+		5,64,0,0,1323,1328,5,65,0,0,1324,1328,5,63,0,0,1325,1328,5,72,0,0,1326,
+		1328,5,62,0,0,1327,1320,1,0,0,0,1327,1321,1,0,0,0,1327,1322,1,0,0,0,1327,
+		1323,1,0,0,0,1327,1324,1,0,0,0,1327,1325,1,0,0,0,1327,1326,1,0,0,0,1328,
+		157,1,0,0,0,1329,1333,5,60,0,0,1330,1331,5,84,0,0,1331,1333,5,84,0,0,1332,
+		1329,1,0,0,0,1332,1330,1,0,0,0,1333,159,1,0,0,0,1334,1337,5,73,0,0,1335,
+		1337,5,74,0,0,1336,1334,1,0,0,0,1336,1335,1,0,0,0,1337,161,1,0,0,0,1338,
+		1343,5,75,0,0,1339,1343,5,76,0,0,1340,1343,5,61,0,0,1341,1343,5,77,0,0,
+		1342,1338,1,0,0,0,1342,1339,1,0,0,0,1342,1340,1,0,0,0,1342,1341,1,0,0,
+		0,1343,163,1,0,0,0,1344,1349,5,15,0,0,1345,1349,5,79,0,0,1346,1349,5,74,
+		0,0,1347,1349,5,81,0,0,1348,1344,1,0,0,0,1348,1345,1,0,0,0,1348,1346,1,
+		0,0,0,1348,1347,1,0,0,0,1349,165,1,0,0,0,1350,1354,3,168,84,0,1351,1353,
+		3,170,85,0,1352,1351,1,0,0,0,1353,1356,1,0,0,0,1354,1352,1,0,0,0,1354,
+		1355,1,0,0,0,1355,167,1,0,0,0,1356,1354,1,0,0,0,1357,1370,5,107,0,0,1358,
+		1359,5,89,0,0,1359,1360,3,154,77,0,1360,1361,5,90,0,0,1361,1370,1,0,0,
+		0,1362,1363,5,46,0,0,1363,1364,5,107,0,0,1364,1366,5,89,0,0,1365,1367,
+		3,130,65,0,1366,1365,1,0,0,0,1366,1367,1,0,0,0,1367,1368,1,0,0,0,1368,
+		1370,5,90,0,0,1369,1357,1,0,0,0,1369,1358,1,0,0,0,1369,1362,1,0,0,0,1370,
+		169,1,0,0,0,1371,1372,5,98,0,0,1372,1388,3,172,86,0,1373,1374,5,67,0,0,
+		1374,1388,3,172,86,0,1375,1376,5,93,0,0,1376,1377,3,154,77,0,1377,1378,
+		5,94,0,0,1378,1388,1,0,0,0,1379,1380,5,96,0,0,1380,1381,3,172,86,0,1381,
+		1382,3,178,89,0,1382,1388,1,0,0,0,1383,1388,3,178,89,0,1384,1385,5,86,
+		0,0,1385,1388,3,178,89,0,1386,1388,5,87,0,0,1387,1371,1,0,0,0,1387,1373,
+		1,0,0,0,1387,1375,1,0,0,0,1387,1379,1,0,0,0,1387,1383,1,0,0,0,1387,1384,
+		1,0,0,0,1387,1386,1,0,0,0,1388,171,1,0,0,0,1389,1390,7,2,0,0,1390,173,
+		1,0,0,0,1391,1414,5,107,0,0,1392,1396,3,168,84,0,1393,1395,3,170,85,0,
+		1394,1393,1,0,0,0,1395,1398,1,0,0,0,1396,1394,1,0,0,0,1396,1397,1,0,0,
+		0,1397,1399,1,0,0,0,1398,1396,1,0,0,0,1399,1400,5,98,0,0,1400,1401,3,172,
+		86,0,1401,1414,1,0,0,0,1402,1406,3,168,84,0,1403,1405,3,170,85,0,1404,
+		1403,1,0,0,0,1405,1408,1,0,0,0,1406,1404,1,0,0,0,1406,1407,1,0,0,0,1407,
+		1409,1,0,0,0,1408,1406,1,0,0,0,1409,1410,5,93,0,0,1410,1411,3,154,77,0,
+		1411,1412,5,94,0,0,1412,1414,1,0,0,0,1413,1391,1,0,0,0,1413,1392,1,0,0,
+		0,1413,1402,1,0,0,0,1414,175,1,0,0,0,1415,1419,3,168,84,0,1416,1418,3,
+		170,85,0,1417,1416,1,0,0,0,1418,1421,1,0,0,0,1419,1417,1,0,0,0,1419,1420,
+		1,0,0,0,1420,1422,1,0,0,0,1421,1419,1,0,0,0,1422,1423,3,178,89,0,1423,
+		1436,1,0,0,0,1424,1428,3,168,84,0,1425,1427,3,170,85,0,1426,1425,1,0,0,
+		0,1427,1430,1,0,0,0,1428,1426,1,0,0,0,1428,1429,1,0,0,0,1429,1431,1,0,
+		0,0,1430,1428,1,0,0,0,1431,1432,5,96,0,0,1432,1433,3,172,86,0,1433,1434,
+		3,178,89,0,1434,1436,1,0,0,0,1435,1415,1,0,0,0,1435,1424,1,0,0,0,1436,
+		177,1,0,0,0,1437,1439,5,89,0,0,1438,1440,3,130,65,0,1439,1438,1,0,0,0,
+		1439,1440,1,0,0,0,1440,1441,1,0,0,0,1441,1445,5,90,0,0,1442,1445,3,182,
+		91,0,1443,1445,3,192,96,0,1444,1437,1,0,0,0,1444,1442,1,0,0,0,1444,1443,
+		1,0,0,0,1445,179,1,0,0,0,1446,1448,5,36,0,0,1447,1446,1,0,0,0,1447,1448,
+		1,0,0,0,1448,1449,1,0,0,0,1449,1450,5,9,0,0,1450,1451,3,112,56,0,1451,
+		181,1,0,0,0,1452,1454,5,91,0,0,1453,1455,3,184,92,0,1454,1453,1,0,0,0,
+		1454,1455,1,0,0,0,1455,1456,1,0,0,0,1456,1457,5,92,0,0,1457,183,1,0,0,
+		0,1458,1464,3,186,93,0,1459,1460,3,188,94,0,1460,1461,3,186,93,0,1461,
+		1463,1,0,0,0,1462,1459,1,0,0,0,1463,1466,1,0,0,0,1464,1462,1,0,0,0,1464,
+		1465,1,0,0,0,1465,1468,1,0,0,0,1466,1464,1,0,0,0,1467,1469,3,188,94,0,
+		1468,1467,1,0,0,0,1468,1469,1,0,0,0,1469,185,1,0,0,0,1470,1471,5,93,0,
+		0,1471,1472,3,154,77,0,1472,1473,5,94,0,0,1473,1474,5,85,0,0,1474,1475,
+		3,154,77,0,1475,1488,1,0,0,0,1476,1477,3,172,86,0,1477,1478,5,85,0,0,1478,
+		1479,3,154,77,0,1479,1488,1,0,0,0,1480,1482,5,36,0,0,1481,1480,1,0,0,0,
+		1481,1482,1,0,0,0,1482,1483,1,0,0,0,1483,1484,5,9,0,0,1484,1485,5,107,
+		0,0,1485,1488,3,112,56,0,1486,1488,3,154,77,0,1487,1470,1,0,0,0,1487,1476,
+		1,0,0,0,1487,1481,1,0,0,0,1487,1486,1,0,0,0,1488,187,1,0,0,0,1489,1490,
+		7,3,0,0,1490,189,1,0,0,0,1491,1496,5,103,0,0,1492,1496,5,104,0,0,1493,
+		1496,5,105,0,0,1494,1496,5,106,0,0,1495,1491,1,0,0,0,1495,1492,1,0,0,0,
+		1495,1493,1,0,0,0,1495,1494,1,0,0,0,1496,191,1,0,0,0,1497,1502,5,99,0,
+		0,1498,1502,5,100,0,0,1499,1502,5,101,0,0,1500,1502,5,102,0,0,1501,1497,
+		1,0,0,0,1501,1498,1,0,0,0,1501,1499,1,0,0,0,1501,1500,1,0,0,0,1502,193,
+		1,0,0,0,177,200,204,216,223,250,253,277,281,301,329,335,341,345,348,352,
+		361,370,375,380,387,390,397,401,407,416,424,428,436,441,449,457,461,466,
+		470,478,481,486,493,496,500,504,508,511,514,517,525,529,546,552,566,572,
+		580,583,588,599,607,615,618,622,630,638,644,652,658,668,675,705,712,721,
+		729,738,746,753,771,776,781,785,793,796,801,808,816,819,824,828,832,835,
+		839,843,846,849,852,855,875,878,882,886,894,899,904,908,924,930,935,939,
+		947,950,955,964,972,975,980,991,996,1000,1011,1016,1019,1023,1027,1037,
+		1042,1045,1050,1054,1058,1061,1068,1076,1084,1089,1092,1103,1114,1121,
+		1127,1133,1143,1150,1158,1169,1171,1175,1186,1205,1209,1213,1216,1236,
+		1252,1315,1317,1327,1332,1336,1342,1348,1354,1366,1369,1387,1396,1406,
+		1413,1419,1428,1435,1439,1444,1447,1454,1464,1468,1481,1487,1495,1501
 	};
 
 	public static readonly ATN _ATN =

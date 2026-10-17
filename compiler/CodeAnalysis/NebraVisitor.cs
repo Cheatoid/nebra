@@ -1350,13 +1350,6 @@ public interface INebraVisitor<Result> : IParseTreeVisitor<Result> {
 	/// <return>The visitor result.</return>
 	Result VisitNilLiteral([NotNull] NebraParser.NilLiteralContext context);
 	/// <summary>
-	/// Visit a parse tree produced by the <c>NewExpr</c>
-	/// labeled alternative in <see cref="NebraParser.expr"/>.
-	/// </summary>
-	/// <param name="context">The parse tree.</param>
-	/// <return>The visitor result.</return>
-	Result VisitNewExpr([NotNull] NebraParser.NewExprContext context);
-	/// <summary>
 	/// Visit a parse tree produced by the <c>BitwiseXorExpr</c>
 	/// labeled alternative in <see cref="NebraParser.expr"/>.
 	/// </summary>
@@ -1544,6 +1537,13 @@ public interface INebraVisitor<Result> : IParseTreeVisitor<Result> {
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
 	Result VisitParenVarOrExp([NotNull] NebraParser.ParenVarOrExpContext context);
+	/// <summary>
+	/// Visit a parse tree produced by the <c>NewVarOrExp</c>
+	/// labeled alternative in <see cref="NebraParser.varOrExp"/>.
+	/// </summary>
+	/// <param name="context">The parse tree.</param>
+	/// <return>The visitor result.</return>
+	Result VisitNewVarOrExp([NotNull] NebraParser.NewVarOrExpContext context);
 	/// <summary>
 	/// Visit a parse tree produced by the <c>DotSuffix</c>
 	/// labeled alternative in <see cref="NebraParser.suffix"/>.

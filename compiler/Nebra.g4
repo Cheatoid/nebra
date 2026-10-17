@@ -724,7 +724,6 @@ expr
     | prefixExp                                                 # PrefixExpr
     | tableConstructor                                          # TableConstructorExpr
     | matchExpr                                                 # MatchExprExpr
-    | NEW NAME LPAREN exprList? RPAREN                          # NewExpr
     | SUPER LPAREN exprList? RPAREN                             # SuperCallExpr
 
     // --- Power (tightest, right-associative) ---
@@ -817,6 +816,7 @@ prefixExp
 varOrExp
     : NAME                                                      # NameVarOrExp
     | LPAREN expr RPAREN                                        # ParenVarOrExp
+    | NEW NAME LPAREN exprList? RPAREN                          # NewVarOrExp
     ;
 
 suffix

@@ -2672,20 +2672,6 @@ public partial class NebraBaseListener : INebraListener {
 	/// <param name="context">The parse tree.</param>
 	public virtual void ExitNilLiteral([NotNull] NebraParser.NilLiteralContext context) { }
 	/// <summary>
-	/// Enter a parse tree produced by the <c>NewExpr</c>
-	/// labeled alternative in <see cref="NebraParser.expr"/>.
-	/// <para>The default implementation does nothing.</para>
-	/// </summary>
-	/// <param name="context">The parse tree.</param>
-	public virtual void EnterNewExpr([NotNull] NebraParser.NewExprContext context) { }
-	/// <summary>
-	/// Exit a parse tree produced by the <c>NewExpr</c>
-	/// labeled alternative in <see cref="NebraParser.expr"/>.
-	/// <para>The default implementation does nothing.</para>
-	/// </summary>
-	/// <param name="context">The parse tree.</param>
-	public virtual void ExitNewExpr([NotNull] NebraParser.NewExprContext context) { }
-	/// <summary>
 	/// Enter a parse tree produced by the <c>BitwiseXorExpr</c>
 	/// labeled alternative in <see cref="NebraParser.expr"/>.
 	/// <para>The default implementation does nothing.</para>
@@ -3061,6 +3047,20 @@ public partial class NebraBaseListener : INebraListener {
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	public virtual void ExitParenVarOrExp([NotNull] NebraParser.ParenVarOrExpContext context) { }
+	/// <summary>
+	/// Enter a parse tree produced by the <c>NewVarOrExp</c>
+	/// labeled alternative in <see cref="NebraParser.varOrExp"/>.
+	/// <para>The default implementation does nothing.</para>
+	/// </summary>
+	/// <param name="context">The parse tree.</param>
+	public virtual void EnterNewVarOrExp([NotNull] NebraParser.NewVarOrExpContext context) { }
+	/// <summary>
+	/// Exit a parse tree produced by the <c>NewVarOrExp</c>
+	/// labeled alternative in <see cref="NebraParser.varOrExp"/>.
+	/// <para>The default implementation does nothing.</para>
+	/// </summary>
+	/// <param name="context">The parse tree.</param>
+	public virtual void ExitNewVarOrExp([NotNull] NebraParser.NewVarOrExpContext context) { }
 	/// <summary>
 	/// Enter a parse tree produced by the <c>DotSuffix</c>
 	/// labeled alternative in <see cref="NebraParser.suffix"/>.

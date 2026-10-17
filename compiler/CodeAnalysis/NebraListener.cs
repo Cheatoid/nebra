@@ -2275,18 +2275,6 @@ public interface INebraListener : IParseTreeListener {
 	/// <param name="context">The parse tree.</param>
 	void ExitNilLiteral([NotNull] NebraParser.NilLiteralContext context);
 	/// <summary>
-	/// Enter a parse tree produced by the <c>NewExpr</c>
-	/// labeled alternative in <see cref="NebraParser.expr"/>.
-	/// </summary>
-	/// <param name="context">The parse tree.</param>
-	void EnterNewExpr([NotNull] NebraParser.NewExprContext context);
-	/// <summary>
-	/// Exit a parse tree produced by the <c>NewExpr</c>
-	/// labeled alternative in <see cref="NebraParser.expr"/>.
-	/// </summary>
-	/// <param name="context">The parse tree.</param>
-	void ExitNewExpr([NotNull] NebraParser.NewExprContext context);
-	/// <summary>
 	/// Enter a parse tree produced by the <c>BitwiseXorExpr</c>
 	/// labeled alternative in <see cref="NebraParser.expr"/>.
 	/// </summary>
@@ -2608,6 +2596,18 @@ public interface INebraListener : IParseTreeListener {
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	void ExitParenVarOrExp([NotNull] NebraParser.ParenVarOrExpContext context);
+	/// <summary>
+	/// Enter a parse tree produced by the <c>NewVarOrExp</c>
+	/// labeled alternative in <see cref="NebraParser.varOrExp"/>.
+	/// </summary>
+	/// <param name="context">The parse tree.</param>
+	void EnterNewVarOrExp([NotNull] NebraParser.NewVarOrExpContext context);
+	/// <summary>
+	/// Exit a parse tree produced by the <c>NewVarOrExp</c>
+	/// labeled alternative in <see cref="NebraParser.varOrExp"/>.
+	/// </summary>
+	/// <param name="context">The parse tree.</param>
+	void ExitNewVarOrExp([NotNull] NebraParser.NewVarOrExpContext context);
 	/// <summary>
 	/// Enter a parse tree produced by the <c>DotSuffix</c>
 	/// labeled alternative in <see cref="NebraParser.suffix"/>.

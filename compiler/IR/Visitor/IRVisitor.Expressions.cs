@@ -413,7 +413,7 @@ internal partial class IRVisitor
         return new AwaitExpr(NewNodeID, SpanFromCtx(context), inner);
     }
 
-    public override Node VisitNewExpr(NebraParser.NewExprContext context)
+    public override Node VisitNewVarOrExp(NebraParser.NewVarOrExpContext context)
     {
         var className = NameRefFromTerm(context.NAME());
         var args = context.exprList()?.expr().Select(e => (Expr)Visit(e)).ToList() ?? [];
