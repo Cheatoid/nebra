@@ -200,7 +200,11 @@
         },
         {
           "name": "storage.type.nebra",
-          "match": "\\b(function|class|interface|enum|extends|extend|implements|operator|constructor|new)\\b"
+          "match": "\\b(function|class|interface|enum|extends|extend|implements|constructor|new)\\b"
+        },
+        {
+          "name": "storage.type.nebra",
+          "match": "\\boperator(?=\\s*(\\+|-|\\*|/|%|\\^|\\.\\.|==|<|#))"
         },
         {
           "name": "keyword.operator.logical.word.nebra",

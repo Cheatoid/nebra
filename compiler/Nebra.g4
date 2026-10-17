@@ -295,13 +295,17 @@ classMember
     | annotationList (LOCAL | PROTECTED)? STATIC? OVERRIDE? ASYNC? FUNCTION NAME funcBody # ClassMethodMember
     | annotationList PROTECTED? ABSTRACT ASYNC? FUNCTION NAME funcSignature               # ClassAbstractMethodMember
     | annotationList CONSTRUCTOR funcBody                                                  # ClassConstructorMember
-    | annotationList OPERATOR operatorSymbol funcBody                                      # ClassOperatorMember
+    | annotationList operatorKeyword operatorSymbol funcBody                               # ClassOperatorMember
     | annotationList OVERRIDE? NAME NAME funcBody                                          # ClassAccessorMember
     ;
 
 // --- Overloadable Operators ---
 // Binary arity:  +  -  *  /  //  %  ^  ..  ==  <  <=
 // Unary arity:   -  #   (disambiguated from binary by parameter count)
+
+operatorKeyword
+    : NAME
+    ;
 
 operatorSymbol
     : PLUS                                                       # OpSymPlus
@@ -454,7 +458,7 @@ declareClassMember
     : annotationList (LOCAL | PROTECTED)? STATIC? NAME typeAnnotation?                              # DeclareClassFieldMember
     | annotationList (LOCAL | PROTECTED)? STATIC? OVERRIDE? ABSTRACT? ASYNC? FUNCTION NAME funcSignature  # DeclareClassMethodMember
     | annotationList CONSTRUCTOR funcSignature                                                       # DeclareClassConstructorMember
-    | annotationList OPERATOR operatorSymbol funcSignature                                           # DeclareClassOperatorMember
+    | annotationList operatorKeyword operatorSymbol funcSignature                                    # DeclareClassOperatorMember
     | annotationList NAME NAME funcSignature                                                         # DeclareClassAccessorMember
     ;
 
@@ -836,7 +840,7 @@ memberName
     : NAME
     | AS | DECLARE | ENUM | EXPORT | FROM | IMPORT | IS | CASE | MATCH | META | MODULE | MUT | WHEN
     | ASYNC | AWAIT | ABSTRACT | CLASS | INTERFACE | EXTENDS | EXTEND | IMPLEMENTS | CONSTRUCTOR
-    | STATIC | NEW | SUPER | OVERRIDE | PROTECTED | TYPEOF | INSTANCEOF | OPERATOR | DEFER | GUARD
+    | STATIC | NEW | SUPER | OVERRIDE | PROTECTED | TYPEOF | INSTANCEOF | DEFER | GUARD
     | CONTINUE
     ;
 
@@ -986,7 +990,6 @@ OVERRIDE    : 'override';
 PROTECTED   : 'protected';
 TYPEOF      : 'typeof';
 INSTANCEOF  : 'instanceof';
-OPERATOR    : 'operator';
 DEFER       : 'defer';
 GUARD       : 'guard';
 CONTINUE    : 'continue';

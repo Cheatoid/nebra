@@ -117,7 +117,7 @@ public sealed class SemanticTokensHandler(NebraWorkspace workspace) : SemanticTo
 
         CollectEnumMemberTokens(result, result.Hir.Body, overrides);
         CollectAnnotationTokens(result, overrides);
-        CollectMethodKeywords(result, overrides);
+        CollectContextualKeywords(result, overrides);
 
         return overrides;
     }
@@ -294,24 +294,37 @@ public sealed class SemanticTokensHandler(NebraWorkspace workspace) : SemanticTo
     }
 
     /// <summary>
-    /// Highlights the contextual keyword <c>method</c> of an interface member, which the lexer
-    /// reads as a plain name: a <c>method</c> followed by the member's name and its parameter or
-    /// type parameter list.
+    /// Highlights the contextual keywords the lexer reads as plain names: the <c>method</c> of an
+    /// interface member, followed by the member's name and its parameter or type parameter list,
+    /// and the <c>operator</c> of a class member, followed by the operator it defines.
     /// </summary>
-    private static void CollectMethodKeywords(AnalysisResult result, Dictionary<(int, int), int> overrides)
+    private static void CollectContextualKeywords(AnalysisResult result, Dictionary<(int, int), int> overrides)
     {
         result.TokenStream.Fill();
         var tokens = result.TokenStream.GetTokens().Where(token => token.Channel == 0).ToList();
 
-        for (var index = 0; index + 2 < tokens.Count; index++)
+        for (var index = 0; index + 1 < tokens.Count; index++)
         {
             var keyword = tokens[index];
-            if (keyword.Type != NebraLexer.NAME || keyword.Text != "method") continue;
-            if (tokens[index + 1].Type != NebraLexer.NAME) continue;
-            if (tokens[index + 2].Type is not (NebraLexer.LPAREN or NebraLexer.LT)) continue;
+            if (keyword.Type != NebraLexer.NAME) continue;
+            if (!IsMethodKeyword(tokens, index) && !IsOperatorKeyword(tokens, index)) continue;
 
             overrides[(keyword.Line - 1, keyword.Column)] = 0;
         }
+    }
+
+    private static bool IsMethodKeyword(List<IToken> tokens, int index)
+    {
+        return tokens[index].Text == "method" && index + 2 < tokens.Count
+            && tokens[index + 1].Type == NebraLexer.NAME
+            && tokens[index + 2].Type is NebraLexer.LPAREN or NebraLexer.LT;
+    }
+
+    private static bool IsOperatorKeyword(List<IToken> tokens, int index)
+    {
+        return tokens[index].Text == "operator" && tokens[index + 1].Type is NebraLexer.PLUS or NebraLexer.MINUS
+            or NebraLexer.STAR or NebraLexer.SLASH or NebraLexer.DSLASH or NebraLexer.PERCENT or NebraLexer.CARET
+            or NebraLexer.CONCAT or NebraLexer.EQ or NebraLexer.LT or NebraLexer.LTE or NebraLexer.HASH;
     }
 
     /// <summary>

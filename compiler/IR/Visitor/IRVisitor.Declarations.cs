@@ -17,6 +17,20 @@ internal partial class IRVisitor
     }
 
     /// <summary>
+    /// Tells whether a class member is declared with <c>operator</c>. <c>operator</c> is a
+    /// contextual keyword, so the grammar accepts any identifier in its place and anything else
+    /// is reported here.
+    /// </summary>
+    private bool IsOperatorKeyword(NebraParser.OperatorKeywordContext keyword)
+    {
+        if (keyword.NAME().GetText() == "operator") return true;
+
+        diag.Report(SpanFromTerm(keyword.NAME()), Diagnostics.DiagnosticCode.ErrUnexpectedToken,
+            $"unexpected `{keyword.NAME().GetText()}`; an operator is declared with `operator`");
+        return false;
+    }
+
+    /// <summary>
     /// Tells whether an interface member is declared with <c>method</c> rather than
     /// <c>function</c>. <c>method</c> is a contextual keyword, so the grammar accepts any
     /// identifier in its place and anything else is reported here.
@@ -268,6 +282,7 @@ internal partial class IRVisitor
                 case NebraParser.DeclareClassOperatorMemberContext opMember:
                 {
                     var (parameters, returnType) = VisitFuncSignatureContent(opMember.funcSignature());
+                    if (!IsOperatorKeyword(opMember.operatorKeyword())) break;
                     var symText = opMember.operatorSymbol().GetText();
                     var metaName = OperatorSymbolToMetamethod(symText, parameters.Count, out var diagMsg);
                     if (metaName == null)
@@ -415,6 +430,7 @@ internal partial class IRVisitor
                 case NebraParser.DeclareClassOperatorMemberContext opMember:
                 {
                     var (parameters, returnType) = VisitFuncSignatureContent(opMember.funcSignature());
+                    if (!IsOperatorKeyword(opMember.operatorKeyword())) break;
                     var symText = opMember.operatorSymbol().GetText();
                     var metaName = OperatorSymbolToMetamethod(symText, parameters.Count, out var diagMsg);
                     if (metaName == null)
@@ -631,6 +647,7 @@ internal partial class IRVisitor
                 case NebraParser.ClassOperatorMemberContext opMember:
                 {
                     var (parameters, returnType, body, ret) = VisitFuncBodyContent(opMember.funcBody());
+                    if (!IsOperatorKeyword(opMember.operatorKeyword())) break;
                     var symText = opMember.operatorSymbol().GetText();
                     var metaName = OperatorSymbolToMetamethod(symText, parameters.Count, out var diagMsg);
                     if (metaName == null)

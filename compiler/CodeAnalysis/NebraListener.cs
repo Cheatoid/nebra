@@ -849,6 +849,16 @@ public interface INebraListener : IParseTreeListener {
 	/// <param name="context">The parse tree.</param>
 	void ExitClassAccessorMember([NotNull] NebraParser.ClassAccessorMemberContext context);
 	/// <summary>
+	/// Enter a parse tree produced by <see cref="NebraParser.operatorKeyword"/>.
+	/// </summary>
+	/// <param name="context">The parse tree.</param>
+	void EnterOperatorKeyword([NotNull] NebraParser.OperatorKeywordContext context);
+	/// <summary>
+	/// Exit a parse tree produced by <see cref="NebraParser.operatorKeyword"/>.
+	/// </summary>
+	/// <param name="context">The parse tree.</param>
+	void ExitOperatorKeyword([NotNull] NebraParser.OperatorKeywordContext context);
+	/// <summary>
 	/// Enter a parse tree produced by the <c>OpSymPlus</c>
 	/// labeled alternative in <see cref="NebraParser.operatorSymbol"/>.
 	/// </summary>

@@ -513,6 +513,12 @@ public interface INebraVisitor<Result> : IParseTreeVisitor<Result> {
 	/// <return>The visitor result.</return>
 	Result VisitClassAccessorMember([NotNull] NebraParser.ClassAccessorMemberContext context);
 	/// <summary>
+	/// Visit a parse tree produced by <see cref="NebraParser.operatorKeyword"/>.
+	/// </summary>
+	/// <param name="context">The parse tree.</param>
+	/// <return>The visitor result.</return>
+	Result VisitOperatorKeyword([NotNull] NebraParser.OperatorKeywordContext context);
+	/// <summary>
 	/// Visit a parse tree produced by the <c>OpSymPlus</c>
 	/// labeled alternative in <see cref="NebraParser.operatorSymbol"/>.
 	/// </summary>

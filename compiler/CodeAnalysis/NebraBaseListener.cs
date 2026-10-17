@@ -998,6 +998,18 @@ public partial class NebraBaseListener : INebraListener {
 	/// <param name="context">The parse tree.</param>
 	public virtual void ExitClassAccessorMember([NotNull] NebraParser.ClassAccessorMemberContext context) { }
 	/// <summary>
+	/// Enter a parse tree produced by <see cref="NebraParser.operatorKeyword"/>.
+	/// <para>The default implementation does nothing.</para>
+	/// </summary>
+	/// <param name="context">The parse tree.</param>
+	public virtual void EnterOperatorKeyword([NotNull] NebraParser.OperatorKeywordContext context) { }
+	/// <summary>
+	/// Exit a parse tree produced by <see cref="NebraParser.operatorKeyword"/>.
+	/// <para>The default implementation does nothing.</para>
+	/// </summary>
+	/// <param name="context">The parse tree.</param>
+	public virtual void ExitOperatorKeyword([NotNull] NebraParser.OperatorKeywordContext context) { }
+	/// <summary>
 	/// Enter a parse tree produced by the <c>OpSymPlus</c>
 	/// labeled alternative in <see cref="NebraParser.operatorSymbol"/>.
 	/// <para>The default implementation does nothing.</para>

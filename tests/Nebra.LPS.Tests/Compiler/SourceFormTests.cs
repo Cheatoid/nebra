@@ -33,6 +33,16 @@ public sealed class SourceFormTests
     }
 
     [Fact]
+    public void OperatorIsAKeywordOnlyWhereAClassMemberStarts()
+    {
+        var build = Build("class Rule\n    operator: string = \"==\"\n\n    constructor(operator: string)\n        self.operator = operator\n    end\n\n    operator ==(other: Rule): boolean\n        return self.operator == other.operator\n    end\nend\n\nlocal options = { operator = \"<\" }\nprint(new Rule(\"<\") == new Rule(options.operator))\n");
+
+        Assert.Empty(build.Errors);
+        Assert.Contains("__eq", build.Lua("src/main.neb"));
+        Assert.Equal(DiagnosticCode.ErrUnexpectedToken, Assert.Single(Build("class Bad\n    operater +(other: Bad): Bad\n        return self\n    end\nend\n\nprint(Bad)\n").Errors).Code);
+    }
+
+    [Fact]
     public void MethodCallsFollowNewAndContinueOnTheNextLine()
     {
         var build = Build("class Builder\n    function column(name: string): Builder\n        return self\n    end\n\n    function build(): nil\n    end\nend\n\nnew Builder()\n    :column(\"a\")\n    :column(\"b\")\n    :build()\nprint(new Builder():column(\"c\"))\n");
