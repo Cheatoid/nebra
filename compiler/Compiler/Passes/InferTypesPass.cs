@@ -612,11 +612,16 @@ public sealed class InferTypesPass() : Pass(PassName, PassScope.PerBuild)
                 ResolveStmts(pc, doBlockStmt.Body);
                 break;
             case WhileStmt whileStmt:
+            {
                 SynthesizeExpr(pc, whileStmt.Condition);
+                var (whileTrue, _) = AnalyzeCondition(pc, whileStmt.Condition);
+                var whileSaved = PushAllNarrows(whileTrue);
                 _loopDepth++;
                 ResolveStmts(pc, whileStmt.Body);
                 _loopDepth--;
+                PopAllNarrows(whileSaved);
                 break;
+            }
             case RepeatStmt repeatStmt:
                 _loopDepth++;
                 ResolveStmts(pc, repeatStmt.Body);

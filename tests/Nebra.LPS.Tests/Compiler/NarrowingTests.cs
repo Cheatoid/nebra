@@ -92,4 +92,28 @@ public sealed class NarrowingTests
         Assert.Empty(Errors("local factors: { [string]: number } = { ms = 1, s = 1000 }\nprint(factors[\"ms\"])\n"));
         Assert.NotEmpty(Errors("local factors: { [string]: number } = { ms = \"one\" }\nprint(factors)\n"));
     }
+
+    private const string Tree = "class Node\n    name: string = \"n\"\n    parent: Node? = nil\nend\n\n";
+
+    [Fact]
+    public void AWhileConditionNarrowsTheBodyUntilTheValueIsReassigned()
+    {
+        Assert.Empty(Errors(Tree + "local function depth(start: Node?): number\n    local x = start\n    local count = 0\n    while x ~= nil do\n        print(x.name)\n        count = count + 1\n        x = x.parent\n    end\n    return count\nend\n\nprint(depth(nil))\n"));
+        Assert.Equal(DiagnosticCode.ErrPossiblyNil, Assert.Single(Errors(Tree + "local function walk(start: Node?): nil\n    local x = start\n    while x ~= nil do\n        x = x.parent\n        print(x.name)\n    end\nend\n\nwalk(nil)\n")).Code);
+    }
+
+    [Fact]
+    public void KeywordsAreMethodNamesExceptNew()
+    {
+        Assert.Empty(Errors("class Builder\n    function abstract(): Builder\n        return self\n    end\n\n    function extends(base: string): Builder\n        return self\n    end\nend\n\nprint(new Builder():abstract():extends(\"Model\"))\n"));
+        Assert.Equal(DiagnosticCode.ErrUnexpectedToken, Assert.Single(Errors("class Builder\n    function new(): nil\n    end\nend\n\nprint(Builder)\n")).Code);
+    }
+
+    [Fact]
+    public void ASyntaxErrorInAnImportedModuleIsReported()
+    {
+        var errors = Errors(("broken.neb", "export class Broken\n    function (): nil\n    end\nend\n"), ("main.neb", "import { Broken } from \"./broken\"\n\nprint(Broken)\n"));
+
+        Assert.Contains(errors, error => error.Code == DiagnosticCode.ErrUnexpectedToken && error.Message == "missing a name");
+    }
 }
