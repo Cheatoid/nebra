@@ -251,6 +251,18 @@ internal partial class IRVisitor
     /// Whether an import is written <c>import type</c>. <c>type</c> is a contextual keyword, so the
     /// grammar accepts any identifier in its place and anything else is reported here.
     /// </summary>
+    /// <summary>
+    /// Reports an import or re-export whose <c>from</c> is misspelled. <c>from</c> is a contextual
+    /// keyword, so the grammar accepts any identifier in its place.
+    /// </summary>
+    private void CheckFromKeyword(NebraParser.FromKeywordContext keyword)
+    {
+        if (keyword.NAME().GetText() == "from") return;
+
+        diag.Report(SpanFromTerm(keyword.NAME()), Diagnostics.DiagnosticCode.ErrUnexpectedToken,
+            $"unexpected `{keyword.NAME().GetText()}`; the module is named after `from`");
+    }
+
     private bool IsTypeImportModifier(NebraParser.ImportModifierContext? modifier)
     {
         if (modifier == null) return false;
@@ -263,6 +275,7 @@ internal partial class IRVisitor
 
     public override Node VisitImportFrom(NebraParser.ImportFromContext context)
     {
+        CheckFromKeyword(context.fromKeyword());
         var module = NameRefFromString(context.str());
         var body = context.importBody();
 
@@ -342,6 +355,7 @@ internal partial class IRVisitor
 
     public override Node VisitExportFrom(NebraParser.ExportFromContext context)
     {
+        CheckFromKeyword(context.fromKeyword());
         return new ImportStmt(NewNodeID, SpanFromCtx(context), ImportKind.Named, NameRefFromString(context.str()))
         {
             IsReExport = true,

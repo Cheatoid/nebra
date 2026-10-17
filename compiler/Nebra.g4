@@ -244,7 +244,7 @@ annotationArg
 //   import "polyfill"
 
 importStat
-    : IMPORT importModifier? importBody FROM str                # ImportFrom
+    : IMPORT importModifier? importBody fromKeyword str         # ImportFrom
     | IMPORT str                                                # ImportSideEffect
     ;
 
@@ -252,8 +252,12 @@ importModifier
     : NAME
     ;
 
+fromKeyword
+    : NAME
+    ;
+
 importBody
-    : LBRACE importName (COMMA importName)* COMMA? RBRACE       # NamedImport
+    : LBRACE (importName (COMMA importName)* COMMA?)? RBRACE    # NamedImport
     | NAME                                                       # DefaultImport
     | STAR AS NAME                                               # NamespaceImport
     ;
@@ -395,7 +399,7 @@ exportStat
     | annotationList EXPORT enumDecl                             # ExportEnum
     | annotationList EXPORT classDecl                            # ExportClass
     | annotationList EXPORT interfaceDecl                        # ExportInterface
-    | EXPORT LBRACE importName (COMMA importName)* COMMA? RBRACE FROM str # ExportFrom
+    | EXPORT LBRACE (importName (COMMA importName)* COMMA?)? RBRACE fromKeyword str # ExportFrom
     ;
 
 // -----------------------------------------------------------------------------
@@ -843,7 +847,7 @@ suffix
 // so a library may well use one of them as a member name, such as string.match or ffi.new.
 memberName
     : NAME
-    | AS | DECLARE | ENUM | EXPORT | FROM | IMPORT | IS | CASE | MATCH | META | MODULE | MUT | WHEN
+    | AS | DECLARE | ENUM | EXPORT | IMPORT | IS | CASE | MATCH | META | MODULE | MUT | WHEN
     | ASYNC | AWAIT | ABSTRACT | CLASS | INTERFACE | EXTENDS | EXTEND | IMPLEMENTS | CONSTRUCTOR
     | STATIC | NEW | SUPER | OVERRIDE | PROTECTED | TYPEOF | INSTANCEOF | DEFER | GUARD
     | CONTINUE
@@ -970,7 +974,6 @@ AS       : 'as';
 DECLARE  : 'declare';
 ENUM     : 'enum';
 EXPORT   : 'export';
-FROM     : 'from';
 IMPORT   : 'import';
 IS       : 'is';
 CASE     : 'case';

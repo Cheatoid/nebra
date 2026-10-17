@@ -188,7 +188,7 @@
         },
         {
           "name": "keyword.control.import.nebra",
-          "match": "\\b(import|export|from|as|module)\\b"
+          "match": "\\b(import|export|as|module)\\b|\\bfrom(?=\\s*[\"'\\[])"
         },
         {
           "name": "keyword.control.async.nebra",

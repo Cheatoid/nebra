@@ -265,7 +265,7 @@ public sealed class SemanticTokensHandler(NebraWorkspace workspace) : SemanticTo
                 or NebraLexer.GOTO or NebraLexer.IF or NebraLexer.IN or NebraLexer.LOCAL or NebraLexer.NIL
                 or NebraLexer.NOT or NebraLexer.OR or NebraLexer.REPEAT or NebraLexer.RETURN
                 or NebraLexer.THEN or NebraLexer.TRUE or NebraLexer.UNTIL or NebraLexer.WHILE
-                or NebraLexer.AS or NebraLexer.IS or NebraLexer.DECLARE or NebraLexer.EXPORT or NebraLexer.FROM
+                or NebraLexer.AS or NebraLexer.IS or NebraLexer.DECLARE or NebraLexer.EXPORT
                 or NebraLexer.ASYNC or NebraLexer.AWAIT or NebraLexer.CASE or NebraLexer.ENUM
                 or NebraLexer.IMPORT or NebraLexer.MATCH or NebraLexer.META or NebraLexer.MODULE
                 or NebraLexer.MUT or NebraLexer.WHEN or NebraLexer.CLASS or NebraLexer.INTERFACE
@@ -296,7 +296,8 @@ public sealed class SemanticTokensHandler(NebraWorkspace workspace) : SemanticTo
     /// <summary>
     /// Highlights the contextual keywords the lexer reads as plain names: the <c>method</c> of an
     /// interface member, followed by the member's name and its parameter or type parameter list,
-    /// and the <c>operator</c> of a class member, followed by the operator it defines.
+    /// the <c>operator</c> of a class member, followed by the operator it defines, the <c>from</c>
+    /// before an import's module and the <c>type</c> of an <c>import type</c>.
     /// </summary>
     private static void CollectContextualKeywords(AnalysisResult result, Dictionary<(int, int), int> overrides)
     {
@@ -307,7 +308,7 @@ public sealed class SemanticTokensHandler(NebraWorkspace workspace) : SemanticTo
         {
             var keyword = tokens[index];
             if (keyword.Type != NebraLexer.NAME) continue;
-            if (!IsMethodKeyword(tokens, index) && !IsOperatorKeyword(tokens, index)) continue;
+            if (!IsMethodKeyword(tokens, index) && !IsOperatorKeyword(tokens, index) && !IsImportKeyword(tokens, index)) continue;
 
             overrides[(keyword.Line - 1, keyword.Column)] = 0;
         }
@@ -318,6 +319,15 @@ public sealed class SemanticTokensHandler(NebraWorkspace workspace) : SemanticTo
         return tokens[index].Text == "method" && index + 2 < tokens.Count
             && tokens[index + 1].Type == NebraLexer.NAME
             && tokens[index + 2].Type is NebraLexer.LPAREN or NebraLexer.LT;
+    }
+
+    private static bool IsImportKeyword(List<IToken> tokens, int index)
+    {
+        if (tokens[index].Text == "from")
+            return tokens[index + 1].Type is NebraLexer.NORMAL_STRING or NebraLexer.CHAR_STRING or NebraLexer.LONG_STRING;
+
+        return tokens[index].Text == "type" && index > 0 && tokens[index - 1].Type == NebraLexer.IMPORT
+            && tokens[index + 1].Type is NebraLexer.LBRACE or NebraLexer.NAME or NebraLexer.STAR;
     }
 
     private static bool IsOperatorKeyword(List<IToken> tokens, int index)

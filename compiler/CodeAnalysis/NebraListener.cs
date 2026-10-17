@@ -711,6 +711,16 @@ public interface INebraListener : IParseTreeListener {
 	/// <param name="context">The parse tree.</param>
 	void ExitImportModifier([NotNull] NebraParser.ImportModifierContext context);
 	/// <summary>
+	/// Enter a parse tree produced by <see cref="NebraParser.fromKeyword"/>.
+	/// </summary>
+	/// <param name="context">The parse tree.</param>
+	void EnterFromKeyword([NotNull] NebraParser.FromKeywordContext context);
+	/// <summary>
+	/// Exit a parse tree produced by <see cref="NebraParser.fromKeyword"/>.
+	/// </summary>
+	/// <param name="context">The parse tree.</param>
+	void ExitFromKeyword([NotNull] NebraParser.FromKeywordContext context);
+	/// <summary>
 	/// Enter a parse tree produced by the <c>NamedImport</c>
 	/// labeled alternative in <see cref="NebraParser.importBody"/>.
 	/// </summary>

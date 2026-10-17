@@ -43,6 +43,16 @@ public sealed class SourceFormTests
     }
 
     [Fact]
+    public void FromIsAKeywordOnlyInImportsAndReExports()
+    {
+        var build = Build("import { from, Range } from \"./util\"\nexport { Range as Span } from \"./util\"\n\nlocal fromValue = from\nprint(fromValue, new Range():shift(2), { from = 3 })\n",
+            ("src/util.neb", "export local from = 1\n\nexport class Range\n    from: number = 0\n\n    function shift(from: number): number\n        return self.from + from\n    end\nend\n"));
+
+        Assert.Empty(build.Errors);
+        Assert.Equal(DiagnosticCode.ErrUnexpectedToken, Assert.Single(Build("import { from } frm \"./util\"\n", ("src/util.neb", "export local from = 1\n")).Errors).Code);
+    }
+
+    [Fact]
     public void MethodCallsFollowNewAndContinueOnTheNextLine()
     {
         var build = Build("class Builder\n    function column(name: string): Builder\n        return self\n    end\n\n    function build(): nil\n    end\nend\n\nnew Builder()\n    :column(\"a\")\n    :column(\"b\")\n    :build()\nprint(new Builder():column(\"c\"))\n");

@@ -432,6 +432,12 @@ public interface INebraVisitor<Result> : IParseTreeVisitor<Result> {
 	/// <return>The visitor result.</return>
 	Result VisitImportModifier([NotNull] NebraParser.ImportModifierContext context);
 	/// <summary>
+	/// Visit a parse tree produced by <see cref="NebraParser.fromKeyword"/>.
+	/// </summary>
+	/// <param name="context">The parse tree.</param>
+	/// <return>The visitor result.</return>
+	Result VisitFromKeyword([NotNull] NebraParser.FromKeywordContext context);
+	/// <summary>
 	/// Visit a parse tree produced by the <c>NamedImport</c>
 	/// labeled alternative in <see cref="NebraParser.importBody"/>.
 	/// </summary>

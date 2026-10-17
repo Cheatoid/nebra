@@ -836,6 +836,18 @@ public partial class NebraBaseListener : INebraListener {
 	/// <param name="context">The parse tree.</param>
 	public virtual void ExitImportModifier([NotNull] NebraParser.ImportModifierContext context) { }
 	/// <summary>
+	/// Enter a parse tree produced by <see cref="NebraParser.fromKeyword"/>.
+	/// <para>The default implementation does nothing.</para>
+	/// </summary>
+	/// <param name="context">The parse tree.</param>
+	public virtual void EnterFromKeyword([NotNull] NebraParser.FromKeywordContext context) { }
+	/// <summary>
+	/// Exit a parse tree produced by <see cref="NebraParser.fromKeyword"/>.
+	/// <para>The default implementation does nothing.</para>
+	/// </summary>
+	/// <param name="context">The parse tree.</param>
+	public virtual void ExitFromKeyword([NotNull] NebraParser.FromKeywordContext context) { }
+	/// <summary>
 	/// Enter a parse tree produced by the <c>NamedImport</c>
 	/// labeled alternative in <see cref="NebraParser.importBody"/>.
 	/// <para>The default implementation does nothing.</para>
