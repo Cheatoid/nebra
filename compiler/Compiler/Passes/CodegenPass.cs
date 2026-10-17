@@ -2301,7 +2301,7 @@ public sealed partial class CodegenPass() : Pass(PassName, PassScope.PerBuild, t
     {
         EmitExpr(ctx, pkg, gen, idx.Object);
         gen.Write("[");
-        if (gen.IndexBase != 1)
+        if (gen.IndexBase != 1 && MayBeNumber(ctx, pkg, idx.Index))
         {
             gen.Write(gen.AdjustIndex(ExprToInline(ctx, pkg, gen, idx.Index)));
         }
@@ -2310,6 +2310,18 @@ public sealed partial class CodegenPass() : Pass(PassName, PassScope.PerBuild, t
             EmitExpr(ctx, pkg, gen, idx.Index);
         }
         gen.Write("]");
+    }
+
+    /// <summary>
+    /// Whether a key may be a number, which the configured index base shifts. A key whose type
+    /// excludes numbers, such as the string in <c>t["name"]</c>, is written as it is.
+    /// </summary>
+    private static bool MayBeNumber(PassContext ctx, PackageContext pkg, Expr key)
+    {
+        if (!pkg.Types.GetByID(key.Type, out var type)) return true;
+        var members = type is UnionType union ? union.Types : [type];
+        return members.Any(member => member.Kind is TypeKind.PrimitiveNumber or TypeKind.PrimitiveAny
+            or TypeKind.TypeParameter or TypeKind.Enum);
     }
 
     private void EmitFunctionCall(PassContext ctx, PackageContext pkg, LuaGenerator gen, FunctionCallExpr call)
@@ -2414,7 +2426,7 @@ public sealed partial class CodegenPass() : Pass(PassName, PassScope.PerBuild, t
                     break;
                 case TableFieldKind.Bracket:
                     gen.Write("[");
-                    if (gen.IndexBase != 1)
+                    if (gen.IndexBase != 1 && MayBeNumber(ctx, pkg, field.Key!))
                         gen.Write(gen.AdjustIndex(ExprToInline(ctx, pkg, gen, field.Key!)));
                     else
                         EmitExpr(ctx, pkg, gen, field.Key!);

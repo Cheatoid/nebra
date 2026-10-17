@@ -4229,6 +4229,12 @@ public sealed class InferTypesPass() : Pass(PassName, PassScope.PerBuild)
                 if (TupleWithVariadicTailAssignable(pc, dstTuple, srcTuple)) return true;
             }
 
+            if (dstTypeNode is FunctionType dstFunction && srcTypeNode is FunctionType srcFunction
+                && IsFunctionAssignable(pc, dstFunction, srcFunction))
+            {
+                return true;
+            }
+
             if (dstTypeNode is TableMapType dstMap && srcTypeNode is StructType srcStruct
                 && IsTypeAssignable(pc, dstMap.KeyType.ID, tt.PrimString.ID)
                 && srcStruct.Fields.Where(field => !field.IsMeta).All(field => IsTypeAssignable(pc, dstMap.ValueType.ID, field.Type.ID)))
@@ -4245,6 +4251,24 @@ public sealed class InferTypesPass() : Pass(PassName, PassScope.PerBuild)
         }
 
         return StructEqual(pc, dst, src);
+    }
+
+    /// <summary>
+    /// Whether a function fits where <paramref name="dst"/> is expected: it accepts every argument
+    /// a caller passes, so each of its parameters takes the matching parameter type, and what it
+    /// returns fits the expected return type. It may declare fewer parameters, as a Lua callback
+    /// that ignores trailing arguments does.
+    /// </summary>
+    private bool IsFunctionAssignable(PassContext pc, FunctionType dst, FunctionType src)
+    {
+        if (src.ParamTypes.Count > dst.ParamTypes.Count && !dst.IsVararg) return false;
+
+        for (var i = 0; i < src.ParamTypes.Count && i < dst.ParamTypes.Count; i++)
+        {
+            if (!IsTypeAssignable(pc, src.ParamTypes[i].ID, dst.ParamTypes[i].ID)) return false;
+        }
+
+        return IsTypeAssignable(pc, dst.ReturnType.ID, src.ReturnType.ID);
     }
 
     /// <summary>
