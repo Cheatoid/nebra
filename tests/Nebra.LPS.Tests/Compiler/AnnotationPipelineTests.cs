@@ -90,4 +90,16 @@ public sealed class AnnotationPipelineTests
         Assert.Contains("local registered = \"none\"", lua);
         Assert.Contains("local audited = true", lua);
     }
+
+    [Fact]
+    public void ADeeplyNestedTargetGoesThroughAnAnnotationAndBack()
+    {
+        const string passThrough = "export local annotation = {\n    targets = { \"Function\" }\n}\n\nexport function apply(target, args)\n    return target\nend\n";
+        var depth = 200;
+        var body = string.Concat(Enumerable.Repeat("do\n", depth)) + "print(\"deep\")\n" + string.Concat(Enumerable.Repeat("end\n", depth));
+        var build = Build("@Keep\nfunction deep(): nil\n" + body + "end\n\ndeep()\n", ("Keep.neb", passThrough));
+
+        Assert.Empty(build.Errors);
+        Assert.Contains("print(\"deep\")", build.Lua("src/main.neb"));
+    }
 }

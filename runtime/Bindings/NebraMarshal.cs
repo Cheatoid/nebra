@@ -19,6 +19,7 @@ public static class NebraMarshal
     public static void Push(NebraRuntime rt, object? value)
     {
         var state = rt.State;
+        ReserveStack(state, 2);
         switch (value)
         {
             case null:
@@ -182,6 +183,7 @@ public static class NebraMarshal
 
     private static object ReadTable(NebraRuntime rt, Lua state, int idx)
     {
+        ReserveStack(state, 3);
         var abs = state.AbsIndex(idx);
         var hasStringKey = false;
         var maxIntKey = 0;
@@ -269,6 +271,16 @@ public static class NebraMarshal
     /// Reads the CLR instance backing a Lua userdata at <paramref name="idx"/>.
     /// Returns <c>null</c> if the userdata is empty or has already been collected.
     /// </summary>
+    /// <summary>
+    /// Makes room on the Lua stack before a nested table is pushed or read; Lua does not check
+    /// the few slots it guarantees, so a deep value would otherwise be written past the stack.
+    /// </summary>
+    private static void ReserveStack(Lua state, int slots)
+    {
+        if (!state.CheckStack(slots))
+            throw new InvalidOperationException("the value is nested too deeply for the Lua stack");
+    }
+
     internal static object? ReadUserdata(Lua state, int idx)
     {
         var ud = state.ToUserData(idx);

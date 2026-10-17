@@ -358,6 +358,7 @@ public sealed class NebraRuntime : IDisposable
     /// </summary>
     private void PushValue(object? value)
     {
+        ReserveStack(2);
         switch (value)
         {
             case null:
@@ -435,6 +436,7 @@ public sealed class NebraRuntime : IDisposable
 
     private object? ReadTable(int absIndex)
     {
+        ReserveStack(3);
         var hasStringKey = false;
         var maxIntKey = 0;
         var intKeyCount = 0;
@@ -486,6 +488,17 @@ public sealed class NebraRuntime : IDisposable
             State.Pop(1);
         }
         return dict;
+    }
+
+    /// <summary>
+    /// Makes room on the Lua stack before a nested table is pushed or read. Lua guarantees only a
+    /// few free slots and does not check them, so a deep tree would otherwise be written past the
+    /// end of the stack, into memory that is not Lua's.
+    /// </summary>
+    private void ReserveStack(int slots)
+    {
+        if (!State.CheckStack(slots))
+            throw new InvalidOperationException("the value is nested too deeply for the Lua stack");
     }
 
     public void Dispose()
