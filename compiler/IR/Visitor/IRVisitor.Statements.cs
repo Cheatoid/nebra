@@ -247,12 +247,26 @@ internal partial class IRVisitor
         return new ReturnStmt(NewNodeID, SpanFromCtx(context), values);
     }
     
+    /// <summary>
+    /// Whether an import is written <c>import type</c>. <c>type</c> is a contextual keyword, so the
+    /// grammar accepts any identifier in its place and anything else is reported here.
+    /// </summary>
+    private bool IsTypeImportModifier(NebraParser.ImportModifierContext? modifier)
+    {
+        if (modifier == null) return false;
+        if (modifier.NAME().GetText() == "type") return true;
+
+        diag.Report(SpanFromTerm(modifier.NAME()), Diagnostics.DiagnosticCode.ErrUnexpectedToken,
+            $"unexpected `{modifier.NAME().GetText()}`; a type-only import is written `import type`");
+        return false;
+    }
+
     public override Node VisitImportFrom(NebraParser.ImportFromContext context)
     {
         var module = NameRefFromString(context.str());
         var body = context.importBody();
 
-        return body switch
+        var import = body switch
         {
             NebraParser.NamedImportContext named => new ImportStmt(NewNodeID, SpanFromCtx(context), ImportKind.Named,
                 module)
@@ -280,6 +294,9 @@ internal partial class IRVisitor
             },
             _ => throw new InvalidOperationException($"Unknown import body type: {body.GetType().Name}")
         };
+
+        import.IsTypeImport = IsTypeImportModifier(context.importModifier());
+        return import;
     }
 
     public override Node VisitImportSideEffect(NebraParser.ImportSideEffectContext context)

@@ -15,6 +15,7 @@ public sealed partial class CodegenPass() : Pass(PassName, PassScope.PerBuild, t
     private readonly Stack<List<DeferStmt>> _deferStack = new();
     private readonly HashSet<int> _neededBreakLabels = [];
     private readonly Dictionary<ScopeID, string> _staticMemberTables = [];
+    private readonly HashSet<string> _hoistedNames = [];
 
     public override bool Run(PassContext context)
     {
@@ -41,6 +42,7 @@ public sealed partial class CodegenPass() : Pass(PassName, PassScope.PerBuild, t
         _reflectNamespace = ReflectNamespace(ctx, pkg, file);
         EmitReflectionPrelude(ctx, gen);
 
+        EmitHoistedNames(ctx, pkg, gen, file.Hir.Body);
         EmitStmtList(ctx, pkg, gen, file.Hir.Body);
 
         if (exportedNames.Count > 0)
@@ -73,6 +75,35 @@ public sealed partial class CodegenPass() : Pass(PassName, PassScope.PerBuild, t
             EmitReturn(ctx, pkg, gen, file.Hir.Return);
         }
     }
+
+    /// <summary>
+    /// Declares every top-level class and local function of the file before its first statement,
+    /// so a function body reaches one written further down. Their declarations then assign the
+    /// local instead of opening a new one.
+    /// </summary>
+    private void EmitHoistedNames(PassContext ctx, PackageContext pkg, LuaGenerator gen, List<Stmt> body)
+    {
+        _hoistedNames.Clear();
+        foreach (var stmt in body)
+        {
+            var name = (stmt is ExportStmt export ? export.Declaration : stmt) switch
+            {
+                ClassDecl { IsDeclare: false } cd => cd.Name,
+                LocalFunctionDecl lfd => lfd.Name,
+                _ => null,
+            };
+            if (name != null) _hoistedNames.Add(ResolveName(ctx, pkg, name));
+        }
+
+        if (_hoistedNames.Count == 0) return;
+
+        gen.Write("local " + string.Join(", ", _hoistedNames));
+        gen.NewLine();
+        gen.WriteSemicolon();
+    }
+
+    /// <summary>Whether a top-level declaration of <paramref name="name"/> assigns its hoisted local.</summary>
+    private bool IsHoisted(string name) => _stmtListDepth == 1 && _hoistedNames.Contains(name);
 
     /// <summary>
     /// One exported binding: the name importers write, and the name it carries in the emitted
@@ -415,7 +446,7 @@ public sealed partial class CodegenPass() : Pass(PassName, PassScope.PerBuild, t
         var hasBase = cd.BaseClass != null;
         var baseName = hasBase ? ResolveName(ctx, pkg, cd.BaseClass!) : null;
 
-        gen.Write("local ");
+        if (!IsHoisted(className)) gen.Write("local ");
         gen.Write(className);
         if (hasBase)
         {
@@ -921,7 +952,7 @@ public sealed partial class CodegenPass() : Pass(PassName, PassScope.PerBuild, t
             return actual is LocalFunctionDecl;
         });
 
-        gen.Write(isLocal ? "local function " : "function ");
+        gen.Write(isLocal && !IsHoisted(name) ? "local function " : "function ");
         gen.Write(name);
         gen.Write("(...)");
         gen.NewLine();
@@ -1071,8 +1102,9 @@ public sealed partial class CodegenPass() : Pass(PassName, PassScope.PerBuild, t
 
     private void EmitLocalFunctionDecl(PassContext ctx, PackageContext pkg, LuaGenerator gen, LocalFunctionDecl lfd)
     {
-        gen.Write("local function ");
-        gen.Write(ResolveName(ctx, pkg, lfd.Name));
+        var functionName = ResolveName(ctx, pkg, lfd.Name);
+        gen.Write(IsHoisted(functionName) ? "function " : "local function ");
+        gen.Write(functionName);
         gen.Write("(");
         EmitParamList(ctx, pkg, gen, lfd.Parameters);
         if (lfd.IsAsync)
@@ -1213,6 +1245,15 @@ public sealed partial class CodegenPass() : Pass(PassName, PassScope.PerBuild, t
     // EmitNumericFor and EmitGenericFor have been replaced by
     // EmitNumericForWithLabel and EmitGenericForWithLabel above.
 
+    private void EmitIteratorMethodCall(PassContext ctx, PackageContext pkg, LuaGenerator gen, Expr iterated)
+    {
+        var needsParentheses = iterated is not (NameExpr or DotAccessExpr or IndexAccessExpr or FunctionCallExpr or MethodCallExpr or ParenExpr);
+        if (needsParentheses) gen.Write("(");
+        EmitExpr(ctx, pkg, gen, iterated);
+        if (needsParentheses) gen.Write(")");
+        gen.Write(":iterator()");
+    }
+
     private void EmitGenericForIterators(PassContext ctx, PackageContext pkg, LuaGenerator gen, List<Expr> iterators)
     {
         for (var i = 0; i < iterators.Count; i++)
@@ -1342,7 +1383,10 @@ public sealed partial class CodegenPass() : Pass(PassName, PassScope.PerBuild, t
             gen.Write(ResolveName(ctx, pkg, gf.VarNames[i]));
         }
         gen.Write(" in ");
-        EmitGenericForIterators(ctx, pkg, gen, gf.Iterators);
+        if (gf.CallsIteratorMethod)
+            EmitIteratorMethodCall(ctx, pkg, gen, gf.Iterators[0]);
+        else
+            EmitGenericForIterators(ctx, pkg, gen, gf.Iterators);
         gen.Write(" do");
         gen.NewLine();
         gen.Indent();
@@ -1508,7 +1552,7 @@ public sealed partial class CodegenPass() : Pass(PassName, PassScope.PerBuild, t
 
     private void EmitImport(PassContext ctx, PackageContext pkg, LuaGenerator gen, ImportStmt import)
     {
-        if (import.IsTypeOnly) return;
+        if (import.IsTypeOnly || import.IsTypeImport) return;
 
         var modExpr = gen.EmitImport(import.Module.Name);
 

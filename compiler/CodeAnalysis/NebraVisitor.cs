@@ -426,6 +426,12 @@ public interface INebraVisitor<Result> : IParseTreeVisitor<Result> {
 	/// <return>The visitor result.</return>
 	Result VisitImportSideEffect([NotNull] NebraParser.ImportSideEffectContext context);
 	/// <summary>
+	/// Visit a parse tree produced by <see cref="NebraParser.importModifier"/>.
+	/// </summary>
+	/// <param name="context">The parse tree.</param>
+	/// <return>The visitor result.</return>
+	Result VisitImportModifier([NotNull] NebraParser.ImportModifierContext context);
+	/// <summary>
 	/// Visit a parse tree produced by the <c>NamedImport</c>
 	/// labeled alternative in <see cref="NebraParser.importBody"/>.
 	/// </summary>

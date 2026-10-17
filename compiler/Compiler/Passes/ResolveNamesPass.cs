@@ -466,6 +466,7 @@ public sealed class ResolveNamesPass() : Pass(PassName, PassScope.PerFile)
             {
                 pkg.Scopes.EnclosingScope(nameExpr.ID, out var scope);
                 ResolveNameRef(pc, nameExpr.Name, scope, pkg);
+                RejectTypeImport(pc, pkg, nameExpr.Name);
             }
                 break;
             case ParenExpr parenExpr:
@@ -527,6 +528,7 @@ public sealed class ResolveNamesPass() : Pass(PassName, PassScope.PerFile)
             {
                 pkg.Scopes.EnclosingScope(instOf.ID, out var instScope);
                 ResolveNameRef(pc, instOf.ClassName, instScope, pkg);
+                RejectTypeImport(pc, pkg, instOf.ClassName);
                 ResolveExprNames(pc, instOf.Inner, pkg);
                 break;
             }
@@ -551,6 +553,7 @@ public sealed class ResolveNamesPass() : Pass(PassName, PassScope.PerFile)
             {
                 pkg.Scopes.EnclosingScope(newExpr.ID, out var scope);
                 ResolveNameRef(pc, newExpr.ClassName, scope, pkg);
+                RejectTypeImport(pc, pkg, newExpr.ClassName);
                 foreach (var arg in newExpr.Arguments)
                     ResolveExprNames(pc, arg, pkg);
                 break;
@@ -573,6 +576,15 @@ public sealed class ResolveNamesPass() : Pass(PassName, PassScope.PerFile)
             default:
                 throw new InvalidOperationException($"Unexpected expression type: {expr.GetType().Name}");
         }
+    }
+
+    /// <summary>
+    /// Reports a name bound by <c>import type</c> where its value is needed at runtime.
+    /// </summary>
+    private static void RejectTypeImport(PassContext pc, PackageContext pkg, NameRef nameRef)
+    {
+        if (!pkg.Syms.GetByID(nameRef.Sym, out var symbol) || !symbol.Flags.HasFlag(SymbolFlags.TypeImport)) return;
+        pc.Diag.Report(nameRef.Span, DiagnosticCode.ErrTypeImportUsedAsValue, nameRef.Name);
     }
 
     private void ResolveNameRef(PassContext pc, NameRef nameRef, ScopeID start, PackageContext pkg)

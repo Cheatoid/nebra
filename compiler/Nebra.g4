@@ -244,8 +244,12 @@ annotationArg
 //   import "polyfill"
 
 importStat
-    : IMPORT importBody FROM str                                # ImportFrom
+    : IMPORT importModifier? importBody FROM str                # ImportFrom
     | IMPORT str                                                # ImportSideEffect
+    ;
+
+importModifier
+    : NAME
     ;
 
 importBody

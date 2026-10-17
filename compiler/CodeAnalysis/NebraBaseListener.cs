@@ -824,6 +824,18 @@ public partial class NebraBaseListener : INebraListener {
 	/// <param name="context">The parse tree.</param>
 	public virtual void ExitImportSideEffect([NotNull] NebraParser.ImportSideEffectContext context) { }
 	/// <summary>
+	/// Enter a parse tree produced by <see cref="NebraParser.importModifier"/>.
+	/// <para>The default implementation does nothing.</para>
+	/// </summary>
+	/// <param name="context">The parse tree.</param>
+	public virtual void EnterImportModifier([NotNull] NebraParser.ImportModifierContext context) { }
+	/// <summary>
+	/// Exit a parse tree produced by <see cref="NebraParser.importModifier"/>.
+	/// <para>The default implementation does nothing.</para>
+	/// </summary>
+	/// <param name="context">The parse tree.</param>
+	public virtual void ExitImportModifier([NotNull] NebraParser.ImportModifierContext context) { }
+	/// <summary>
 	/// Enter a parse tree produced by the <c>NamedImport</c>
 	/// labeled alternative in <see cref="NebraParser.importBody"/>.
 	/// <para>The default implementation does nothing.</para>

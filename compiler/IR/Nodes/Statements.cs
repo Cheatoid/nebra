@@ -105,6 +105,12 @@ public sealed class GenericForStmt(
     public List<NameRef> VarNames { get; } = varNames;
     public List<Expr> Iterators { get; } = iterators;
     public List<Stmt> Body { get; } = body;
+
+    /// <summary>
+    /// Set when the loop runs over a value whose type has an <c>iterator()</c> method, as in
+    /// <c>for i, item in collection do</c>: the loop iterates what <c>collection:iterator()</c> returns.
+    /// </summary>
+    public bool CallsIteratorMethod { get; set; }
 }
 
 public sealed class ReturnStmt(NodeID id, TextSpan span, List<Expr> values) : Stmt(id, span)
@@ -133,6 +139,12 @@ public sealed class ImportStmt(NodeID id, TextSpan span, ImportKind kind, NameRe
     /// re-execute it.
     /// </summary>
     public bool IsTypeOnly { get; init; }
+
+    /// <summary>
+    /// Written <c>import type</c>: the names are only used where types are written, so nothing is
+    /// loaded at runtime, and the import may be part of a cycle of imports.
+    /// </summary>
+    public bool IsTypeImport { get; set; }
 }
 
 public sealed class ExportStmt(NodeID id, TextSpan span, Decl declaration) : Stmt(id, span)

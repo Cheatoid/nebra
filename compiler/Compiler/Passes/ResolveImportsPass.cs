@@ -136,7 +136,7 @@ public sealed class ResolveImportsPass() : Pass(PassName, PassScope.PerBuild)
 
                 foreach (var stmt in file.Hir.Body)
                 {
-                    if (stmt is not ImportStmt import) continue;
+                    if (stmt is not ImportStmt import || import.IsTypeOnly || import.IsTypeImport) continue;
 
                     var key = $"import_resolved:{file.Filename}:{import.Module.Name}";
                     if (!context.Cache.TryGetValue(key, out var obj) || obj is not ResolvedModule resolved) continue;

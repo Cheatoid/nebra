@@ -692,7 +692,15 @@ public sealed class InferTypesPass() : Pass(PassName, PassScope.PerBuild)
                     iterTypes.Add(SynthesizeExpr(pc, iter));
                 }
 
-                InferGenericForVarTypes(pc, gf, iterTypes);
+                if (IteratorMethodOf(pc, gf, iterTypes) is { } iteratorMethod)
+                {
+                    gf.CallsIteratorMethod = true;
+                    InferIteratedVarTypes(pc, gf, iteratorMethod);
+                }
+                else
+                {
+                    InferGenericForVarTypes(pc, gf, iterTypes);
+                }
 
                 _loopDepth++;
                 ResolveStmts(pc, gf.Body);
@@ -2273,6 +2281,38 @@ public sealed class InferTypesPass() : Pass(PassName, PassScope.PerBuild)
         }
 
         return pc.Types.PrimAny;
+    }
+
+    /// <summary>
+    /// The <c>iterator()</c> method a loop over a single value calls: one of the value's class or
+    /// interface that takes no arguments.
+    /// </summary>
+    private FunctionType? IteratorMethodOf(PassContext pc, GenericForStmt gf, List<TypID> iterTypes)
+    {
+        if (gf.Iterators.Count != 1 || !pc.Pkg!.Types.GetByID(iterTypes[0], out var iterated)) return null;
+        if (iterated is not (ClassType or InterfaceType) && iterated.Kind != TypeKind.Parameterized) return null;
+
+        var method = ResolveMethodOnType(pc, iterated, "iterator");
+        var receiverCount = method != null && method.ParamNames.Count > 0 && method.ParamNames[0] == "self" ? 1 : 0;
+        return method != null && method.MinParamCount <= receiverCount ? method : null;
+    }
+
+    /// <summary>
+    /// Types the variables of a loop over <c>iterator()</c>: what its iterator function returns,
+    /// when the method declares one, and <c>any</c> otherwise.
+    /// </summary>
+    private void InferIteratedVarTypes(PassContext pc, GenericForStmt gf, FunctionType iteratorMethod)
+    {
+        var returned = iteratorMethod.ReturnType is TupleType tuple && tuple.Fields.Count > 0 ? tuple.Fields[0].Type : iteratorMethod.ReturnType;
+        var values = returned is FunctionType step
+            ? step.ReturnType is TupleType results ? results.Fields.Select(field => field.Type.ID).ToList() : [step.ReturnType.ID]
+            : [];
+
+        for (var i = 0; i < gf.VarNames.Count; i++)
+        {
+            var type = i < values.Count ? CollapseVariadic(pc, values[i]) : pc.Types.PrimAny.ID;
+            pc.Pkg!.Syms.SetType(gf.VarNames[i].Sym, i == 0 ? StripNil(pc, type) : type);
+        }
     }
 
     private void InferGenericForVarTypes(PassContext pc, GenericForStmt gf, List<TypID> iterTypes)

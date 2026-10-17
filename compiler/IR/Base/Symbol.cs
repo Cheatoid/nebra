@@ -65,6 +65,11 @@ public enum SymbolFlags
     /// is fixed by whatever supplies it at runtime, so mangling must leave it alone.
     /// </summary>
     External = 1 << 7,
+    /// <summary>
+    /// The symbol is bound by an <c>import type</c>. Nothing is loaded for it at runtime, so it can
+    /// only be used where a type is written.
+    /// </summary>
+    TypeImport = 1 << 8,
 }
 
 /// <summary>

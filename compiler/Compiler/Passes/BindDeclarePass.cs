@@ -227,12 +227,12 @@ public sealed class BindDeclarePass() : Pass(PassName, PassScope.PerFile)
                 foreach (var specifier in importStmt.Specifiers)
                 {
                     var declName = specifier.Alias ?? specifier.Name;
-                    BindImportName(ctx, pkg, scope, declName, importStmt.ID);
+                    BindImportName(ctx, pkg, scope, declName, importStmt);
                 }
 
                 if (importStmt.Alias != null)
                 {
-                    BindImportName(ctx, pkg, scope, importStmt.Alias, importStmt.ID);
+                    BindImportName(ctx, pkg, scope, importStmt.Alias, importStmt);
                 }
                 return true;
             case ExportStmt exportStmt:
@@ -776,14 +776,18 @@ public sealed class BindDeclarePass() : Pass(PassName, PassScope.PerFile)
     /// <see cref="SymbolKind.Variable"/> bound to the import statement, which
     /// later passes can fill in via type propagation.
     /// </summary>
-    private static void BindImportName(PassContext ctx, PackageContext pkg, ScopeID scope, NameRef nameRef, NodeID importNode)
+    private static void BindImportName(PassContext ctx, PackageContext pkg, ScopeID scope, NameRef nameRef, ImportStmt import)
     {
         if (pkg.Scopes.LookupOnlyCurrent(scope, nameRef.Name, out var existing))
         {
             nameRef.Sym = existing;
             return;
         }
-        DeclareSymbol(ctx, scope, nameRef.Name, SymbolKind.Variable, importNode, nameRef.Span);
+
+        if (import.IsTypeImport)
+            DeclareSymbol(ctx, scope, nameRef.Name, SymbolKind.Variable, import.ID, nameRef.Span, SymbolFlags.TypeImport);
+        else
+            DeclareSymbol(ctx, scope, nameRef.Name, SymbolKind.Variable, import.ID, nameRef.Span);
     }
 
     /// <summary>

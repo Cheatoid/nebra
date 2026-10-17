@@ -113,6 +113,12 @@ public enum DiagnosticCode
     ErrBitwiseUnsupported = 0x1009,
 
     [Level(DiagnosticLevel.Error)]
+    [Category(DiagnosticCategory.Semantic)]
+    [Format("'{0}' is imported with 'import type' and can only be used as a type")]
+    [Help("import it without 'type' to use its value at runtime")]
+    ErrTypeImportUsedAsValue = 0x100A,
+
+    [Level(DiagnosticLevel.Error)]
     [Category(DiagnosticCategory.Syntax)]
     [Format("Alternative boolean operator '{0}' is disabled in the configuration. Enable [code] alt_boolean_operators = true to use it, or use '{1}' instead.")]
     ErrAltBooleanOperatorsDisabled = 0x0006,
