@@ -1600,7 +1600,7 @@ public sealed partial class CodegenPass() : Pass(PassName, PassScope.PerBuild, t
         if (import.IsTypeOnly || import.IsTypeImport) return;
 
         var runtimeGlobal = RuntimeGlobalOf(ctx, import);
-        var modExpr = runtimeGlobal ?? gen.EmitImport(import.Module.Name);
+        var modExpr = runtimeGlobal ?? gen.EmitImport(ImportPathOf(ctx, import));
 
         switch (import.Kind)
         {
@@ -1670,6 +1670,23 @@ public sealed partial class CodegenPass() : Pass(PassName, PassScope.PerBuild, t
         var resolved = ResolvedImport(ctx, import)!;
         var message = $"the package '{resolved.RuntimePackage}' is not loaded: the global {resolved.RuntimeGlobal} is missing";
         return $"{resolved.RuntimeGlobal} or error(\"{EscapeLuaString(message)}\", 0)";
+    }
+
+    /// <summary>
+    /// The path an import loads its module by. With <c>import_path = "root"</c>, one of the
+    /// project's own modules is named by its path from the source root, which the output mirrors,
+    /// so every importer names it the same way; anything else keeps the path as written.
+    /// </summary>
+    private string ImportPathOf(PassContext ctx, ImportStmt import)
+    {
+        if (ctx.Config.Code.ImportPath != "root") return import.Module.Name;
+        if (ResolvedImport(ctx, import) is not { Kind: ModuleKind.NebraSource, FilePath: { } filePath }) return import.Module.Name;
+
+        var sourceRoot = Path.GetFullPath(Path.Combine(ctx.Config.ProjectRoot, ctx.Config.Source));
+        var relative = Path.GetRelativePath(sourceRoot, Path.GetFullPath(filePath));
+        if (relative.StartsWith("..", StringComparison.Ordinal) || Path.IsPathRooted(relative)) return import.Module.Name;
+
+        return Path.ChangeExtension(relative, null).Replace(Path.DirectorySeparatorChar, '/');
     }
 
     private ResolvedModule? ResolvedImport(PassContext ctx, ImportStmt import)

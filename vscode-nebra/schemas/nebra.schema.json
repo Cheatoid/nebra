@@ -159,6 +159,13 @@
           "description": "A suffix added to every imported module path, such as `\".lua\"` for loaders that need it.",
           "default": ""
         },
+        "import_path": {
+          "type": "string",
+          "description": "How imports of the project's own modules are written: as in the source, or as the normalized path from the output root, such as `Server/types/Calendar`, for loaders that cache modules under the path they are given.",
+          "enum": ["relative", "root"],
+          "enumDescriptions": ["The path as the source writes it, such as `../types/Calendar`", "The path from the output root, such as `Server/types/Calendar`"],
+          "default": "relative"
+        },
         "strip_unused": {
           "type": "boolean",
           "description": "Leave unused locals, functions and imports out of the generated Lua.",

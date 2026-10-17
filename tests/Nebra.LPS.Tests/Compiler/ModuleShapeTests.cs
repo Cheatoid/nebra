@@ -73,4 +73,23 @@ public sealed class ModuleShapeTests
         Assert.Contains("for i, item in __nebra_iterate(loose) do", lua);
         Assert.Contains("for key, value in pairs(map) do", lua);
     }
+
+    [Fact]
+    public void ImportsCanNameModulesByTheirPathFromTheOutputRoot()
+    {
+        var build = ProjectBuild.Run(config =>
+            {
+                config.Code.ImportPath = "root";
+                config.Code.ImportExtension = ".lua";
+            },
+            ("src/Server/types/Calendar.neb", "export local days = 7\n"),
+            ("src/Server/orm/Metadata.neb", "import { days } from \"../types/Calendar\"\n\nexport local week = days\n"),
+            ("src/Server/main.neb", "import { week } from \"./orm/Metadata\"\nimport { days } from \"./types/Calendar\"\n\nprint(week, days)\n"));
+
+        Assert.Empty(build.Errors);
+        Assert.Contains("require(\"Server/types/Calendar.lua\")", build.Lua("src/Server/orm/Metadata.neb"));
+        var main = build.Lua("src/Server/main.neb");
+        Assert.Contains("require(\"Server/orm/Metadata.lua\")", main);
+        Assert.Contains("require(\"Server/types/Calendar.lua\")", main);
+    }
 }

@@ -49,6 +49,15 @@ public sealed class CodeSection
     public string ImportExtension { get; set; } = "";
 
     /// <summary>
+    /// How the path of an import of one of the project's own modules is written: <c>"relative"</c>
+    /// passes it on as the source writes it, <c>"root"</c> as the module's normalized path from the
+    /// output root, such as <c>Server/types/Calendar</c>, for loaders that key their cache on the
+    /// path they are given without resolving it. Modules of packages and declarations are always
+    /// passed on as written.
+    /// </summary>
+    public string ImportPath { get; set; } = "relative";
+
+    /// <summary>
     /// Whether to strip unused variables, functions, and other declarations from the generated code. This can help to
     /// reduce the size of the generated code and improve performance, but it may also make debugging more difficult if
     /// you need to inspect the generated code.
@@ -90,6 +99,7 @@ public sealed class CodeSection
         Semicolons = Config.MergeVal(Semicolons, section.Semicolons, Policy.Optional);
         ImportStatement = Config.MergeVal(ImportStatement, section.ImportStatement, "require(%s)");
         ImportExtension = Config.MergeVal(ImportExtension, section.ImportExtension, "");
+        ImportPath = Config.MergeVal(ImportPath, section.ImportPath, "relative");
         StripUnused = Config.MergeVal(StripUnused, section.StripUnused, true);
         if (section.Libs.Count > 0) Libs = section.Libs;
         if (section.AutoImports.Count > 0) AutoImports = section.AutoImports;
