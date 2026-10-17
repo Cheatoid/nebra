@@ -13,6 +13,23 @@ public sealed class ResolveNamesPass() : Pass(PassName, PassScope.PerFile)
     public const string PassName = "ResolveNames";
 
     /// <summary>
+    /// The scope of the class that declares <paramref name="symbols"/> as a static member, if they
+    /// are one.
+    /// </summary>
+    private static ScopeID? StaticMemberOwner(PackageContext pkg, List<SymID> symbols)
+    {
+        if (symbols.Count == 0 || !pkg.Syms.GetByID(symbols[0], out var symbol)) return null;
+        return symbol.Flags.HasFlag(SymbolFlags.Static) ? symbol.Owner : null;
+    }
+
+    /// <summary>
+    /// Set while the initializer of a static field is resolved, naming the field. Its own name
+    /// there means whatever it means outside the class, as in <c>static DayOfWeek = DayOfWeek</c>,
+    /// since the field does not exist before its initializer has run.
+    /// </summary>
+    private string? _initializedStaticField;
+
+    /// <summary>
     /// Set while the body of a static class function is resolved, naming it, so a <c>self</c>
     /// written there is reported for what it is.
     /// </summary>
@@ -355,7 +372,10 @@ public sealed class ResolveNamesPass() : Pass(PassName, PassScope.PerFile)
 
                 foreach (var field in classDecl.Fields)
                 {
-                    if (field.DefaultValue != null) ResolveExprNames(pc, field.DefaultValue, pkg);
+                    if (field.DefaultValue == null) continue;
+                    _initializedStaticField = field.IsStatic ? field.Name.Name : null;
+                    ResolveExprNames(pc, field.DefaultValue, pkg);
+                    _initializedStaticField = null;
                 }
                 break;
             }
@@ -552,6 +572,11 @@ public sealed class ResolveNamesPass() : Pass(PassName, PassScope.PerFile)
     private void ResolveNameRef(PassContext pc, NameRef nameRef, ScopeID start, PackageContext pkg)
     {
         var all = pkg.Scopes.LookupAll(start, nameRef.Name);
+        if (nameRef.Name == _initializedStaticField && StaticMemberOwner(pkg, all) is { } classScope
+            && pkg.Scopes.ParentScope(classScope, out var outside))
+        {
+            all = pkg.Scopes.LookupAll(outside, nameRef.Name);
+        }
         if (all.Count > 0)
         {
             nameRef.Sym = all[0];

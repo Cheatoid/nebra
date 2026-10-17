@@ -698,7 +698,22 @@ public class ResolveTypeRefsPass() : Pass(PassName, PassScope.PerBuild)
                 throw new InvalidOperationException($"Unknown expression kind: {expr.GetType().Name}");
         }
     }
-    
+
+    /// <summary>
+    /// Looks up the symbol a type name stands for. A static class member is a value, not a type,
+    /// so the lookup passes over it to whatever the name means outside the class.
+    /// </summary>
+    private bool LookupTypeName(ScopeID scope, string name, out SymID sym)
+    {
+        while (_pkg.Scopes.Lookup(scope, name, out sym))
+        {
+            if (!_pkg.Syms.GetByID(sym, out var symbol) || !symbol.Flags.HasFlag(SymbolFlags.Static)) return true;
+            if (!_pkg.Scopes.ParentScope(symbol.Owner, out scope)) return false;
+        }
+
+        return false;
+    }
+
     private Type ResolveTypeRef(TypeTable tt, TypeRef tr)
     {
         // Error recovery leaves holes where a type was expected (`local t: = {`), so a reference
@@ -724,7 +739,7 @@ public class ResolveTypeRefsPass() : Pass(PassName, PassScope.PerBuild)
 
         if (tr is NamedTypeRef nrt)
         {
-            if (_pkg.Scopes.Lookup(lookupScope, nrt.Name.Name, out var symId)
+            if (LookupTypeName(lookupScope, nrt.Name.Name, out var symId)
                 && _pkg.Syms.GetByID(symId, out var sym)
                 && sym.Type != TypID.Invalid)
             {
@@ -741,7 +756,7 @@ public class ResolveTypeRefsPass() : Pass(PassName, PassScope.PerBuild)
 
         if (tr is GenericTypeRef gtr)
         {
-            if (!_pkg.Scopes.Lookup(lookupScope, gtr.Name.Name, out var gSym)
+            if (!LookupTypeName(lookupScope, gtr.Name.Name, out var gSym)
                 || !_pkg.Syms.GetByID(gSym, out var gsym)
                 || gsym.Type == TypID.Invalid
                 || !tt.GetByID(gsym.Type, out var gDefType))
