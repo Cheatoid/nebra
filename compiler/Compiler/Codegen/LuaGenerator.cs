@@ -360,6 +360,32 @@ public sealed class LuaGenerator(Config config)
 
     #endregion
 
+    #region Defer Helpers
+
+    /// <summary>
+    /// Records a call on a function's defer list with the function and arguments it has now.
+    /// </summary>
+    public string GetDeferHelper()
+    {
+        var unpackFn = Features.HasTableUnpack ? "table.unpack" : "unpack";
+        return RequireHelper("defer", name =>
+            $"local function {name}(list, fn, ...) local n = select(\"#\", ...) local args = {{ ... }} " +
+            $"list[#list + 1] = function() return fn({unpackFn}(args, 1, n)) end end");
+    }
+
+    /// <summary>
+    /// Runs a function's defer list in reverse once its body ended, then returns what the body
+    /// returned or raises the error it raised.
+    /// </summary>
+    public string GetDeferFinishHelper()
+    {
+        return RequireHelper("finish_defers", name =>
+            $"local function {name}(list, ok, ...) for i = #list, 1, -1 do list[i]() end " +
+            $"if not ok then error((...), 0) end return ... end");
+    }
+
+    #endregion
+
     #region Async Driver Helper
 
     public string GetAsyncDriverHelper()

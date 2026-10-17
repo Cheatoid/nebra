@@ -130,6 +130,8 @@ public sealed class InferTypesPass() : Pass(PassName, PassScope.PerBuild)
                 var fileCtx = MakeFileContext(context, pkg, file);
                 _narrowed.Clear();
                 TypeAnnotatedTopLevelLocals(fileCtx, pkg, file);
+                foreach (var defer in DeferStmt.In(file.Hir.Body))
+                    fileCtx.Diag.Report(defer.Span, DiagnosticCode.ErrDeferOutsideFunction);
             }
         }
 
@@ -742,6 +744,8 @@ public sealed class InferTypesPass() : Pass(PassName, PassScope.PerBuild)
             case ContinueStmt:
                 break;
             case DeferStmt ds:
+                if (_asyncDepth > 0 && pc.Config.Target == Configuration.LuaVersion.Lua51)
+                    pc.Diag.Report(ds.Span, DiagnosticCode.ErrDeferInAsyncOnLua51, "5.1");
                 if (ds.Call != null) SynthesizeExpr(pc, ds.Call);
                 if (ds.Block != null) ResolveStmts(pc, ds.Block);
                 break;
@@ -1090,6 +1094,8 @@ public sealed class InferTypesPass() : Pass(PassName, PassScope.PerBuild)
     {
         if (cd.Constructor != null)
         {
+            foreach (var defer in DeferStmt.In(cd.Constructor.Body))
+                pc.Diag.Report(defer.Span, DiagnosticCode.ErrDeferInConstructor);
             CheckSuperCall(pc, cd, classType);
             ResolveFunctionBody(pc, cd.Constructor.Body, cd.Constructor.ReturnStmt);
         }

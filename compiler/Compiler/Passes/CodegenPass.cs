@@ -12,7 +12,7 @@ public sealed partial class CodegenPass() : Pass(PassName, PassScope.PerBuild, t
     private int _stmtListDepth;
     private string _reflectNamespace = "main";
     private readonly Stack<int> _loopLabelStack = new();
-    private readonly Stack<List<DeferStmt>> _deferStack = new();
+    private int _deferDepth;
     private readonly HashSet<int> _neededBreakLabels = [];
     private readonly Dictionary<ScopeID, string> _staticMemberTables = [];
     private readonly HashSet<string> _hoistedNames = [];
@@ -304,7 +304,7 @@ public sealed partial class CodegenPass() : Pass(PassName, PassScope.PerBuild, t
                 EmitContinue(gen);
                 break;
             case DeferStmt ds:
-                EmitDefer(ds);
+                EmitDefer(ctx, pkg, gen, ds);
                 break;
             case GuardStmt gs:
                 EmitGuard(ctx, pkg, gen, gs);
@@ -535,8 +535,7 @@ public sealed partial class CodegenPass() : Pass(PassName, PassScope.PerBuild, t
             gen.Write(")");
             gen.NewLine();
             gen.Indent();
-            EmitStmtList(ctx, pkg, gen, accessor.Body);
-            if (accessor.ReturnStmt != null) EmitReturn(ctx, pkg, gen, accessor.ReturnStmt);
+            EmitFuncBodyContent(ctx, pkg, gen, accessor.Parameters, accessor.Body, accessor.ReturnStmt, false);
             gen.Dedent();
             gen.WriteLine("end");
             gen.WriteSemicolon();
@@ -1111,31 +1110,7 @@ public sealed partial class CodegenPass() : Pass(PassName, PassScope.PerBuild, t
         gen.Write(")");
         gen.NewLine();
         gen.Indent();
-        if (fd.IsAsync)
-        {
-            var driverName = gen.GetAsyncDriverHelper();
-            gen.WriteLine("local __co = coroutine.create(function()");
-            gen.Indent();
-            EmitDefaultParamPreamble(ctx, pkg, gen, fd.Parameters);
-            EmitNamedVarargPreamble(ctx, pkg, gen, fd.Parameters);
-            EmitStmtList(ctx, pkg, gen, fd.Body);
-            if (fd.ReturnStmt != null)
-                EmitReturn(ctx, pkg, gen, fd.ReturnStmt);
-            gen.EndBlock("end)");
-            gen.WriteLine($"{driverName}(__co, __done)");
-        }
-        else
-        {
-            PushDeferScope();
-            EmitDefaultParamPreamble(ctx, pkg, gen, fd.Parameters);
-            EmitNamedVarargPreamble(ctx, pkg, gen, fd.Parameters);
-            EmitStmtList(ctx, pkg, gen, fd.Body);
-            if (fd.ReturnStmt != null)
-                EmitReturn(ctx, pkg, gen, fd.ReturnStmt);
-            else
-                EmitDeferredCode(ctx, pkg, gen);
-            PopDeferScope();
-        }
+        EmitFuncBodyContent(ctx, pkg, gen, fd.Parameters, fd.Body, fd.ReturnStmt, fd.IsAsync);
         gen.EndBlock();
     }
 
@@ -1154,31 +1129,7 @@ public sealed partial class CodegenPass() : Pass(PassName, PassScope.PerBuild, t
         gen.Write(")");
         gen.NewLine();
         gen.Indent();
-        if (lfd.IsAsync)
-        {
-            var driverName = gen.GetAsyncDriverHelper();
-            gen.WriteLine("local __co = coroutine.create(function()");
-            gen.Indent();
-            EmitDefaultParamPreamble(ctx, pkg, gen, lfd.Parameters);
-            EmitNamedVarargPreamble(ctx, pkg, gen, lfd.Parameters);
-            EmitStmtList(ctx, pkg, gen, lfd.Body);
-            if (lfd.ReturnStmt != null)
-                EmitReturn(ctx, pkg, gen, lfd.ReturnStmt);
-            gen.EndBlock("end)");
-            gen.WriteLine($"{driverName}(__co, __done)");
-        }
-        else
-        {
-            PushDeferScope();
-            EmitDefaultParamPreamble(ctx, pkg, gen, lfd.Parameters);
-            EmitNamedVarargPreamble(ctx, pkg, gen, lfd.Parameters);
-            EmitStmtList(ctx, pkg, gen, lfd.Body);
-            if (lfd.ReturnStmt != null)
-                EmitReturn(ctx, pkg, gen, lfd.ReturnStmt);
-            else
-                EmitDeferredCode(ctx, pkg, gen);
-            PopDeferScope();
-        }
+        EmitFuncBodyContent(ctx, pkg, gen, lfd.Parameters, lfd.Body, lfd.ReturnStmt, lfd.IsAsync);
         gen.EndBlock();
     }
 
@@ -1502,39 +1453,59 @@ public sealed partial class CodegenPass() : Pass(PassName, PassScope.PerBuild, t
     }
 
 
-    private void PushDeferScope() => _deferStack.Push([]);
-
-    private void PopDeferScope() => _deferStack.Pop();
-
-    private void EmitDefer(DeferStmt ds)
+    /// <summary>
+    /// Records a deferred call on the enclosing function's list. The function and its arguments
+    /// are evaluated here, as Go does; a deferred block is a closure and sees its variables as they
+    /// are when it runs.
+    /// </summary>
+    private void EmitDefer(PassContext ctx, PackageContext pkg, LuaGenerator gen, DeferStmt ds)
     {
-        if (_deferStack.Count > 0)
-            _deferStack.Peek().Add(ds);
+        if (_deferDepth == 0) return;
+
+        switch (ds.Call)
+        {
+            case FunctionCallExpr call:
+                gen.Write($"{gen.GetDeferHelper()}(__defers, ");
+                EmitExpr(ctx, pkg, gen, call.Callee);
+                EmitDeferredArguments(ctx, pkg, gen, call.Arguments);
+                gen.WriteLine(")");
+                break;
+            case MethodCallExpr { ExtensionTargetType: { } extensionTarget } extension:
+                gen.Write($"{gen.GetDeferHelper()}(__defers, {ExtensionFnName(ctx, extensionTarget, extension.MethodName.Name)}, ");
+                EmitExpr(ctx, pkg, gen, extension.Object);
+                EmitDeferredArguments(ctx, pkg, gen, extension.Arguments);
+                gen.WriteLine(")");
+                break;
+            case MethodCallExpr method:
+            {
+                var receiver = gen.FreshTemp("__receiver");
+                gen.Write($"do local {receiver} = ");
+                EmitExpr(ctx, pkg, gen, method.Object);
+                gen.Write($"; {gen.GetDeferHelper()}(__defers, {receiver}.{method.MethodName.Name}, {receiver}");
+                EmitDeferredArguments(ctx, pkg, gen, method.Arguments);
+                gen.WriteLine(") end");
+                break;
+            }
+            case null when ds.Block != null:
+                gen.WriteLine("__defers[#__defers + 1] = function()");
+                gen.Indent();
+                EmitStmtList(ctx, pkg, gen, ds.Block);
+                gen.Dedent();
+                gen.WriteLine("end");
+                break;
+        }
+
+        gen.WriteSemicolon();
     }
 
-    private void EmitDeferredCode(PassContext ctx, PackageContext pkg, LuaGenerator gen)
+    private void EmitDeferredArguments(PassContext ctx, PackageContext pkg, LuaGenerator gen, List<Expr> arguments)
     {
-        if (_deferStack.Count == 0) return;
-        var defers = _deferStack.Peek();
-        for (var i = defers.Count - 1; i >= 0; i--)
+        foreach (var argument in arguments)
         {
-            var ds = defers[i];
-            if (ds.Call != null)
-            {
-                EmitExpr(ctx, pkg, gen, ds.Call);
-                gen.NewLine();
-                gen.WriteSemicolon();
-            }
-            else if (ds.Block != null)
-            {
-                gen.BeginBlock("do");
-                EmitStmtList(ctx, pkg, gen, ds.Block);
-                gen.EndBlock();
-            }
+            gen.Write(", ");
+            EmitExpr(ctx, pkg, gen, argument);
         }
     }
-
-    private bool HasDeferredCode() => _deferStack.Count > 0 && _deferStack.Peek().Count > 0;
 
     private bool IsIpairsCall(PassContext ctx, PackageContext pkg, FunctionCallExpr call)
     {
@@ -1548,45 +1519,15 @@ public sealed partial class CodegenPass() : Pass(PassName, PassScope.PerBuild, t
 
     private void EmitReturn(PassContext ctx, PackageContext pkg, LuaGenerator gen, ReturnStmt ret)
     {
-        if (HasDeferredCode())
+        if (ret.Values.Count == 0)
         {
-            if (ret.Values.Count > 0)
-            {
-                var temps = new List<string>();
-                for (var i = 0; i < ret.Values.Count; i++)
-                {
-                    var tmp = gen.FreshTemp("__ret");
-                    temps.Add(tmp);
-                }
-                gen.Write("local ");
-                gen.Write(string.Join(", ", temps));
-                gen.Write(" = ");
-                EmitExprList(ctx, pkg, gen, ret.Values);
-                gen.NewLine();
-                gen.WriteSemicolon();
-                EmitDeferredCode(ctx, pkg, gen);
-                gen.Write("return ");
-                gen.Write(string.Join(", ", temps));
-                gen.NewLine();
-            }
-            else
-            {
-                EmitDeferredCode(ctx, pkg, gen);
-                gen.WriteLine("return");
-            }
+            gen.WriteLine("return");
         }
         else
         {
-            if (ret.Values.Count == 0)
-            {
-                gen.WriteLine("return");
-            }
-            else
-            {
-                gen.Write("return ");
-                EmitExprList(ctx, pkg, gen, ret.Values);
-                gen.NewLine();
-            }
+            gen.Write("return ");
+            EmitExprList(ctx, pkg, gen, ret.Values);
+            gen.NewLine();
         }
         gen.WriteSemicolon();
     }
@@ -2386,27 +2327,7 @@ public sealed partial class CodegenPass() : Pass(PassName, PassScope.PerBuild, t
         gen.Write(")");
         gen.NewLine();
         gen.Indent();
-        if (fd.IsAsync)
-        {
-            var driverName = gen.GetAsyncDriverHelper();
-            gen.WriteLine("local __co = coroutine.create(function()");
-            gen.Indent();
-            EmitDefaultParamPreamble(ctx, pkg, gen, fd.Parameters);
-            EmitNamedVarargPreamble(ctx, pkg, gen, fd.Parameters);
-            EmitStmtList(ctx, pkg, gen, fd.Body);
-            if (fd.ReturnStmt != null)
-                EmitReturn(ctx, pkg, gen, fd.ReturnStmt);
-            gen.EndBlock("end)");
-            gen.WriteLine($"{driverName}(__co, __done)");
-        }
-        else
-        {
-            EmitDefaultParamPreamble(ctx, pkg, gen, fd.Parameters);
-            EmitNamedVarargPreamble(ctx, pkg, gen, fd.Parameters);
-            EmitStmtList(ctx, pkg, gen, fd.Body);
-            if (fd.ReturnStmt != null)
-                EmitReturn(ctx, pkg, gen, fd.ReturnStmt);
-        }
+        EmitFuncBodyContent(ctx, pkg, gen, fd.Parameters, fd.Body, fd.ReturnStmt, fd.IsAsync);
         gen.Dedent();
         gen.Write("end");
     }
@@ -2675,8 +2596,7 @@ public sealed partial class CodegenPass() : Pass(PassName, PassScope.PerBuild, t
             gen.Indent();
             EmitDefaultParamPreamble(ctx, pkg, gen, parameters);
             EmitNamedVarargPreamble(ctx, pkg, gen, parameters);
-            EmitStmtList(ctx, pkg, gen, body);
-            if (returnStmt != null) EmitReturn(ctx, pkg, gen, returnStmt);
+            EmitBodyStatements(ctx, pkg, gen, parameters, body, returnStmt);
             gen.EndBlock("end)");
             gen.WriteLine($"{driverName}(__co, __done)");
         }
@@ -2684,9 +2604,34 @@ public sealed partial class CodegenPass() : Pass(PassName, PassScope.PerBuild, t
         {
             EmitDefaultParamPreamble(ctx, pkg, gen, parameters);
             EmitNamedVarargPreamble(ctx, pkg, gen, parameters);
+            EmitBodyStatements(ctx, pkg, gen, parameters, body, returnStmt);
+        }
+    }
+
+    /// <summary>
+    /// Emits the statements of a function body. A body with a <c>defer</c> keeps a list of the
+    /// calls deferred while it runs and runs it in reverse on every way out: the statements run in
+    /// a <c>pcall</c>, so the list also runs when they raise an error, which is raised again after.
+    /// </summary>
+    private void EmitBodyStatements(PassContext ctx, PackageContext pkg, LuaGenerator gen, List<Parameter> parameters, List<Stmt> body, ReturnStmt? returnStmt)
+    {
+        if (!DeferStmt.AnyIn(body))
+        {
             EmitStmtList(ctx, pkg, gen, body);
             if (returnStmt != null) EmitReturn(ctx, pkg, gen, returnStmt);
+            return;
         }
+
+        var vararg = parameters.Any(parameter => parameter.IsVararg) ? "..." : "";
+        gen.WriteLine("local __defers = {}");
+        gen.WriteLine($"return {gen.GetDeferFinishHelper()}(__defers, pcall(function({vararg})");
+        gen.Indent();
+        _deferDepth++;
+        EmitStmtList(ctx, pkg, gen, body);
+        if (returnStmt != null) EmitReturn(ctx, pkg, gen, returnStmt);
+        _deferDepth--;
+        gen.Dedent();
+        gen.WriteLine(vararg.Length > 0 ? "end, ...))" : "end))");
     }
 
     private void EmitNamePath(PassContext ctx, PackageContext pkg, LuaGenerator gen, List<NameRef> namePath)

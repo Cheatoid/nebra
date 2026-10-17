@@ -125,6 +125,24 @@ public enum DiagnosticCode
     ErrRuntimeGlobalSubpath = 0x100B,
 
     [Level(DiagnosticLevel.Error)]
+    [Category(DiagnosticCategory.Semantic)]
+    [Format("'defer' can only be used inside a function")]
+    [Help("a deferred call runs when its function returns; the top level of a module has none")]
+    ErrDeferOutsideFunction = 0x100C,
+
+    [Level(DiagnosticLevel.Error)]
+    [Category(DiagnosticCategory.Semantic)]
+    [Format("'defer' cannot be used in a constructor")]
+    [Help("move the work into a method the constructor calls")]
+    ErrDeferInConstructor = 0x100D,
+
+    [Level(DiagnosticLevel.Error)]
+    [Category(DiagnosticCategory.Semantic)]
+    [Format("'defer' in an async function needs Lua 5.2 or later; the '{0}' target cannot suspend a function that defers")]
+    [Help("raise the target, or defer outside the async function")]
+    ErrDeferInAsyncOnLua51 = 0x100E,
+
+    [Level(DiagnosticLevel.Error)]
     [Category(DiagnosticCategory.Syntax)]
     [Format("Alternative boolean operator '{0}' is disabled in the configuration. Enable [code] alt_boolean_operators = true to use it, or use '{1}' instead.")]
     ErrAltBooleanOperatorsDisabled = 0x0006,

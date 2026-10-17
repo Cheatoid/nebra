@@ -36,6 +36,33 @@ public sealed class DeferStmt(NodeID id, TextSpan span, Expr? call, List<Stmt>? 
     public Expr? Call { get; } = call;
     /// <summary>Non-null when <c>defer do ... end</c> form is used.</summary>
     public List<Stmt>? Block { get; } = block;
+
+    /// <summary>Whether a function body defers anything, see <see cref="In"/>.</summary>
+    public static bool AnyIn(List<Stmt> body) => In(body).Any();
+
+    /// <summary>
+    /// The <c>defer</c> statements of a body: those in it or in one of its blocks, not those in a
+    /// function nested in it, which keeps its own.
+    /// </summary>
+    public static IEnumerable<DeferStmt> In(List<Stmt> body)
+    {
+        foreach (var stmt in body)
+        {
+            var nested = stmt switch
+            {
+                DeferStmt defer => [defer],
+                DoBlockStmt block => In(block.Body),
+                WhileStmt loop => In(loop.Body),
+                RepeatStmt loop => In(loop.Body),
+                NumericForStmt loop => In(loop.Body),
+                GenericForStmt loop => In(loop.Body),
+                IfStmt branch => In(branch.Body).Concat(branch.ElseIfs.SelectMany(elseIf => In(elseIf.Body))).Concat(branch.ElseBody != null ? In(branch.ElseBody) : []),
+                MatchStmt match => match.Arms.SelectMany(arm => In(arm.Body)),
+                _ => Enumerable.Empty<DeferStmt>(),
+            };
+            foreach (var defer in nested) yield return defer;
+        }
+    }
 }
 
 /// <summary>

@@ -21,6 +21,33 @@ local function withDeferBlock(): nil
     logIt("[during]")
 end
 
+local function deferArguments(): nil
+    log = ""
+    local mut value: string = "[early]"
+    defer logIt(value)
+    value = "[late]"
+end
+
+local function deferOrder(): nil
+    log = ""
+    defer logIt("[first]")
+    defer logIt("[second]")
+end
+
+local function deferInLoop(): nil
+    log = ""
+    for i = 1, 3 do
+        defer logIt(tostring(i))
+    end
+    logIt("[loop]")
+end
+
+local function deferOnError(): nil
+    log = ""
+    defer logIt("[cleanup]")
+    error("boom")
+end
+
 local function guardEarly(n: number): number
     guard n > 0 else -1
     return n * 2
@@ -44,6 +71,17 @@ export function run(): nil
     -- defer block form
     withDeferBlock()
     expectEq("defer block ran", log, "[during][finish]")
+
+    -- Go semantics: arguments now, calls in reverse, one per loop pass, and on errors too
+    deferArguments()
+    expectEq("defer evaluates its arguments when reached", log, "[early]")
+    deferOrder()
+    expectEq("defers run in reverse", log, "[second][first]")
+    deferInLoop()
+    expectEq("a defer in a loop runs once per pass", log, "[loop]321")
+    local ok, message = pcall(deferOnError)
+    expectEq("defers run when the function raises", log, "[cleanup]")
+    expect("the error is raised again", not ok and string.find(tostring(message), "boom") ~= nil)
 
     -- guard with else (early-return)
     expectEq("guard pass-through", guardEarly(5), 10)
