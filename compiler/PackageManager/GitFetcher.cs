@@ -203,12 +203,19 @@ public sealed class GitFetcher
 
     /// <summary>
     /// Computes a deterministic SHA-256 over the package contents: relative paths in sorted order
-    /// followed by file bytes. Prefixed with <c>sha256-</c>.
+    /// followed by file bytes. Prefixed with <c>sha256-</c>. The package's own installed packages,
+    /// its build output and <c>.git</c> are not its contents, and linked directories are not
+    /// followed: a local package that holds a project depending on it links back to itself.
     /// </summary>
     public static string ComputeIntegrity(string root)
     {
         using var sha = SHA256.Create();
-        var files = Directory.GetFiles(root, "*", SearchOption.AllDirectories)
+        var output = Configuration.Config.LoadFromFile(Path.Combine(root, "nebra.toml"))?.Output;
+        var skipped = new[] { ".git", string.IsNullOrWhiteSpace(output) ? "out" : output }
+            .Select(directory => Path.GetFullPath(Path.Combine(root, directory)) + Path.DirectorySeparatorChar)
+            .ToList();
+        var files = InstalledPackages.EnumerateFilesSafely(root, "*")
+            .Where(file => !skipped.Any(directory => Path.GetFullPath(file).StartsWith(directory, StringComparison.Ordinal)))
             .OrderBy(p => p.Replace('\\', '/'), StringComparer.Ordinal)
             .ToArray();
 

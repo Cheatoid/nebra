@@ -59,7 +59,7 @@ public sealed class ResolveLibsPass() : Pass(PassName, PassScope.PerBuild)
             var outputRoot = pkg.OutputRoot;
             foreach (var file in InstalledPackages.EnumerateFilesSafely(pkg.RootPath, "*.d.neb"))
             {
-                if (IsUnder(file, outputRoot)) continue;
+                if (IsUnder(file, outputRoot) || BelongsToNestedProject(file, pkg.RootPath)) continue;
                 LoadDeclFile(context, file);
             }
         }
@@ -88,12 +88,12 @@ public sealed class ResolveLibsPass() : Pass(PassName, PassScope.PerBuild)
     }
 
     /// <summary>
-    /// Whether a file below the source directory belongs to another project: one nested there
-    /// with a configuration of its own, or an installed package.
+    /// Whether a file below <paramref name="root"/> belongs to another project: one nested there
+    /// with a configuration of its own, such as a package's test project, or an installed package.
     /// </summary>
-    private static bool BelongsToNestedProject(string file, string sourceRoot)
+    private static bool BelongsToNestedProject(string file, string root)
     {
-        for (var directory = Path.GetDirectoryName(file); directory != null && IsUnder(directory, sourceRoot); directory = Path.GetDirectoryName(directory))
+        for (var directory = Path.GetDirectoryName(file); directory != null && IsUnder(directory, root); directory = Path.GetDirectoryName(directory))
         {
             if (File.Exists(Path.Combine(directory, "nebra.toml")) || Path.GetFileName(directory) == "nebra_modules") return true;
         }
