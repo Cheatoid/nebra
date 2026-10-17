@@ -69,13 +69,13 @@ public sealed class ProjectTests
     public async Task ANewProjectConfigurationTakesOverItsOpenFiles()
     {
         await using var session = await LspSession.StartAsync(
-            ("src/plugin/types/ambient.d.neb", "declare toolValue: number\n"),
-            ("src/plugin/src/tool.neb", "local value: number = toolValue\nprint(value)\n"));
+            ("plugin/types/ambient.d.neb", "declare toolValue: number\n"),
+            ("plugin/src/tool.neb", "local value: number = toolValue\nprint(value)\n"));
 
-        Assert.NotEmpty(await session.OpenAsync("src/plugin/src/tool.neb"));
+        Assert.NotEmpty(await session.OpenAsync("plugin/src/tool.neb"));
 
-        var next = session.NextDiagnostics("src/plugin/src/tool.neb");
-        session.ChangeOnDisk(("src/plugin/nebra.toml", string.Format(ConfigWithTypes, "plugin")));
+        var next = session.NextDiagnostics("plugin/src/tool.neb");
+        session.ChangeOnDisk(("plugin/nebra.toml", string.Format(ConfigWithTypes, "plugin")));
 
         Assert.Empty(await next);
     }

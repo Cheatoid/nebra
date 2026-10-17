@@ -1,4 +1,5 @@
 ﻿using System.Reflection;
+using System.Text.RegularExpressions;
 using Antlr4.Runtime;
 using Nebra.IR;
 using Nebra.PackageManager;
@@ -48,6 +49,9 @@ public sealed class ResolveLibsPass() : Pass(PassName, PassScope.PerBuild)
             }
         }
 
+        foreach (var file in SourceDeclarationFiles(context))
+            LoadDeclFile(context, file);
+
         foreach (var pkg in GetInstalledPackages(context))
         {
             if (!Directory.Exists(pkg.RootPath)) continue;
@@ -58,6 +62,54 @@ public sealed class ResolveLibsPass() : Pass(PassName, PassScope.PerBuild)
                 if (IsUnder(file, outputRoot)) continue;
                 LoadDeclFile(context, file);
             }
+        }
+    }
+
+    /// <summary>
+    /// The declaration files in the project's source directory that declare globals. One that
+    /// exports something is a module, read only where it is imported. An annotation file is
+    /// checked without them, as it does not run beside the project's code.
+    /// </summary>
+    private static IEnumerable<string> SourceDeclarationFiles(PassContext context)
+    {
+        if (context.Config.AnnotationFile || string.IsNullOrEmpty(context.Config.ProjectRoot)) return [];
+
+        var sourceRoot = Path.GetFullPath(Path.Combine(context.Config.ProjectRoot, context.Config.Source));
+        if (!Directory.Exists(sourceRoot)) return [];
+
+        var outputRoot = Path.GetFullPath(Path.Combine(context.Config.ProjectRoot, context.Config.Output));
+        var globals = context.Config.Globals
+            .Select(entry => Path.GetFullPath(Path.IsPathRooted(entry) ? entry : Path.Combine(context.Config.ProjectRoot, entry)))
+            .ToList();
+
+        return InstalledPackages.EnumerateFilesSafely(sourceRoot, "*.d.neb")
+            .Where(file => !IsUnder(file, outputRoot) && !globals.Any(global => file == global || IsUnder(file, global)))
+            .Where(file => !BelongsToNestedProject(file, sourceRoot) && !ExportsDeclarations(context, file));
+    }
+
+    /// <summary>
+    /// Whether a file below the source directory belongs to another project: one nested there
+    /// with a configuration of its own, or an installed package.
+    /// </summary>
+    private static bool BelongsToNestedProject(string file, string sourceRoot)
+    {
+        for (var directory = Path.GetDirectoryName(file); directory != null && IsUnder(directory, sourceRoot); directory = Path.GetDirectoryName(directory))
+        {
+            if (File.Exists(Path.Combine(directory, "nebra.toml")) || Path.GetFileName(directory) == "nebra_modules") return true;
+        }
+
+        return false;
+    }
+
+    private static bool ExportsDeclarations(PassContext context, string file)
+    {
+        try
+        {
+            return Regex.IsMatch(context.Config.ReadSource(file), @"^\s*export\b", RegexOptions.Multiline);
+        }
+        catch (IOException)
+        {
+            return true;
         }
     }
 
