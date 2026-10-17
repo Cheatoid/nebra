@@ -20,6 +20,7 @@ public sealed class InferTypesPass() : Pass(PassName, PassScope.PerBuild)
     /// (and don't double-report diagnostics on method bodies).
     /// </summary>
     private readonly HashSet<NodeID> _resolvedClassDecls = [];
+    private readonly Dictionary<NodeID, List<(ClassMethodNode Method, Type ReturnType)>> _pendingClassBodies = [];
     private readonly HashSet<NodeID> _resolvedInterfaceDecls = [];
     private readonly HashSet<NodeID> _resolvedExtendDecls = [];
 
@@ -129,6 +130,26 @@ public sealed class InferTypesPass() : Pass(PassName, PassScope.PerBuild)
                 var fileCtx = MakeFileContext(context, pkg, file);
                 _narrowed.Clear();
                 TypeAnnotatedTopLevelLocals(fileCtx, pkg, file);
+            }
+        }
+
+        foreach (var pkg in ordered)
+        {
+            foreach (var file in pkg.Files)
+            {
+                var fileCtx = MakeFileContext(context, pkg, file);
+                _narrowed.Clear();
+                foreach (var cd in ClassDeclsIn(file.Hir.Body))
+                    DeclareClassMembers(fileCtx, cd);
+            }
+        }
+
+        foreach (var pkg in ordered)
+        {
+            foreach (var file in pkg.Files)
+            {
+                var fileCtx = MakeFileContext(context, pkg, file);
+                _narrowed.Clear();
                 ResolveTypeUniverseDecls(fileCtx, file.Hir.Body);
             }
         }
@@ -620,21 +641,20 @@ public sealed class InferTypesPass() : Pass(PassName, PassScope.PerBuild)
                 ResolveStmts(pc, ifStmt.Body);
                 PopAllNarrows(thenSaved);
 
+                var earlierFalse = PushAllNarrows(elseNarrows);
                 foreach (var elseIf in ifStmt.ElseIfs)
                 {
                     SynthesizeExpr(pc, elseIf.Condition);
-                    var (eiThen, _) = AnalyzeCondition(pc, elseIf.Condition);
+                    var (eiThen, eiElse) = AnalyzeCondition(pc, elseIf.Condition);
                     var eiSaved = PushAllNarrows(eiThen);
                     ResolveStmts(pc, elseIf.Body);
                     PopAllNarrows(eiSaved);
+                    earlierFalse.AddRange(PushAllNarrows(eiElse));
                 }
 
                 if (ifStmt.ElseBody != null)
-                {
-                    var elseSaved = PushAllNarrows(elseNarrows);
                     ResolveStmts(pc, ifStmt.ElseBody);
-                    PopAllNarrows(elseSaved);
-                }
+                PopAllNarrows(earlierFalse);
 
                 CheckExhaustiveMatch(pc, ifStmt);
 
@@ -837,7 +857,31 @@ public sealed class InferTypesPass() : Pass(PassName, PassScope.PerBuild)
         _currentClass = classType;
         try
         {
-            ResolveClassBody(pc, cd, classType);
+            var methodBodies = _pendingClassBodies.Remove(cd.ID, out var pending) ? pending : ResolveClassBody(pc, cd, classType);
+            ResolveClassBodies(pc, cd, classType, methodBodies);
+        }
+        finally
+        {
+            _currentClass = enclosingClass;
+        }
+    }
+
+    /// <summary>
+    /// Types the members of a class ahead of its bodies, so a body anywhere in the build can call
+    /// a method of a class declared further down. <see cref="ResolveClassDecl"/> resolves the
+    /// bodies later.
+    /// </summary>
+    private void DeclareClassMembers(PassContext pc, ClassDecl cd)
+    {
+        if (_resolvedClassDecls.Contains(cd.ID) || _pendingClassBodies.ContainsKey(cd.ID)) return;
+        if (!pc.Pkg!.Syms.GetByID(cd.Name.Sym, out var classSym)) return;
+        if (!pc.Types.GetByID(classSym.Type, out var rawType) || rawType is not ClassType classType) return;
+
+        var enclosingClass = _currentClass;
+        _currentClass = classType;
+        try
+        {
+            _pendingClassBodies[cd.ID] = ResolveClassBody(pc, cd, classType);
         }
         finally
         {
@@ -849,7 +893,7 @@ public sealed class InferTypesPass() : Pass(PassName, PassScope.PerBuild)
     /// The body of <see cref="ResolveClassDecl"/>, split out so the enclosing-class state it runs
     /// under is restored on every exit path.
     /// </summary>
-    private void ResolveClassBody(PassContext pc, ClassDecl cd, ClassType classType)
+    private List<(ClassMethodNode Method, Type ReturnType)> ResolveClassBody(PassContext pc, ClassDecl cd, ClassType classType)
     {
         foreach (var (id, sym) in pc.Pkg!.Syms.ByID)
             if (sym.Name == "self" && sym.DeclaringNode == cd.ID && sym.Type == TypID.Invalid)
@@ -1024,6 +1068,16 @@ public sealed class InferTypesPass() : Pass(PassName, PassScope.PerBuild)
             }
         }
 
+        return methodBodies;
+    }
+
+    /// <summary>
+    /// Resolves the constructor, method and accessor bodies of a class whose members are typed,
+    /// then checks what the class promises to its interfaces and abstract bases.
+    /// </summary>
+    private void ResolveClassBodies(PassContext pc, ClassDecl cd, ClassType classType,
+        List<(ClassMethodNode Method, Type ReturnType)> methodBodies)
+    {
         if (cd.Constructor != null)
         {
             CheckSuperCall(pc, cd, classType);
@@ -2081,13 +2135,23 @@ public sealed class InferTypesPass() : Pass(PassName, PassScope.PerBuild)
                 var valueType = i < stmt.Values.Count && IsEmptyTable(stmt.Values[i]) && IsTableShape(pc, targetType)
                     ? targetType
                     : FirstValue(pc, valueTypes[i]);
-                if (!IsTypeAssignable(pc, targetType, valueType))
+                if (!IsTypeAssignable(pc, targetType, valueType) && !DeletesMapEntry(pc, target, valueType))
                 {
                     pc.Diag.Report(target.Span, DiagnosticCode.ErrTypeMismatch,
                         TypeName(pc, targetType), TypeName(pc, valueType));
                 }
             }
         }
+    }
+
+    /// <summary>
+    /// Whether an assignment removes an entry of a map, as <c>set[key] = nil</c> does in Lua. A map
+    /// holds its values, not <c>nil</c>, so its value type does not have to allow it.
+    /// </summary>
+    private bool DeletesMapEntry(PassContext pc, Expr target, TypID value)
+    {
+        if (value != pc.Types.PrimNil.ID || target is not IndexAccessExpr index) return false;
+        return pc.Pkg!.Types.GetByID(StripNil(pc, SynthesizeExpr(pc, index.Object)), out var container) && container is TableMapType;
     }
 
     private bool KeepsNarrowing(PassContext pc, AccessPath path, TypID assigned)
@@ -2399,8 +2463,8 @@ public sealed class InferTypesPass() : Pass(PassName, PassScope.PerBuild)
     private TypID InferBinary(PassContext pc, BinaryExpr bin)
     {
         var tt = pc.Types;
-        var l = SynthesizeExpr(pc, bin.Left);
-        var r = bin.Op is BinaryOp.And or BinaryOp.Or ? SynthesizeShortCircuitRight(pc, bin) : SynthesizeExpr(pc, bin.Right);
+        var l = FirstValue(pc, SynthesizeExpr(pc, bin.Left));
+        var r = FirstValue(pc, bin.Op is BinaryOp.And or BinaryOp.Or ? SynthesizeShortCircuitRight(pc, bin) : SynthesizeExpr(pc, bin.Right));
 
         if (IsConfiguredConcatOp(pc, bin.Op)
             && (l == tt.PrimString.ID || r == tt.PrimString.ID))
@@ -2553,7 +2617,7 @@ public sealed class InferTypesPass() : Pass(PassName, PassScope.PerBuild)
     private TypID InferUnary(PassContext pc, UnaryExpr un)
     {
         var tt = pc.Types;
-        var t = SynthesizeExpr(pc, un.Operand);
+        var t = FirstValue(pc, SynthesizeExpr(pc, un.Operand));
 
         var metaName = UnaryOpToMetamethod(un.Op);
         if (metaName != null)
@@ -2687,8 +2751,11 @@ public sealed class InferTypesPass() : Pass(PassName, PassScope.PerBuild)
             return fnType.ReturnType.ID;
 
         var lastIdx = fnType.ParamTypes.Count - 1;
-        if (lastIdx >= 0 && fnType.ParamTypes[lastIdx] is FunctionType cbType)
+        if (lastIdx >= 0 && pc.Pkg!.Types.GetByID(StripNil(pc, fnType.ParamTypes[lastIdx].ID), out var lastParam)
+            && lastParam is FunctionType cbType)
         {
+            var takesSelf = inner is MethodCallExpr && fnType.ParamNames.Count > 0 && fnType.ParamNames[0] == "self";
+            awaitExpr.CallbackPosition = takesSelf ? lastIdx - 1 : lastIdx;
             if (cbType.ParamTypes.Count == 0)
                 return pc.Types.PrimNil.ID;
             if (cbType.ParamTypes.Count == 1)
