@@ -133,10 +133,9 @@ public sealed class ApplyAnnotationsPass()
         var targetKind = TargetKindForDecl(decl);
         List<Stmt>? produced = null;
         var current = decl;
+        var written = annotations.Where(annotation => !BuiltinAnnotations.IsBuiltin(annotation.Name.Name)).Select(annotation => annotation.ID).ToHashSet();
 
-        ClearAnnotationsOn(current);
-
-        foreach (var ann in annotations)
+        foreach (var ann in annotations.ToList())
         {
             if (BuiltinAnnotations.IsBuiltin(ann.Name.Name)) continue;
             if (!registry.TryGet(ann.Name.Name, out var def))
@@ -178,7 +177,7 @@ public sealed class ApplyAnnotationsPass()
                 {
                     var stmtList = codec.DecodeStmtList(result, ctx.NodeAlloc, ann.Span);
                     RecordExpansion(ctx, ann, current, stmtList);
-                    produced = stmtList;
+                    produced = Splice(produced, current, stmtList);
                     var next = stmtList.OfType<Decl>().FirstOrDefault(d => TargetKindForDecl(d) == targetKind);
                     if (next == null && annotations.Count > 1)
                     {
@@ -200,8 +199,8 @@ public sealed class ApplyAnnotationsPass()
                     }
 
                     RecordExpansion(ctx, ann, current, [newDecl]);
+                    produced = Splice(produced, current, [newDecl]);
                     current = newDecl;
-                    produced = [current];
                 }
             }
             catch (Exception ex)
@@ -211,7 +210,14 @@ public sealed class ApplyAnnotationsPass()
             }
         }
 
-        if (produced == null) return null;
+        if (produced == null)
+        {
+            ClearAnnotationsOn(decl);
+            return null;
+        }
+
+        foreach (var produce in produced.OfType<Decl>())
+            RemoveAnnotations(produce, annotation => written.Contains(annotation.ID));
 
         if (originalStmt is ExportStmt)
         {
@@ -226,6 +232,39 @@ public sealed class ApplyAnnotationsPass()
         }
 
         return produced;
+    }
+
+    /// <summary>
+    /// Puts what an annotation returned in place of the declaration it ran on, among what the
+    /// annotations before it produced, so the statements each of them adds are kept.
+    /// </summary>
+    private static List<Stmt> Splice(List<Stmt>? produced, Decl current, List<Stmt> replacement)
+    {
+        if (produced == null) return [..replacement];
+
+        var index = produced.FindIndex(stmt => ReferenceEquals(stmt, current));
+        if (index < 0) return [..produced, ..replacement];
+
+        produced.RemoveAt(index);
+        produced.InsertRange(index, replacement);
+        return produced;
+    }
+
+    /// <summary>
+    /// Removes the annotations written on a declaration once all of them ran, so each one sees the
+    /// others on its target. Annotations they add themselves, such as markers for reflection, stay.
+    /// </summary>
+    private static void RemoveAnnotations(Decl decl, Predicate<Annotation> processed)
+    {
+        switch (decl)
+        {
+            case FunctionDecl fd: fd.Annotations = fd.Annotations.Where(a => !processed(a)).ToList(); break;
+            case LocalFunctionDecl lfd: lfd.Annotations = lfd.Annotations.Where(a => !processed(a)).ToList(); break;
+            case LocalDecl ld: ld.Annotations = ld.Annotations.Where(a => !processed(a)).ToList(); break;
+            case ClassDecl cd: cd.Annotations = cd.Annotations.Where(a => !processed(a)).ToList(); break;
+            case EnumDecl ed: ed.Annotations = ed.Annotations.Where(a => !processed(a)).ToList(); break;
+            case InterfaceDecl id: id.Annotations = id.Annotations.Where(a => !processed(a)).ToList(); break;
+        }
     }
 
     private static void RecordExpansion(PassContext ctx, Annotation annotation, Decl target, List<Stmt> result)

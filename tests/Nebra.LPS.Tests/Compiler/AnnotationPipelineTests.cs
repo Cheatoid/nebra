@@ -64,4 +64,30 @@ public sealed class AnnotationPipelineTests
         Assert.Equal(DiagnosticCode.ErrAnnotationRuntimeError, error.Code);
         Assert.Contains("'os'", error.Message);
     }
+
+    private const string Entity = "export local annotation = {\n    targets = { \"Class\" }\n}\n\nexport function apply(target, args)\n    local indexed = \"none\"\n    for _, other in ipairs(target.annotations or {}) do\n        if other.name.name == \"Index\" then\n            indexed = other.args[1].value.value\n        end\n    end\n    return { target, ir.localDecl(\"registered\", ir.stringLiteral(indexed)) }\nend\n";
+    private const string Index = "export local annotation = {\n    targets = { \"Class\" },\n    params = { fields = { type = \"string\", required = true } }\n}\n\nexport function apply(target, args)\n    return target\nend\n";
+    private const string Audit = "export local annotation = {\n    targets = { \"Class\" }\n}\n\nexport function apply(target, args)\n    return { target, ir.localDecl(\"audited\", ir.boolLiteral(true)) }\nend\n";
+
+    [Theory]
+    [InlineData("@Entity\n@Index(fields = \"name\")\n")]
+    [InlineData("@Index(fields = \"name\")\n@Entity\n")]
+    public void AClassAnnotationKeepsItsStatementsAndSeesTheOthers(string annotations)
+    {
+        var build = Build(annotations + "class User\n    name: string = \"\"\nend\n\nprint(User, registered)\n", ("Entity.neb", Entity), ("Index.neb", Index));
+
+        Assert.Empty(build.Errors);
+        Assert.Contains("local registered = \"name\"", build.Lua("src/main.neb"));
+    }
+
+    [Fact]
+    public void EveryClassAnnotationKeepsTheStatementsItAdds()
+    {
+        var build = Build("@Entity\n@Audit\nclass User\nend\n\nprint(User, registered, audited)\n", ("Entity.neb", Entity), ("Audit.neb", Audit));
+
+        Assert.Empty(build.Errors);
+        var lua = build.Lua("src/main.neb");
+        Assert.Contains("local registered = \"none\"", lua);
+        Assert.Contains("local audited = true", lua);
+    }
 }
