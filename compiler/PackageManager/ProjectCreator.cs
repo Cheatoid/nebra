@@ -175,7 +175,7 @@ public sealed class ProjectCreator
                     await Console.Error.WriteLineAsync($"error: alias '{spec.AliasName}' not found in registry index ({Registry.EffectiveUrl()}).");
                     return 1;
                 }
-                var combined = string.IsNullOrEmpty(spec.AliasRange) ? url : $"{url}#{spec.AliasRange}";
+                var combined = Registry.WithRange(url, spec.AliasRange);
                 spec = PackageSpec.Parse(combined);
             }
             catch (PackageManagerException ex)

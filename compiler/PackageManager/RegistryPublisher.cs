@@ -32,14 +32,15 @@ public static class RegistryPublisher
             return 1;
         }
 
-        var repository = await RepositoryOfAsync(project);
-        if (repository == null) return 1;
+        var location = await RepositoryOfAsync(project);
+        if (location == null) return 1;
 
         var token = await TokenAsync();
         var package = await PackageNameAsync(name, scope, token);
         if (package == null) return 1;
 
-        var request = new Dictionary<string, string> { ["action"] = "publish", ["package"] = package, ["repo"] = repository };
+        var request = new Dictionary<string, string> { ["action"] = "publish", ["package"] = package, ["repo"] = location.Value.Repository };
+        if (location.Value.Subdir.Length > 0) request["subdir"] = location.Value.Subdir;
         if (!string.IsNullOrWhiteSpace(description)) request["description"] = description;
         return await SendAsync($"publish {package}", request, token);
     }
@@ -146,17 +147,20 @@ public static class RegistryPublisher
     }
 
     /// <summary>
-    /// The GitHub repository a project is published from: the <c>origin</c> remote of the git
-    /// repository whose root the project is.
+    /// The GitHub repository a project is published from, the <c>origin</c> remote of its git
+    /// repository, and the directory of the repository the project is in, empty at its root.
     /// </summary>
-    private static async Task<string?> RepositoryOfAsync(string project)
+    private static async Task<(string Repository, string Subdir)?> RepositoryOfAsync(string project)
     {
         var (rootCode, root, _) = await GitRunner.RunAsync(project, "rev-parse", "--show-toplevel");
-        if (rootCode != 0 || Path.GetFullPath(root.Trim()) != Path.GetFullPath(project))
+        if (rootCode != 0)
         {
-            await Console.Error.WriteLineAsync("error: a package is published from the root of its git repository.");
+            await Console.Error.WriteLineAsync("error: a package is published from a git repository.");
             return null;
         }
+
+        var subdir = Path.GetRelativePath(Path.GetFullPath(root.Trim()), Path.GetFullPath(project)).Replace('\\', '/');
+        if (subdir == ".") subdir = "";
 
         var (remoteCode, remote, _) = await GitRunner.RunAsync(project, "remote", "get-url", "origin");
         var match = Regex.Match(remote.Trim(), @"github\.com[:/](?<owner>[^/]+)/(?<repo>[^/]+?)(\.git)?/?$");
@@ -166,7 +170,7 @@ public static class RegistryPublisher
             return null;
         }
 
-        return $"https://github.com/{match.Groups["owner"].Value}/{match.Groups["repo"].Value}";
+        return ($"https://github.com/{match.Groups["owner"].Value}/{match.Groups["repo"].Value}", subdir);
     }
 
     private static async Task<string?> TokenAsync()

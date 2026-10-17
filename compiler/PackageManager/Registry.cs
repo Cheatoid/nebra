@@ -29,6 +29,16 @@ public static class Registry
     /// <summary>
     /// Resolves an alias name to a git URL. Returns <c>null</c> if the alias is not in the index.
     /// </summary>
+    /// <summary>
+    /// A location from the index with a version range added: after <c>@</c> for a shortcut such as
+    /// <c>github:owner/repo/directory</c>, after <c>#</c> for a URL.
+    /// </summary>
+    public static string WithRange(string location, string? range)
+    {
+        if (string.IsNullOrEmpty(range)) return location;
+        return location.Contains("://", StringComparison.Ordinal) ? $"{location}#{range}" : $"{location}@{range}";
+    }
+
     public static async Task<string?> ResolveAsync(string aliasName, bool forceRefresh = false)
     {
         var index = await LoadIndexAsync(forceRefresh);

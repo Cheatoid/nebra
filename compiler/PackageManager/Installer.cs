@@ -448,7 +448,7 @@ public sealed class Installer
                 $"alias '{spec.AliasName}' not found in registry index ({Registry.EffectiveUrl()}). " +
                 "Use an explicit git spec (e.g. github:owner/repo) instead.");
 
-        var combined = string.IsNullOrEmpty(spec.AliasRange) ? url : $"{url}#{spec.AliasRange}";
+        var combined = Registry.WithRange(url, spec.AliasRange);
         var resolved = PackageSpec.Parse(combined);
         if (resolved.Kind != SpecKind.Git)
             throw new PackageManagerException(
