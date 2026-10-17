@@ -2088,7 +2088,7 @@ public sealed class InferTypesPass() : Pass(PassName, PassScope.PerBuild)
         {
             var variable = ld.Variables[i];
             var annotated = variable.TypeAnnotation?.ResolvedType ?? TypID.Invalid;
-            var inferred = i < valueTypes.Count ? FirstValue(pc, valueTypes[i]) : pc.Types.PrimNil.ID;
+            var inferred = i < valueTypes.Count ? FirstValue(pc, valueTypes[i]) : pc.Types.PrimAny.ID;
 
             TypID finalType;
             if (annotated != TypID.Invalid)

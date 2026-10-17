@@ -74,4 +74,10 @@ public sealed class LuaValueTests
     {
         Assert.Empty(Errors(source));
     }
+
+    [Fact]
+    public void ALocalDeclaredWithoutAValueTakesWhatItIsGivenLater()
+    {
+        Assert.Empty(Errors("local function fill(): string\n    return \"x\"\nend\n\nlocal flag: boolean = true\nlocal t\nif flag then\n    t = fill()\nend\nprint(t)\n"));
+    }
 }
