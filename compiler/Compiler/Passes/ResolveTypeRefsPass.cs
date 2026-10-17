@@ -166,12 +166,7 @@ public class ResolveTypeRefsPass() : Pass(PassName, PassScope.PerBuild)
             _currentScope = methodScope;
 
         MaterializeFunctionTypeParams(_pkg, typeParams, $"{ownerKey}@{anchor}", _currentScope);
-        foreach (var tp in typeParams)
-        {
-            if (tp.ExtendsBound != null) ResolveTypeRef(tt, tp.ExtendsBound);
-            foreach (var ib in tp.ImplementsBounds) ResolveTypeRef(tt, ib);
-        }
-        PopulateTypeParamBounds(tt, typeParams);
+        ResolveTypeParamBounds(tt, typeParams);
 
         foreach (var parameter in parameters)
         {
@@ -181,6 +176,20 @@ public class ResolveTypeRefsPass() : Pass(PassName, PassScope.PerBuild)
         if (body != null) ResolveStmtListTypes(tt, body);
         if (returnStmt != null) ResolveStmtTypes(tt, returnStmt);
         _currentScope = prev;
+    }
+
+    /// <summary>
+    /// Resolves the <c>extends</c> and <c>implements</c> bounds of a function's or method's type
+    /// parameters and records them on the parameters' types.
+    /// </summary>
+    private void ResolveTypeParamBounds(TypeTable tt, List<TypeParamDef> typeParams)
+    {
+        foreach (var typeParam in typeParams)
+        {
+            if (typeParam.ExtendsBound != null) ResolveTypeRef(tt, typeParam.ExtendsBound);
+            foreach (var bound in typeParam.ImplementsBounds) ResolveTypeRef(tt, bound);
+        }
+        PopulateTypeParamBounds(tt, typeParams);
     }
 
     private void MaterializeFunctionTypeParams(PackageContext pkg, List<TypeParamDef> defs, string ownerKey, ScopeID declScope)
@@ -394,6 +403,7 @@ public class ResolveTypeRefsPass() : Pass(PassName, PassScope.PerBuild)
                 _currentScope = ScopeOfDecl(functionDecl.ID);
                 MaterializeFunctionTypeParams(_pkg, functionDecl.TypeParams,
                     $"fn:{string.Join(".", functionDecl.NamePath.Select(n => n.Name))}@{functionDecl.ID}", _currentScope);
+                ResolveTypeParamBounds(tt, functionDecl.TypeParams);
                 foreach (var param in functionDecl.Parameters)
                 {
                     if (param.TypeAnnotation != null)
@@ -422,6 +432,7 @@ public class ResolveTypeRefsPass() : Pass(PassName, PassScope.PerBuild)
                 _currentScope = ScopeOfDecl(localFunctionDecl.ID);
                 MaterializeFunctionTypeParams(_pkg, localFunctionDecl.TypeParams,
                     $"lfn:{localFunctionDecl.Name.Name}@{localFunctionDecl.ID}", _currentScope);
+                ResolveTypeParamBounds(tt, localFunctionDecl.TypeParams);
                 foreach (var param in localFunctionDecl.Parameters)
                 {
                     if (param.TypeAnnotation != null)
@@ -465,6 +476,7 @@ public class ResolveTypeRefsPass() : Pass(PassName, PassScope.PerBuild)
                 _currentScope = ScopeOfDecl(declareFunctionDecl.ID);
                 MaterializeFunctionTypeParams(_pkg, declareFunctionDecl.TypeParams,
                     $"dfn:{string.Join(".", declareFunctionDecl.NamePath.Select(n => n.Name))}@{declareFunctionDecl.ID}", _currentScope);
+                ResolveTypeParamBounds(tt, declareFunctionDecl.TypeParams);
                 foreach (var param in declareFunctionDecl.Parameters)
                 {
                     if (param.TypeAnnotation != null)

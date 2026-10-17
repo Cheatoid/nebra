@@ -1095,6 +1095,17 @@ public sealed class TypeTable
                 }
                 return changed ? DeclareType(new UnionType(newTypes)) : t;
             }
+            case TupleType tuple:
+            {
+                var fields = tuple.Fields.Select(field => new TupleType.Field(field.Name, Substitute(field.Type, subst))).ToList();
+                return fields.Zip(tuple.Fields).All(pair => ReferenceEquals(pair.First.Type, pair.Second.Type))
+                    ? t : DeclareType(new TupleType(fields));
+            }
+            case VariadicType variadic:
+            {
+                var element = Substitute(variadic.ElementType, subst);
+                return ReferenceEquals(element, variadic.ElementType) ? t : DeclareType(new VariadicType(element));
+            }
             case FunctionType fn:
             {
                 var changed = false;

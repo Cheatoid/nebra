@@ -25,4 +25,27 @@ public sealed class GenericMethodTests
         Assert.Empty(Errors("class Item\nend\n\nlocal deep: { [string]: { [string]: Item } } = {}\nlocal loose: { [string]: { [string]: any } } = deep\nprint(loose)\n"));
         Assert.Equal(DiagnosticCode.ErrTypeMismatch, Assert.Single(Errors("local numbers: { [string]: number } = {}\nlocal strings: { [string]: string } = numbers\nprint(strings)\n")).Code);
     }
+
+    private const string Generic = "class Item\n    name: string = \"\"\nend\n\nlocal function first<T>(items: { [string]: T }, key: string): T?\n    return items[key]\nend\n\nlocal function map<T, U>(items: T[], f: (T) -> U): U[]\n    local out: U[] = {}\n    for i, v in ipairs(items) do\n        out[i] = f(v)\n    end\n    return out\nend\n\nlocal function pair<A, B>(a: A, b: B): (A, B)\n    return a, b\nend\n\nlocal flat: { [string]: Item } = {}\nlocal items: Item[] = {}\n";
+
+    [Theory]
+    [InlineData("local found = first(flat, \"x\")\nlocal wrong: boolean = found\n", "Item | nil")]
+    [InlineData("local names = map(items, function(item: Item): string return item.name end)\nlocal wrong: boolean = names\n", "string[]")]
+    [InlineData("local count, label = pair(1, \"two\")\nlocal wrong: boolean = label\n", "string")]
+    public void ACallFillsTheTypeParametersOfItsReturnTypeFromItsArguments(string use, string inferred)
+    {
+        var error = Assert.Single(Errors(Generic + use));
+
+        Assert.Equal(DiagnosticCode.ErrTypeMismatch, error.Code);
+        Assert.Contains($"but got '{inferred}'", error.Message);
+    }
+
+    [Fact]
+    public void ABoundedTypeParameterHasTheMembersOfItsBoundAndOnlyTakesWhatFitsIt()
+    {
+        const string bounded = "interface Named\n    method label(): string\nend\n\nclass Tag implements Named\n    function label(): string\n        return \"tag\"\n    end\nend\n\nlocal function describe<T implements Named>(value: T): string\n    return value:label()\nend\n\n";
+
+        Assert.Empty(Errors(bounded + "print(describe(new Tag()))\n"));
+        Assert.Equal(DiagnosticCode.ErrTypeMismatch, Assert.Single(Errors(bounded + "print(describe(5))\n")).Code);
+    }
 }

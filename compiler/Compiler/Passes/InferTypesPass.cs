@@ -2984,6 +2984,17 @@ public sealed class InferTypesPass() : Pass(PassName, PassScope.PerBuild)
             fdeDefaults.Count > 0 ? fdeDefaults : null, fde.IsAsync);
     }
 
+    /// <summary>
+    /// The type whose members a value of <paramref name="type"/> has: for a bounded type parameter
+    /// its bound, the class it extends or else the first interface it implements, since every type
+    /// it stands for has those members.
+    /// </summary>
+    private TypID MemberTypeOf(PassContext pc, TypID type)
+    {
+        if (!pc.Pkg!.Types.GetByID(type, out var resolved) || resolved is not TypeParameterType typeParameter) return type;
+        return typeParameter.ExtendsBound ?? (typeParameter.ImplementsBounds.Count > 0 ? typeParameter.ImplementsBounds[0] : type);
+    }
+
     private TypID InferDotAccess(PassContext pc, DotAccessExpr dot)
     {
         var baseTyp = SynthesizeExpr(pc, dot.Object);
@@ -3009,6 +3020,7 @@ public sealed class InferTypesPass() : Pass(PassName, PassScope.PerBuild)
                 baseTyp = StripNil(pc, baseTyp);
             }
         }
+        baseTyp = MemberTypeOf(pc, baseTyp);
 
         if (!pc.Pkg!.Types.GetByID(baseTyp, out var baseType))
         {
@@ -3324,7 +3336,7 @@ public sealed class InferTypesPass() : Pass(PassName, PassScope.PerBuild)
                 {
                     AdoptEmptyTableArguments(pc, picked, call.Arguments, argTypes, 0);
                     CheckCallArguments(pc, call.Span, picked, argTypes);
-                    var ret = picked.ReturnType.ID;
+                    var ret = SpecializedReturn(pc, picked, argTypes);
                     return call.IsOptional ? MakeNullable(pc, ret) : ret;
                 }
             }
@@ -3338,7 +3350,7 @@ public sealed class InferTypesPass() : Pass(PassName, PassScope.PerBuild)
                 ne.Name.Sym = resolved.Value.sym;
                 AdoptEmptyTableArguments(pc, resolved.Value.ft, call.Arguments, argTypes, 0);
                 CheckCallArguments(pc, call.Span, resolved.Value.ft, argTypes);
-                var ret = resolved.Value.ft.ReturnType.ID;
+                var ret = SpecializedReturn(pc, resolved.Value.ft, argTypes);
                 return call.IsOptional ? MakeNullable(pc, ret) : ret;
             }
 
@@ -3379,7 +3391,7 @@ public sealed class InferTypesPass() : Pass(PassName, PassScope.PerBuild)
 
         AdoptEmptyTableArguments(pc, fnType, call.Arguments, argTypes, 0);
         CheckCallArguments(pc, call.Span, fnType, argTypes);
-        var resultType = fnType.ReturnType.ID;
+        var resultType = SpecializedReturn(pc, fnType, argTypes);
         return call.IsOptional ? MakeNullable(pc, resultType) : resultType;
     }
 
@@ -3480,6 +3492,7 @@ public sealed class InferTypesPass() : Pass(PassName, PassScope.PerBuild)
         {
             objTyp = StripNil(pc, objTyp);
         }
+        objTyp = MemberTypeOf(pc, objTyp);
 
         var argTypes = new List<TypID>();
         foreach (var arg in mc.Arguments)
@@ -3509,7 +3522,7 @@ public sealed class InferTypesPass() : Pass(PassName, PassScope.PerBuild)
                 pickedArgs.AddRange(argTypes);
                 AdoptEmptyTableArguments(pc, picked, mc.Arguments, pickedArgs, ovPrefixSelf ? 1 : 0);
                 CheckCallArguments(pc, mc.Span, picked, WithContinuation(picked, pickedArgs, continuationSupplied));
-                return picked.ReturnType.ID;
+                return SpecializedReturn(pc, picked, pickedArgs);
             }
         }
 
@@ -3525,7 +3538,7 @@ public sealed class InferTypesPass() : Pass(PassName, PassScope.PerBuild)
                 extArgs.AddRange(argTypes);
                 AdoptEmptyTableArguments(pc, extFn, mc.Arguments, extArgs, 1);
                 CheckCallArguments(pc, mc.Span, extFn, WithContinuation(extFn, extArgs, continuationSupplied));
-                return extFn.ReturnType.ID;
+                return SpecializedReturn(pc, extFn, extArgs);
             }
 
             if (objType.Kind != TypeKind.PrimitiveAny)
@@ -3554,7 +3567,7 @@ public sealed class InferTypesPass() : Pass(PassName, PassScope.PerBuild)
         AdoptEmptyTableArguments(pc, methodFn, mc.Arguments, fullArgs, prefixSelf ? 1 : 0);
         CheckCallArguments(pc, mc.Span, methodFn, WithContinuation(methodFn, fullArgs, continuationSupplied));
 
-        return methodFn.ReturnType.ID;
+        return SpecializedReturn(pc, methodFn, fullArgs);
     }
 
     private static bool StartsWithSelfParam(FunctionType ft)
@@ -3894,6 +3907,103 @@ public sealed class InferTypesPass() : Pass(PassName, PassScope.PerBuild)
         }
 
         return tt.MapOf(GetType(pc, keyType), GetType(pc, valueType));
+    }
+
+    /// <summary>
+    /// The return type of a call with the function's type parameters filled in from the arguments:
+    /// <c>first(items, "x")</c> with <c>first&lt;T&gt;(items: { [string]: T }, key: string): T?</c>
+    /// and items a map of <c>Item</c> returns an <c>Item?</c>. A type parameter no argument tells
+    /// stays as it is.
+    /// </summary>
+    private TypID SpecializedReturn(PassContext pc, FunctionType fn, List<TypID> argTypes)
+    {
+        if (!ContainsTypeParameter(fn.ReturnType)) return fn.ReturnType.ID;
+
+        var bindings = new Dictionary<TypID, Type>();
+        for (var i = 0; i < argTypes.Count; i++)
+        {
+            var parameter = i < fn.ParamTypes.Count ? fn.ParamTypes[i] : fn.IsVararg ? fn.VarargType : null;
+            if (parameter != null && pc.Pkg!.Types.GetByID(argTypes[i], out var argument))
+                Bind(pc, parameter, argument, bindings);
+        }
+
+        return bindings.Count == 0 ? fn.ReturnType.ID : pc.Pkg!.Types.Substitute(fn.ReturnType, bindings).ID;
+    }
+
+    /// <summary>
+    /// Matches a parameter type against the type of its argument and records what each type
+    /// parameter in it stands for: through <c>T?</c> and other unions, lists, maps, tuples and the
+    /// signature of a callback.
+    /// </summary>
+    private void Bind(PassContext pc, Type parameter, Type argument, Dictionary<TypID, Type> bindings)
+    {
+        switch (parameter)
+        {
+            case TypeParameterType typeParameter:
+                Widen(pc, bindings, typeParameter, argument);
+                break;
+            case UnionType union:
+            {
+                var generic = union.Types.Where(ContainsTypeParameter).ToList();
+                if (generic.Count != 1) break;
+
+                var arguments = argument is UnionType argumentUnion ? argumentUnion.Types : [argument];
+                var rest = arguments.Where(candidate => union.Types.All(member => member.ID != candidate.ID)).ToList();
+                if (rest.Count > 0)
+                    Bind(pc, generic[0], rest.Count == 1 ? rest[0] : GetType(pc, pc.Types.UnionOf(rest)), bindings);
+                break;
+            }
+            case TableArrayType list when argument is TableArrayType argumentList:
+                Bind(pc, list.ElementType, argumentList.ElementType, bindings);
+                break;
+            case TableMapType map when argument is TableMapType argumentMap:
+                Bind(pc, map.KeyType, argumentMap.KeyType, bindings);
+                Bind(pc, map.ValueType, argumentMap.ValueType, bindings);
+                break;
+            case TupleType tuple when argument is TupleType argumentTuple:
+                foreach (var (field, argumentField) in tuple.Fields.Zip(argumentTuple.Fields))
+                    Bind(pc, field.Type, argumentField.Type, bindings);
+                break;
+            case FunctionType function when argument is FunctionType argumentFunction:
+                foreach (var (functionParameter, argumentParameter) in function.ParamTypes.Zip(argumentFunction.ParamTypes))
+                    Bind(pc, functionParameter, argumentParameter, bindings);
+                Bind(pc, function.ReturnType, argumentFunction.ReturnType, bindings);
+                break;
+        }
+    }
+
+    /// <summary>
+    /// Records what a type parameter stands for; when several arguments tell it, the wider of
+    /// their types, or their union when neither holds the other.
+    /// </summary>
+    private void Widen(PassContext pc, Dictionary<TypID, Type> bindings, TypeParameterType typeParameter, Type argument)
+    {
+        if (argument is TypeParameterType) return;
+        if (!bindings.TryGetValue(typeParameter.ID, out var bound))
+        {
+            bindings[typeParameter.ID] = argument;
+            return;
+        }
+
+        if (IsTypeAssignable(pc, bound.ID, argument.ID)) return;
+        bindings[typeParameter.ID] = IsTypeAssignable(pc, argument.ID, bound.ID)
+            ? argument
+            : GetType(pc, pc.Types.UnionOf([bound, argument]));
+    }
+
+    private static bool ContainsTypeParameter(Type type)
+    {
+        return type switch
+        {
+            TypeParameterType => true,
+            UnionType union => union.Types.Any(ContainsTypeParameter),
+            TableArrayType list => ContainsTypeParameter(list.ElementType),
+            TableMapType map => ContainsTypeParameter(map.KeyType) || ContainsTypeParameter(map.ValueType),
+            TupleType tuple => tuple.Fields.Any(field => ContainsTypeParameter(field.Type)),
+            VariadicType variadic => ContainsTypeParameter(variadic.ElementType),
+            FunctionType function => function.ParamTypes.Any(ContainsTypeParameter) || ContainsTypeParameter(function.ReturnType),
+            _ => false,
+        };
     }
 
     /// <summary>
@@ -4293,8 +4403,8 @@ public sealed class InferTypesPass() : Pass(PassName, PassScope.PerBuild)
 
         if (pc.Pkg!.Types.GetByID(dst, out var dstTpCheck) && dstTpCheck is TypeParameterType dstTp)
         {
-            if (dstTp.ExtendsBound is { } eb) return IsTypeAssignable(pc, eb, src);
-            return true;
+            if (dstTp.ExtendsBound is { } eb && !IsTypeAssignable(pc, eb, src)) return false;
+            return dstTp.ImplementsBounds.All(bound => IsTypeAssignable(pc, bound, src));
         }
         if (pc.Pkg.Types.GetByID(src, out var srcTpCheck) && srcTpCheck is TypeParameterType)
         {
