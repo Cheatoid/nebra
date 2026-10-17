@@ -359,7 +359,7 @@ public sealed class LuaGenerator(Config config)
             $"local function {name}(co, done) " +
             $"local function step(...) " +
             $"local ok, payload = coroutine.resume(co, ...) " +
-            $"if not ok then error(payload) end " +
+            $"if not ok then error(payload, 0) end " +
             $"if coroutine.status(co) == \"dead\" then if done then done(payload) end return end " +
             $"local fn = payload[1] local n = payload.n " +
             $"local args = {{{unpackFn}(payload, 2, n)}} " +
