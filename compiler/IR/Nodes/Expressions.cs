@@ -158,6 +158,13 @@ public sealed class InstanceOfExpr(NodeID id, TextSpan span, Expr inner, NameRef
 public sealed class AwaitExpr(NodeID id, TextSpan span, Expr expression) : Expr(id, span)
 {
     public Expr Expression { get; } = expression;
+
+    /// <summary>
+    /// How many arguments the awaited call passes before its callback, set when the callee takes
+    /// one: arguments left out before it are passed as <c>nil</c>, so the callback lands in its own
+    /// parameter. <c>-1</c> when the callee is async or untyped.
+    /// </summary>
+    public int CallbackPosition { get; set; } = -1;
 }
 
 public sealed class TableConstructorExpr(NodeID id, TextSpan span, List<TableField> fields) : Expr(id, span)

@@ -116,6 +116,20 @@ public partial class NebraBaseListener : INebraListener {
 	/// <param name="context">The parse tree.</param>
 	public virtual void ExitNewStat([NotNull] NebraParser.NewStatContext context) { }
 	/// <summary>
+	/// Enter a parse tree produced by the <c>AwaitStat</c>
+	/// labeled alternative in <see cref="NebraParser.stmt"/>.
+	/// <para>The default implementation does nothing.</para>
+	/// </summary>
+	/// <param name="context">The parse tree.</param>
+	public virtual void EnterAwaitStat([NotNull] NebraParser.AwaitStatContext context) { }
+	/// <summary>
+	/// Exit a parse tree produced by the <c>AwaitStat</c>
+	/// labeled alternative in <see cref="NebraParser.stmt"/>.
+	/// <para>The default implementation does nothing.</para>
+	/// </summary>
+	/// <param name="context">The parse tree.</param>
+	public virtual void ExitAwaitStat([NotNull] NebraParser.AwaitStatContext context) { }
+	/// <summary>
 	/// Enter a parse tree produced by the <c>IncDecStat_</c>
 	/// labeled alternative in <see cref="NebraParser.stmt"/>.
 	/// <para>The default implementation does nothing.</para>

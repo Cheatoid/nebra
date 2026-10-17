@@ -72,6 +72,13 @@ public interface INebraVisitor<Result> : IParseTreeVisitor<Result> {
 	/// <return>The visitor result.</return>
 	Result VisitNewStat([NotNull] NebraParser.NewStatContext context);
 	/// <summary>
+	/// Visit a parse tree produced by the <c>AwaitStat</c>
+	/// labeled alternative in <see cref="NebraParser.stmt"/>.
+	/// </summary>
+	/// <param name="context">The parse tree.</param>
+	/// <return>The visitor result.</return>
+	Result VisitAwaitStat([NotNull] NebraParser.AwaitStatContext context);
+	/// <summary>
 	/// Visit a parse tree produced by the <c>IncDecStat_</c>
 	/// labeled alternative in <see cref="NebraParser.stmt"/>.
 	/// </summary>

@@ -63,6 +63,7 @@ stmt
     | varList ASSIGN exprList                                   # AssignStat
     | functionCall                                              # FunctionCallStat
     | NEW NAME LPAREN exprList? RPAREN                          # NewStat
+    | AWAIT expr                                                # AwaitStat
     | incDecStat                                                # IncDecStat_
     | label                                                     # LabelStat
     | BREAK INT?                                                 # BreakStat

@@ -99,6 +99,18 @@ public interface INebraListener : IParseTreeListener {
 	/// <param name="context">The parse tree.</param>
 	void ExitNewStat([NotNull] NebraParser.NewStatContext context);
 	/// <summary>
+	/// Enter a parse tree produced by the <c>AwaitStat</c>
+	/// labeled alternative in <see cref="NebraParser.stmt"/>.
+	/// </summary>
+	/// <param name="context">The parse tree.</param>
+	void EnterAwaitStat([NotNull] NebraParser.AwaitStatContext context);
+	/// <summary>
+	/// Exit a parse tree produced by the <c>AwaitStat</c>
+	/// labeled alternative in <see cref="NebraParser.stmt"/>.
+	/// </summary>
+	/// <param name="context">The parse tree.</param>
+	void ExitAwaitStat([NotNull] NebraParser.AwaitStatContext context);
+	/// <summary>
 	/// Enter a parse tree produced by the <c>IncDecStat_</c>
 	/// labeled alternative in <see cref="NebraParser.stmt"/>.
 	/// </summary>

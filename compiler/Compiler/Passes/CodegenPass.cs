@@ -1603,9 +1603,28 @@ public sealed partial class CodegenPass() : Pass(PassName, PassScope.PerBuild, t
             return;
         }
 
+        if (StartsWithParenthesis(exprStmt.Expression)) gen.Write(";");
         EmitExpr(ctx, pkg, gen, exprStmt.Expression);
         gen.NewLine();
         gen.WriteSemicolon();
+    }
+
+    /// <summary>
+    /// Whether the Lua of a statement opens with a parenthesis. Lua would read it as a call of
+    /// whatever the previous statement ended with, so such a statement is started with <c>;</c>.
+    /// </summary>
+    private static bool StartsWithParenthesis(Expr expr)
+    {
+        return expr switch
+        {
+            ParenExpr => true,
+            AwaitExpr { Expression: MethodCallExpr } => true,
+            MethodCallExpr call => StartsWithParenthesis(call.Object),
+            FunctionCallExpr call => StartsWithParenthesis(call.Callee),
+            DotAccessExpr access => StartsWithParenthesis(access.Object),
+            IndexAccessExpr access => StartsWithParenthesis(access.Object),
+            _ => false,
+        };
     }
 
     private void EmitExpr(PassContext ctx, PackageContext pkg, LuaGenerator gen, Expr expr)
@@ -2272,7 +2291,8 @@ public sealed partial class CodegenPass() : Pass(PassName, PassScope.PerBuild, t
                 gen.Write(", ");
                 EmitExpr(ctx, pkg, gen, arg);
             }
-            gen.Write($", n = {fc.Arguments.Count + 1}");
+            var passed = PadToCallback(gen, aw, fc.Arguments.Count);
+            gen.Write($", n = {passed + 1}");
             gen.Write("})");
         }
         else if (inner is MethodCallExpr mc)
@@ -2286,7 +2306,8 @@ public sealed partial class CodegenPass() : Pass(PassName, PassScope.PerBuild, t
                 gen.Write(", ");
                 EmitExpr(ctx, pkg, gen, arg);
             }
-            gen.Write($", n = {mc.Arguments.Count + 2}");
+            var passed = PadToCallback(gen, aw, mc.Arguments.Count);
+            gen.Write($", n = {passed + 2}");
             gen.Write("}) end)()");
         }
         else
@@ -2295,6 +2316,17 @@ public sealed partial class CodegenPass() : Pass(PassName, PassScope.PerBuild, t
             EmitExpr(ctx, pkg, gen, inner);
             gen.Write(", n = 1})");
         }
+    }
+
+    /// <summary>
+    /// Passes <c>nil</c> for the optional arguments an awaited call leaves out before its callback,
+    /// and returns how many arguments precede the callback.
+    /// </summary>
+    private static int PadToCallback(LuaGenerator gen, AwaitExpr aw, int written)
+    {
+        for (var i = written; i < aw.CallbackPosition; i++)
+            gen.Write(", nil");
+        return Math.Max(written, aw.CallbackPosition);
     }
 
     private void EmitIndexAccess(PassContext ctx, PackageContext pkg, LuaGenerator gen, IndexAccessExpr idx)

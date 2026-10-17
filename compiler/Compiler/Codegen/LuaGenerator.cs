@@ -363,8 +363,8 @@ public sealed class LuaGenerator(Config config)
             $"if coroutine.status(co) == \"dead\" then if done then done(payload) end return end " +
             $"local fn = payload[1] local n = payload.n " +
             $"local args = {{{unpackFn}(payload, 2, n)}} " +
-            $"args[#args + 1] = step " +
-            $"fn({unpackFn}(args)) " +
+            $"args[n] = step " +
+            $"fn({unpackFn}(args, 1, n)) " +
             $"end step() end");
     }
 

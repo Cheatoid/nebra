@@ -16,6 +16,12 @@ internal partial class IRVisitor
     public override Node VisitFunctionCallStat(NebraParser.FunctionCallStatContext context)
         => new ExprStmt(NewNodeID, SpanFromCtx(context), (Expr)Visit(context.functionCall()));
 
+    public override Node VisitAwaitStat(NebraParser.AwaitStatContext context)
+    {
+        var span = SpanFromCtx(context);
+        return new ExprStmt(NewNodeID, span, new AwaitExpr(NewNodeID, span, (Expr)Visit(context.expr())));
+    }
+
     public override Node VisitNewStat(NebraParser.NewStatContext context)
     {
         var className = NameRefFromTerm(context.NAME());
