@@ -23,11 +23,19 @@ public sealed class ResolveNamesPass() : Pass(PassName, PassScope.PerFile)
     }
 
     /// <summary>
-    /// Set while the initializer of a static field is resolved, naming the field. Its own name
-    /// there means whatever it means outside the class, as in <c>static DayOfWeek = DayOfWeek</c>,
-    /// since the field does not exist before its initializer has run.
+    /// A static member is reached by its bare name only where nothing outside its class is called
+    /// the same: a name the program declares or imports there wins, so a class can pass on what it
+    /// imports, as in <c>static Connection = Connection</c> or a static <c>toSnakeCase</c> calling
+    /// the imported one. Globals provided from outside the program do not hide a member.
     /// </summary>
-    private string? _initializedStaticField;
+    private static List<SymID> PreferOuterDeclaration(PackageContext pkg, List<SymID> found, string name)
+    {
+        if (StaticMemberOwner(pkg, found) is not { } classScope || !pkg.Scopes.ParentScope(classScope, out var outside)) return found;
+
+        var outer = PreferOuterDeclaration(pkg, pkg.Scopes.LookupAll(outside, name), name);
+        if (outer.Count == 0 || !pkg.Syms.GetByID(outer[0], out var symbol) || symbol.Flags.HasFlag(SymbolFlags.External)) return found;
+        return outer;
+    }
 
     /// <summary>
     /// Set while the body of a static class function is resolved, naming it, so a <c>self</c>
@@ -373,9 +381,7 @@ public sealed class ResolveNamesPass() : Pass(PassName, PassScope.PerFile)
                 foreach (var field in classDecl.Fields)
                 {
                     if (field.DefaultValue == null) continue;
-                    _initializedStaticField = field.IsStatic ? field.Name.Name : null;
                     ResolveExprNames(pc, field.DefaultValue, pkg);
-                    _initializedStaticField = null;
                 }
                 break;
             }
@@ -571,12 +577,7 @@ public sealed class ResolveNamesPass() : Pass(PassName, PassScope.PerFile)
 
     private void ResolveNameRef(PassContext pc, NameRef nameRef, ScopeID start, PackageContext pkg)
     {
-        var all = pkg.Scopes.LookupAll(start, nameRef.Name);
-        if (nameRef.Name == _initializedStaticField && StaticMemberOwner(pkg, all) is { } classScope
-            && pkg.Scopes.ParentScope(classScope, out var outside))
-        {
-            all = pkg.Scopes.LookupAll(outside, nameRef.Name);
-        }
+        var all = PreferOuterDeclaration(pkg, pkg.Scopes.LookupAll(start, nameRef.Name), nameRef.Name);
         if (all.Count > 0)
         {
             nameRef.Sym = all[0];

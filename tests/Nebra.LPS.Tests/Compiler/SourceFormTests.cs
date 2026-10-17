@@ -20,6 +20,19 @@ public sealed class SourceFormTests
     }
 
     [Fact]
+    public void AStaticMemberPassesOnWhatItsClassImports()
+    {
+        var build = Build("import { toSnakeCase, Connection } from \"./util\"\n\nclass Api\n    static Connection: any = Connection\n    static count: number = 1\n    static next: number = count + 1\n\n    static function toSnakeCase(name: string): string\n        return toSnakeCase(name)\n    end\n\n    static function connect(url: string): Connection\n        return new Connection(url)\n    end\nend\n\nprint(Api.toSnakeCase(\"A\"), Api.connect(\"db\"), Api.next)\n",
+            ("src/util.neb", "export function toSnakeCase(name: string): string\n    return string.lower(name)\nend\n\nexport class Connection\n    url: string\n\n    constructor(url: string)\n        self.url = url\n    end\nend\n"));
+
+        Assert.Empty(build.Errors);
+        var lua = build.Lua("src/main.neb");
+        Assert.Contains("return toSnakeCase(name)", lua);
+        Assert.Contains("return Connection.new(url)", lua);
+        Assert.Contains("Api.next = Api.count + 1", lua);
+    }
+
+    [Fact]
     public void MethodCallsFollowNewAndContinueOnTheNextLine()
     {
         var build = Build("class Builder\n    function column(name: string): Builder\n        return self\n    end\n\n    function build(): nil\n    end\nend\n\nnew Builder()\n    :column(\"a\")\n    :column(\"b\")\n    :build()\nprint(new Builder():column(\"c\"))\n");
