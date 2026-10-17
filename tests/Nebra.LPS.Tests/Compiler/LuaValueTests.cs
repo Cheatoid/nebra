@@ -80,4 +80,10 @@ public sealed class LuaValueTests
     {
         Assert.Empty(Errors("local function fill(): string\n    return \"x\"\nend\n\nlocal flag: boolean = true\nlocal t\nif flag then\n    t = fill()\nend\nprint(t)\n"));
     }
+
+    [Fact]
+    public void AnEmptyTableArgumentTakesTheTableTypeOfItsParameter()
+    {
+        Assert.Empty(Errors("class Tracker\n    constructor(seed: { [string]: any })\n        print(seed)\n    end\n\n    function initialize(entity: any, values: { [string]: any }): nil\n        print(entity, values)\n    end\n\n    static function size(list: string[]?): number\n        return #(list ?? {})\n    end\nend\n\nlocal function count(values: { [string]: number }): number\n    return 0\nend\n\nlocal tracker = new Tracker({})\ntracker:initialize(1, {})\nprint(count({}), Tracker.size({}))\n"));
+    }
 }

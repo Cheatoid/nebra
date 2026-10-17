@@ -1264,11 +1264,13 @@ public sealed class InferTypesPass() : Pass(PassName, PassScope.PerBuild)
             return;
         }
 
-        CheckConstructorArguments(pc, superCall.Span, baseClass.Name, ctorType, superCall.Arguments.Count, argTypes);
+        CheckConstructorArguments(pc, superCall.Span, baseClass.Name, ctorType, superCall.Arguments, argTypes);
     }
 
-    private void CheckConstructorArguments(PassContext pc, TextSpan span, string className, FunctionType ctorType, int argCount, List<TypID> argTypes)
+    private void CheckConstructorArguments(PassContext pc, TextSpan span, string className, FunctionType ctorType, List<Expr> arguments, List<TypID> argTypes)
     {
+        var argCount = arguments.Count;
+        AdoptEmptyTableArguments(pc, ctorType, arguments, argTypes, 0);
         var paramCount = ctorType.ParamTypes.Count;
         var minParams = ctorType.MinParamCount;
         if (argCount >= minParams && (argCount <= paramCount || ctorType.IsVararg))
@@ -2863,7 +2865,7 @@ public sealed class InferTypesPass() : Pass(PassName, PassScope.PerBuild)
         }
         else
         {
-            CheckConstructorArguments(pc, newExpr.Span, newExpr.ClassName.Name, ctorType, newExpr.Arguments.Count, argTypes);
+            CheckConstructorArguments(pc, newExpr.Span, newExpr.ClassName.Name, ctorType, newExpr.Arguments, argTypes);
         }
 
         return classTypId;
@@ -3309,6 +3311,7 @@ public sealed class InferTypesPass() : Pass(PassName, PassScope.PerBuild)
                 var picked = PickOverload(pc, ovFns, ovSides, argTypes, prefixSelf: false);
                 if (picked != null)
                 {
+                    AdoptEmptyTableArguments(pc, picked, call.Arguments, argTypes, 0);
                     CheckCallArguments(pc, call.Span, picked, argTypes);
                     var ret = picked.ReturnType.ID;
                     return call.IsOptional ? MakeNullable(pc, ret) : ret;
@@ -3322,6 +3325,7 @@ public sealed class InferTypesPass() : Pass(PassName, PassScope.PerBuild)
             if (resolved != null)
             {
                 ne.Name.Sym = resolved.Value.sym;
+                AdoptEmptyTableArguments(pc, resolved.Value.ft, call.Arguments, argTypes, 0);
                 CheckCallArguments(pc, call.Span, resolved.Value.ft, argTypes);
                 var ret = resolved.Value.ft.ReturnType.ID;
                 return call.IsOptional ? MakeNullable(pc, ret) : ret;
@@ -3362,6 +3366,7 @@ public sealed class InferTypesPass() : Pass(PassName, PassScope.PerBuild)
             return pc.Types.PrimAny.ID;
         }
 
+        AdoptEmptyTableArguments(pc, fnType, call.Arguments, argTypes, 0);
         CheckCallArguments(pc, call.Span, fnType, argTypes);
         var resultType = fnType.ReturnType.ID;
         return call.IsOptional ? MakeNullable(pc, resultType) : resultType;
@@ -3491,6 +3496,7 @@ public sealed class InferTypesPass() : Pass(PassName, PassScope.PerBuild)
                     ? new List<TypID>(argTypes.Count + 1) { objTyp }
                     : new List<TypID>(argTypes.Count);
                 pickedArgs.AddRange(argTypes);
+                AdoptEmptyTableArguments(pc, picked, mc.Arguments, pickedArgs, ovPrefixSelf ? 1 : 0);
                 CheckCallArguments(pc, mc.Span, picked, WithContinuation(picked, pickedArgs, continuationSupplied));
                 return picked.ReturnType.ID;
             }
@@ -3506,6 +3512,7 @@ public sealed class InferTypesPass() : Pass(PassName, PassScope.PerBuild)
                 mc.ExtensionTargetType = extTarget!.ID;
                 var extArgs = new List<TypID>(argTypes.Count + 1) { objTyp };
                 extArgs.AddRange(argTypes);
+                AdoptEmptyTableArguments(pc, extFn, mc.Arguments, extArgs, 1);
                 CheckCallArguments(pc, mc.Span, extFn, WithContinuation(extFn, extArgs, continuationSupplied));
                 return extFn.ReturnType.ID;
             }
@@ -3533,6 +3540,7 @@ public sealed class InferTypesPass() : Pass(PassName, PassScope.PerBuild)
             ? new List<TypID>(argTypes.Count + 1) { objTyp }
             : new List<TypID>(argTypes.Count);
         fullArgs.AddRange(argTypes);
+        AdoptEmptyTableArguments(pc, methodFn, mc.Arguments, fullArgs, prefixSelf ? 1 : 0);
         CheckCallArguments(pc, mc.Span, methodFn, WithContinuation(methodFn, fullArgs, continuationSupplied));
 
         return methodFn.ReturnType.ID;
@@ -3875,6 +3883,25 @@ public sealed class InferTypesPass() : Pass(PassName, PassScope.PerBuild)
         }
 
         return tt.MapOf(GetType(pc, keyType), GetType(pc, valueType));
+    }
+
+    /// <summary>
+    /// Gives an empty table literal passed as an argument the list or map type its parameter
+    /// expects, as a local or an assignment does: <c>{}</c> carries nothing to tell its shape from.
+    /// <paramref name="offset"/> is the number of argument types before the written arguments,
+    /// such as the receiver of a method call.
+    /// </summary>
+    private void AdoptEmptyTableArguments(PassContext pc, FunctionType fnType, List<Expr> arguments, List<TypID> argTypes, int offset)
+    {
+        for (var i = 0; i < arguments.Count; i++)
+        {
+            var position = i + offset;
+            if (position >= argTypes.Count || position >= fnType.ParamTypes.Count) break;
+
+            var paramType = fnType.ParamTypes[position].ID;
+            if (IsEmptyTable(arguments[i]) && IsTableShape(pc, paramType))
+                argTypes[position] = paramType;
+        }
     }
 
     private void CheckCallArguments(PassContext pc, TextSpan span, FunctionType fnType, List<TypID> argTypes)
