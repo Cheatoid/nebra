@@ -574,6 +574,12 @@ public sealed class ClassType(
     public ClassType? BaseClass { get; set; } = baseClass;
     public List<InterfaceType> Interfaces { get; } = interfaces;
     public bool IsAbstract { get; } = isAbstract;
+
+    /// <summary>
+    /// Whether this class is compiled from Nebra source in this build, rather than only declared
+    /// for code compiled elsewhere, so codegen decides how its methods are emitted.
+    /// </summary>
+    public bool IsCompiledFromSource { get; set; }
     public Dictionary<string, StructType.Field> InstanceFields { get; } = new();
     public Dictionary<string, FunctionType> Methods { get; } = new();
     /// <summary>

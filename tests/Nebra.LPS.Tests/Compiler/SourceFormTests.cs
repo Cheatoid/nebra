@@ -65,6 +65,36 @@ public sealed class SourceFormTests
     }
 
     [Fact]
+    public void ACallPickingAnOverloadAtCompileTimeCallsItDirectly()
+    {
+        var build = Build("class A\nend\n\nclass B extends A\nend\n\nfunction pick(value: A): string\n    return \"a\"\nend\n\nfunction pick(value: B): string\n    return \"b\"\nend\n\nclass Printer\n    function put(value: number): string\n        return \"n\"\n    end\n\n    function put(value: string): string\n        return \"s\"\n    end\nend\n\nlocal unknown: any = new B()\nprint(pick(new B()), pick(unknown), new Printer():put(1))\n");
+
+        Assert.Empty(build.Errors);
+        var lua = build.Lua("src/main.neb");
+        Assert.Contains("function pick__B(value)", lua);
+        Assert.Contains("__nebra_is_class(__a1, \"B\")", lua);
+        Assert.Contains("function Printer:put__number(value)", lua);
+        Assert.Contains("print(pick__B(B.new()), pick(unknown), Printer.new():put__number(1))", lua);
+    }
+
+    [Fact]
+    public void OverloadsOfTheSameParameterTypesAreRejected()
+    {
+        Assert.Equal(DiagnosticCode.ErrIndistinguishableOverload, Assert.Single(Build("function foo(v: string)\n    print(v)\nend\n\nfunction foo(v: string)\n    print(v)\nend\n\nfoo(\"a\")\n").Errors).Code);
+        Assert.Equal(DiagnosticCode.ErrDuplicateClassMember, Assert.Single(Build("class Twice\n    function put(v: number): nil\n    end\n\n    function put(v: number): string\n        return \"\"\n    end\nend\n\nprint(Twice)\n").Errors).Code);
+    }
+
+    [Fact]
+    public void AnImportedFunctionKeepsEveryOverload()
+    {
+        var build = Build("import { show } from \"./lib\"\n\nprint(show(1), show(\"a\"))\n",
+            ("src/lib.neb", "export function show(value: number): string\n    return \"n\"\nend\n\nexport function show(value: string): string\n    return \"s\"\nend\n"));
+
+        Assert.Empty(build.Errors);
+        Assert.Contains("print(show(1), show(\"a\"))", build.Lua("src/main.neb"));
+    }
+
+    [Fact]
     public void MethodCallsFollowNewAndContinueOnTheNextLine()
     {
         var build = Build("class Builder\n    function column(name: string): Builder\n        return self\n    end\n\n    function build(): nil\n    end\nend\n\nnew Builder()\n    :column(\"a\")\n    :column(\"b\")\n    :build()\nprint(new Builder():column(\"c\"))\n");

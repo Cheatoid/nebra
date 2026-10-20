@@ -247,7 +247,7 @@ public sealed class ResolveNamesPass() : Pass(PassName, PassScope.PerFile)
             case LocalFunctionDecl localFunctionDecl:
             {
                 pkg.Scopes.EnclosingScope(localFunctionDecl.ID, out var scope);
-                ResolveNameRef(pc, localFunctionDecl.Name, scope, pkg);
+                ResolveNameRefForDecl(pc, localFunctionDecl.Name, scope, pkg, localFunctionDecl.ID);
 
                 foreach (var p in localFunctionDecl.Parameters)
                 {

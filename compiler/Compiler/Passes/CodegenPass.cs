@@ -41,6 +41,7 @@ public sealed partial class CodegenPass() : Pass(PassName, PassScope.PerBuild, t
         _currentFile = file.Filename;
         var exportedNames = new List<ExportName>();
         CollectExportNames(ctx, pkg, file.Hir.Body, exportedNames);
+        exportedNames = exportedNames.DistinctBy(name => name.Source).ToList();
 
         _reflectNamespace = ReflectNamespace(ctx, pkg, file);
         EmitReflectionPrelude(ctx, gen);
@@ -115,6 +116,14 @@ public sealed partial class CodegenPass() : Pass(PassName, PassScope.PerBuild, t
     private void EmitHoistedNames(PassContext ctx, PackageContext pkg, LuaGenerator gen, List<Stmt> body)
     {
         _hoistedNames.Clear();
+        _overloadVariants.Clear();
+        _overloadDispatchers.Clear();
+        foreach (var group in FunctionOverloadGroups(ctx, pkg, body))
+        {
+            foreach (var variant in RegisterOverloadVariants(ctx, pkg, group) ?? [])
+                _hoistedNames.Add(variant);
+        }
+
         foreach (var stmt in body)
         {
             var name = (stmt is ExportStmt export ? export.Declaration : stmt) switch
@@ -192,14 +201,13 @@ public sealed partial class CodegenPass() : Pass(PassName, PassScope.PerBuild, t
             gen.FlushHoisted();
 
             var stmt = stmts[i];
-            var funcName = GetFunctionDeclName(ctx, pkg, stmt);
+            var funcName = FunctionDeclName(stmt);
             if (funcName != null)
             {
                 var group = new List<(Stmt stmt, int idx)> { (stmt, i) };
                 for (var j = i + 1; j < stmts.Count; j++)
                 {
-                    var otherName = GetFunctionDeclName(ctx, pkg, stmts[j]);
-                    if (otherName == funcName)
+                    if (FunctionDeclName(stmts[j])?.Name == funcName.Name)
                     {
                         group.Add((stmts[j], j));
                         emitted.Add(j);
@@ -208,7 +216,7 @@ public sealed partial class CodegenPass() : Pass(PassName, PassScope.PerBuild, t
 
                 if (group.Count > 1)
                 {
-                    EmitOverloadedFunction(ctx, pkg, gen, funcName, group.Select(g => g.stmt).ToList());
+                    EmitOverloadedFunction(ctx, pkg, gen, ResolveName(ctx, pkg, funcName), group.Select(g => g.stmt).ToList());
                     continue;
                 }
             }
@@ -220,13 +228,17 @@ public sealed partial class CodegenPass() : Pass(PassName, PassScope.PerBuild, t
         _stmtListDepth--;
     }
 
-    private string? GetFunctionDeclName(PassContext ctx, PackageContext pkg, Stmt stmt)
+    /// <summary>
+    /// The name a plain function declaration binds; overloads share it in the source even when
+    /// mangling gives each of them a name of its own.
+    /// </summary>
+    private static NameRef? FunctionDeclName(Stmt stmt)
     {
         var actual = stmt is ExportStmt es ? es.Declaration : stmt;
         return actual switch
         {
-            FunctionDecl { NamePath.Count: 1, MethodName: null } fd => ResolveName(ctx, pkg, fd.NamePath[0]),
-            LocalFunctionDecl lfd => ResolveName(ctx, pkg, lfd.Name),
+            FunctionDecl { NamePath.Count: 1, MethodName: null } fd => fd.NamePath[0],
+            LocalFunctionDecl lfd => lfd.Name,
             _ => null
         };
     }
@@ -640,10 +652,21 @@ public sealed partial class CodegenPass() : Pass(PassName, PassScope.PerBuild, t
         gen.WriteLine("end");
         gen.WriteSemicolon();
 
-        // Instance methods
+        var declaredType = pkg.Syms.GetByID(cd.Name.Sym, out var declaredSymbol)
+                           && ctx.Types.GetByID(declaredSymbol.Type, out var declared)
+            ? declared as ClassType
+            : null;
+        var splitEmitted = new HashSet<(string, bool)>();
+
         foreach (var method in cd.Methods)
         {
             if (method.IsStatic) continue;
+            if (declaredType != null && OverloadSignature.IsSplit(declaredType, method.Name.Name, false))
+            {
+                if (splitEmitted.Add((method.Name.Name, false)))
+                    EmitSplitMethods(ctx, pkg, gen, cd, declaredType, className, baseName, method.Name.Name, false);
+                continue;
+            }
 
             gen.Write("function ");
             gen.Write(className);
@@ -696,10 +719,15 @@ public sealed partial class CodegenPass() : Pass(PassName, PassScope.PerBuild, t
             }
         }
 
-        // Static methods
         foreach (var method in cd.Methods)
         {
             if (!method.IsStatic) continue;
+            if (declaredType != null && OverloadSignature.IsSplit(declaredType, method.Name.Name, true))
+            {
+                if (splitEmitted.Add((method.Name.Name, true)))
+                    EmitSplitMethods(ctx, pkg, gen, cd, declaredType, className, baseName, method.Name.Name, true);
+                continue;
+            }
 
             gen.Write("function ");
             gen.Write(className);
@@ -995,7 +1023,11 @@ public sealed partial class CodegenPass() : Pass(PassName, PassScope.PerBuild, t
 
     #region Declarations
 
-    private void EmitOverloadedFunction(PassContext ctx, PackageContext pkg, LuaGenerator gen, string name, List<Stmt> overloads)
+    /// <summary>
+    /// Emits overloads that share their parameter types, which only a side split allows, as one
+    /// function holding every body.
+    /// </summary>
+    private void EmitInlineOverloads(PassContext ctx, PackageContext pkg, LuaGenerator gen, string name, List<Stmt> overloads)
     {
         var isLocal = overloads.Any(s =>
         {
@@ -1494,7 +1526,7 @@ public sealed partial class CodegenPass() : Pass(PassName, PassScope.PerBuild, t
                 var receiver = gen.FreshTemp("__receiver");
                 gen.Write($"do local {receiver} = ");
                 EmitExpr(ctx, pkg, gen, method.Object);
-                gen.Write($"; {gen.GetDeferHelper()}(__defers, {receiver}.{method.MethodName.Name}, {receiver}");
+                gen.Write($"; {gen.GetDeferHelper()}(__defers, {receiver}.{CalledMethodName(method)}, {receiver}");
                 EmitDeferredArguments(ctx, pkg, gen, method.Arguments);
                 gen.WriteLine(") end");
                 break;
@@ -1733,7 +1765,11 @@ public sealed partial class CodegenPass() : Pass(PassName, PassScope.PerBuild, t
                 gen.Write("...");
                 break;
             case NameExpr name:
-                if (!TryEmitUnpack(pkg, gen, expr))
+                if (_overloadDispatchers.TryGetValue(name.Name.Sym, out var dispatcher))
+                {
+                    gen.Write(name.CallsResolvedOverload ? _overloadVariants[name.Name.Sym] : dispatcher);
+                }
+                else if (!TryEmitUnpack(pkg, gen, expr))
                 {
                     gen.Write(ResolveName(ctx, pkg, name.Name));
                 }
@@ -1761,7 +1797,7 @@ public sealed partial class CodegenPass() : Pass(PassName, PassScope.PerBuild, t
                 {
                     EmitExpr(ctx, pkg, gen, dot.Object);
                     gen.Write(".");
-                    gen.Write(dot.FieldName.Name);
+                    gen.Write(dot.OverloadName ?? dot.FieldName.Name);
                 }
                 break;
             case IndexAccessExpr idx:
@@ -2366,7 +2402,7 @@ public sealed partial class CodegenPass() : Pass(PassName, PassScope.PerBuild, t
             var tmp = gen.FreshTemp("_t");
             gen.Write($"(function() local {tmp} = ");
             EmitExpr(ctx, pkg, gen, mc.Object);
-            var method = mc.IsSuper ? $"{_superClassName}.{mc.MethodName.Name}" : $"{tmp}.{mc.MethodName.Name}";
+            var method = mc.IsSuper ? $"{_superClassName}.{CalledMethodName(mc)}" : $"{tmp}.{CalledMethodName(mc)}";
             gen.Write($"; return coroutine.yield({{{method}, {tmp}");
             foreach (var arg in mc.Arguments)
             {
@@ -2451,7 +2487,7 @@ public sealed partial class CodegenPass() : Pass(PassName, PassScope.PerBuild, t
 
         if (mc.IsSuper)
         {
-            gen.Write($"{_superClassName}.{mc.MethodName.Name}(");
+            gen.Write($"{_superClassName}.{CalledMethodName(mc)}(");
             EmitExpr(ctx, pkg, gen, mc.Object);
             if (mc.Arguments.Count > 0)
             {
@@ -2464,11 +2500,14 @@ public sealed partial class CodegenPass() : Pass(PassName, PassScope.PerBuild, t
 
         EmitExpr(ctx, pkg, gen, mc.Object);
         gen.Write(":");
-        gen.Write(mc.MethodName.Name);
+        gen.Write(CalledMethodName(mc));
         gen.Write("(");
         EmitExprList(ctx, pkg, gen, mc.Arguments);
         gen.Write(")");
     }
+
+    /// <summary>The method a call reaches: the overload it picked at compile time, or the method's plain name.</summary>
+    private static string CalledMethodName(MethodCallExpr call) => call.OverloadName ?? call.MethodName.Name;
 
     private static string ExtensionFnName(PassContext ctx, TypID targetType, string method)
     {

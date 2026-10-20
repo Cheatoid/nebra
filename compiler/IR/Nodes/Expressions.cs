@@ -73,6 +73,12 @@ public sealed class UnaryExpr(NodeID id, TextSpan span, UnaryOp op, Expr operand
 public sealed class NameExpr(NodeID id, TextSpan span, NameRef name) : Expr(id, span)
 {
     public NameRef Name { get; } = name;
+
+    /// <summary>
+    /// Set by type inference when this name is called and the call picks one overload of it at
+    /// compile time, so codegen calls that overload directly instead of its dispatcher.
+    /// </summary>
+    public bool CallsResolvedOverload { get; set; }
 }
 
 public sealed class ParenExpr(NodeID id, TextSpan span, Expr inner) : Expr(id, span)
@@ -85,6 +91,12 @@ public sealed class DotAccessExpr(NodeID id, TextSpan span, Expr @object, NameRe
     public Expr Object { get; } = @object;
     public NameRef FieldName { get; } = fieldName;
     public bool IsOptional { get; } = isOptional;
+
+    /// <summary>
+    /// Set by type inference when this access is the callee of a static method call that picks
+    /// one overload at compile time: the name of the Lua function holding that overload.
+    /// </summary>
+    public string? OverloadName { get; set; }
 }
 
 public sealed class IndexAccessExpr(NodeID id, TextSpan span, Expr @object, Expr index) : Expr(id, span)
@@ -118,6 +130,12 @@ public sealed class MethodCallExpr(NodeID id, TextSpan span, Expr @object, NameR
     /// <c>fn(receiver, args...)</c> instead of a Lua <c>:</c> method call.
     /// </summary>
     public TypID? ExtensionTargetType { get; set; }
+
+    /// <summary>
+    /// Set by type inference when this call picks one overload of the method at compile time:
+    /// the name of the Lua function holding that overload.
+    /// </summary>
+    public string? OverloadName { get; set; }
 }
 
 public sealed class NonNilAssertExpr(NodeID id, TextSpan span, Expr inner) : Expr(id, span)

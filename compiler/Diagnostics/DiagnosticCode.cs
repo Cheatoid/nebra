@@ -148,6 +148,12 @@ public enum DiagnosticCode
     ErrSuperMethodWithoutBase = 0x100F,
 
     [Level(DiagnosticLevel.Error)]
+    [Category(DiagnosticCategory.Semantic)]
+    [Format("'{0}' is already declared with the parameter types ({1})")]
+    [Help("overloads must differ in the types of their parameters; a different return type is not enough")]
+    ErrIndistinguishableOverload = 0x1010,
+
+    [Level(DiagnosticLevel.Error)]
     [Category(DiagnosticCategory.Syntax)]
     [Format("Alternative boolean operator '{0}' is disabled in the configuration. Enable [code] alt_boolean_operators = true to use it, or use '{1}' instead.")]
     ErrAltBooleanOperatorsDisabled = 0x0006,

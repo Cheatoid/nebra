@@ -44,8 +44,36 @@ public sealed class ResolveImportsPass() : Pass(PassName, PassScope.PerBuild)
 
         ReportImportCycles(context);
         SortFilesByImportOrder(context);
+        LinkAllImportedOverloads(context);
 
         return true;
+    }
+
+    /// <summary>
+    /// Binds every overload behind each named import of a Nebra module before names are resolved,
+    /// so a call through the import sees all of them as candidates.
+    /// </summary>
+    private static void LinkAllImportedOverloads(PassContext context)
+    {
+        foreach (var pkg in context.Pkgs)
+        {
+            foreach (var file in pkg.Files)
+            {
+                foreach (var import in file.Hir.Body.OfType<ImportStmt>().Where(import => import.Kind == ImportKind.Named))
+                {
+                    var key = $"import_resolved:{file.Filename}:{import.Module.Name}";
+                    if (!context.Cache.TryGetValue(key, out var obj) || obj is not ResolvedModule { Kind: ModuleKind.NebraSource, File: { } source }) continue;
+
+                    var sourcePkg = FindPackageOf(context, source) ?? pkg;
+                    var exports = CollectExportedSymbols(sourcePkg, source);
+                    foreach (var spec in import.Specifiers)
+                    {
+                        if (exports.TryGetValue(spec.Name.Name, out var exported))
+                            LinkImportedOverloads(context, pkg, sourcePkg, source, exported, import, spec.Alias ?? spec.Name);
+                    }
+                }
+            }
+        }
     }
 
     /// <summary>
@@ -367,6 +395,7 @@ public sealed class ResolveImportsPass() : Pass(PassName, PassScope.PerBuild)
                     {
                         var importName = spec.Alias ?? spec.Name;
                         CopySymbolType(sourcePkg, exportSym, pkg, importName.Sym);
+                        LinkImportedOverloads(ctx, pkg, sourcePkg, sourceFile, exportSym, import, importName);
                         continue;
                     }
 
@@ -540,6 +569,42 @@ public sealed class ResolveImportsPass() : Pass(PassName, PassScope.PerBuild)
 
     private static void CopySymbolType(PackageContext pkg, SymID source, SymID target)
         => CopySymbolType(pkg, source, pkg, target);
+
+    /// <summary>
+    /// Gives the name an import binds one more symbol for every overload the module declares under
+    /// the exported name, so a call through the import picks among all of them. Each takes its type
+    /// from the overload it stands for; the call itself goes through the exported dispatcher.
+    /// </summary>
+    private static void LinkImportedOverloads(PassContext ctx, PackageContext pkg, PackageContext sourcePkg,
+        PreparsedFile sourceFile, SymID exported, ImportStmt import, NameRef importName)
+    {
+        var cacheKey = $"import_overloads:{pkg.GetHashCode()}:{import.ID}:{importName.Name}";
+        if (!ctx.Cache.TryGetValue(cacheKey, out var cached) || cached is not List<(SymID Source, SymID Target)> links)
+        {
+            links = [];
+            ctx.Cache[cacheKey] = links;
+            var importSymbol = pkg.Syms.ByID.Values.FirstOrDefault(symbol =>
+                symbol.DeclaringNode == import.ID && symbol.Name == importName.Name && symbol.Kind == SymbolKind.Variable);
+            if (importSymbol == null) return;
+            if (!sourcePkg.Syms.GetByID(exported, out var exportedSymbol) || exportedSymbol.Kind != SymbolKind.Function) return;
+
+            var lookupScope = sourceFile.BindingScopeOverride ?? sourcePkg.Root;
+            var overloads = sourcePkg.Scopes.LookupAll(lookupScope, exportedSymbol.Name);
+            if (overloads.Count < 2) return;
+
+            foreach (var overload in overloads)
+            {
+                if (!sourcePkg.Syms.GetByID(overload, out var overloadSymbol) || overloadSymbol.Kind != SymbolKind.Function) continue;
+
+                var target = pkg.Syms.NewSymbol(SymbolKind.Function, importName.Name, importSymbol.Owner, TypID.Invalid, importSymbol.DeclaringNode);
+                pkg.Scopes.AddOverload(importSymbol.Owner, importName.Name, target);
+                links.Add((overload, target));
+            }
+        }
+
+        foreach (var (source, target) in links)
+            CopySymbolType(sourcePkg, source, pkg, target);
+    }
 
     private static SymID FindModuleSymbol(PackageContext pkg, string name)
     {

@@ -43,6 +43,8 @@ public sealed class IRLuaCodec
         "Type",
         "Sym",
         "Overloads",
+        "OverloadName",
+        "CallsResolvedOverload",
         "ResolvedType",
     ];
 

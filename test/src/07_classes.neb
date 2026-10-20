@@ -192,6 +192,32 @@ class Tally
     end
 end
 
+class Figure
+end
+
+class Tile extends Figure
+end
+
+class Painter
+    function paint(figure: Figure): string
+        return "figure"
+    end
+
+    function paint(figure: Tile): string
+        return "tile"
+    end
+
+    function paint(name: string): string
+        return "named " .. name
+    end
+end
+
+class LoudPainter extends Painter
+    override function paint(figure: Tile): string
+        return "loud " .. super:paint(figure)
+    end
+end
+
 export function run(): nil
     section("classes")
 
@@ -284,5 +310,16 @@ export function run(): nil
     tally:add(2)
     expectEq("private field and method keep state per instance", tally:add(3), 5)
     expectEq("a second instance has its own private field", (new Tally()):add(1), 1)
+
+    -- Method overloads are told apart by class, subclass first, and stay overridable
+    local painter = new Painter()
+    expectEq("method overload for a class", painter:paint(new Figure()), "figure")
+    expectEq("method overload for a subclass", painter:paint(new Tile()), "tile")
+    expectEq("method overload for a string", painter:paint("x"), "named x")
+    local someFigure: any = new Tile()
+    expectEq("method overload picked at runtime for any", painter:paint(someFigure), "tile")
+    local loud: Painter = new LoudPainter()
+    expectEq("an overridden overload is called through the base type", loud:paint(new Tile()), "loud tile")
+    expectEq("an inherited overload stays reachable", loud:paint("y"), "named y")
 
 end

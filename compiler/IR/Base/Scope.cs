@@ -173,6 +173,16 @@ public sealed class ScopeGraph
     /// <param name="sym">The unique ID of the symbol to be declared.</param>
     /// <param name="arena">The symbol arena in which the symbol to be declared is stored. This is used to look up the symbol by its ID and to report errors if necessary.</param>
     /// <returns></returns>
+    /// <summary>
+    /// Adds <paramref name="sym"/> as one more overload of <paramref name="name"/> in
+    /// <paramref name="scope"/>, beside a symbol already declared there that stands for the same
+    /// set of functions, such as the name an import binds.
+    /// </summary>
+    public void AddOverload(ScopeID scope, string name, SymID sym)
+    {
+        if (_byID.TryGetValue(scope, out var sc)) sc.AddSymbol(name, sym);
+    }
+
     public bool DeclareSymbol(ScopeID scope, string name, SymID sym, SymbolArena arena, TextSpan? span = null)
     {
         var reportSpan = span ?? TextSpan.Empty;

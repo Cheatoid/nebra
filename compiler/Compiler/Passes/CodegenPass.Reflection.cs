@@ -273,10 +273,17 @@ public sealed partial class CodegenPass
     private string MethodsList(PassContext ctx, List<ClassMethodNode> methods, ClassType ct)
     {
         var items = new List<string>();
+        var seen = new Dictionary<(string, bool), int>();
         foreach (var m in methods)
         {
+            var key = (m.Name.Name, m.IsStatic);
+            var overload = seen.GetValueOrDefault(key);
+            seen[key] = overload + 1;
             if (m.IsLocal) continue;
-            var fn = ct.Methods.GetValueOrDefault(m.Name.Name) ?? ct.StaticMethods.GetValueOrDefault(m.Name.Name);
+            var overloads = m.IsStatic ? ct.StaticMethodOverloads : ct.MethodOverloads;
+            var fn = overloads.TryGetValue(m.Name.Name, out var declared) && overload < declared.Count
+                ? declared[overload]
+                : ct.Methods.GetValueOrDefault(m.Name.Name) ?? ct.StaticMethods.GetValueOrDefault(m.Name.Name);
             if (fn == null) continue;
             var flags = new StringBuilder();
             if (m.IsStatic) flags.Append(", isStatic = true");

@@ -28,6 +28,18 @@ local function makeCounter(): () -> number
     end
 end
 
+local function describe(value: number): string
+    return "number"
+end
+
+local function describe(value: string): string
+    return "string"
+end
+
+local function describe(...: any): string
+    return "rest:" .. select("#", ...)
+end
+
 export function run(): nil
     section("functions")
 
@@ -64,4 +76,12 @@ export function run(): nil
     -- Function-as-value
     local fn = double
     expectEq("function as value", fn(7), 14)
+
+    -- Overloads of the same arity are told apart by their parameter types
+    expectEq("overload picked by a number", describe(1), "number")
+    expectEq("overload picked by a string", describe("a"), "string")
+    local dynamic: any = "b"
+    expectEq("overload picked at runtime for any", describe(dynamic), "string")
+    expectEq("a varargs overload catches everything else", describe(true, 2), "rest:2")
+    expectEq("a varargs overload catches no arguments", describe(), "rest:0")
 end

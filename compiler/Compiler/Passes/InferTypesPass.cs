@@ -765,6 +765,28 @@ public sealed class InferTypesPass() : Pass(PassName, PassScope.PerBuild)
         return null;
     }
 
+    /// <summary>
+    /// Reports the function <paramref name="name"/> declares when an overload declared before it in
+    /// the same scope has the same parameter types and is reachable from the same side.
+    /// </summary>
+    private void ReportIndistinguishableFunction(PassContext pc, NameRef name)
+    {
+        if (name.Overloads is not { Count: > 1 } overloads) return;
+        if (!pc.Pkg!.Syms.GetByID(name.Sym, out var symbol)) return;
+        if (!pc.Types.GetByID(symbol.Type, out var type) || type is not FunctionType function) return;
+
+        var suffix = OverloadSignature.Suffix(function, false);
+        foreach (var other in overloads.TakeWhile(other => other != name.Sym))
+        {
+            if (!pc.Pkg.Syms.GetByID(other, out var earlier) || (earlier.Side & symbol.Side) == 0) continue;
+            if (!pc.Types.GetByID(earlier.Type, out var earlierType) || earlierType is not FunctionType earlierFunction) continue;
+            if (OverloadSignature.Suffix(earlierFunction, false) != suffix) continue;
+
+            pc.Diag.Report(name.Span, DiagnosticCode.ErrIndistinguishableOverload, name.Name, ParameterList(pc, function, false));
+            return;
+        }
+    }
+
     private void ResolveDecl(PassContext pc, Decl decl)
     {
         switch (decl)
@@ -774,11 +796,13 @@ public sealed class InferTypesPass() : Pass(PassName, PassScope.PerBuild)
                 ResolveFunctionLike(pc, fd.Parameters, fd.ReturnType, fd.Body, fd.ReturnStmt,
                     fd.NamePath.Count == 1 && fd.MethodName == null ? fd.NamePath[0] : null, fd.IsAsync);
                 if (fd.IsAsync) _asyncDepth--;
+                if (fd.NamePath.Count == 1 && fd.MethodName == null) ReportIndistinguishableFunction(pc, fd.NamePath[0]);
                 break;
             case LocalFunctionDecl lfd:
                 if (lfd.IsAsync) _asyncDepth++;
                 ResolveFunctionLike(pc, lfd.Parameters, lfd.ReturnType, lfd.Body, lfd.ReturnStmt, lfd.Name, lfd.IsAsync);
                 if (lfd.IsAsync) _asyncDepth--;
+                ReportIndistinguishableFunction(pc, lfd.Name);
                 break;
             case LocalDecl ld:
                 ResolveLocalDecl(pc, ld);
@@ -1042,7 +1066,8 @@ public sealed class InferTypesPass() : Pass(PassName, PassScope.PerBuild)
             }
 
             if (!method.IsOperator && !method.IsOverride && !method.IsAbstract && classType.BaseClass != null
-                && ParentHasMethod(classType.BaseClass, method.Name.Name))
+                && ParentHasMethod(classType.BaseClass, method.Name.Name)
+                && (method.IsStatic || ParentHasOverload(classType.BaseClass, method.Name.Name, ft)))
             {
                 pc.Diag.Report(method.Span, Diagnostics.DiagnosticCode.WarnMissingShadowOverride, method.Name.Name, classType.BaseClass.Name);
             }
@@ -1051,6 +1076,8 @@ public sealed class InferTypesPass() : Pass(PassName, PassScope.PerBuild)
                 methodBodies.Add((method, retType));
             if (method.IsAsync) _asyncDepth--;
         }
+
+        classType.IsCompiledFromSource = !cd.IsDeclare;
 
         foreach (var accessor in cd.Accessors)
         {
@@ -1376,6 +1403,21 @@ public sealed class InferTypesPass() : Pass(PassName, PassScope.PerBuild)
         }
         return false;
     }
+
+    /// <summary>
+    /// Whether <paramref name="cls"/> or a class it extends declares <paramref name="name"/> with
+    /// the parameter types of <paramref name="method"/>; a method of other parameter types adds an
+    /// overload instead of hiding the inherited one.
+    /// </summary>
+    private static bool ParentHasOverload(ClassType cls, string name, FunctionType method)
+    {
+        var suffix = OverloadSignature.Suffix(method, true);
+        return OverloadSignature.InstanceOverloads(cls, name)
+            .Any(overload => OverloadSignature.Suffix(overload.Function, true) == suffix);
+    }
+
+    private string ParameterList(PassContext pc, FunctionType function, bool hasSelf) =>
+        string.Join(", ", function.ParamTypes.Skip(hasSelf ? 1 : 0).Select(type => TypeName(pc, type.ID)));
 
     private static bool ParentHasGetter(ClassType cls, string name)
     {
@@ -3331,9 +3373,11 @@ public sealed class InferTypesPass() : Pass(PassName, PassScope.PerBuild)
                 // For class instance methods we'd normally need self, but a
                 // dot-access call on an INSTANCE is rejected earlier; only
                 // class-ref-static or interface methods reach here.
-                var picked = PickOverload(pc, ovFns, ovSides, argTypes, prefixSelf: false);
+                var picked = PickOverload(pc, ovFns, ovSides, argTypes, prefixSelf: false, out var certain);
                 if (picked != null)
                 {
+                    if (certain && isClassRef && receiverTyp is ClassType staticOwner)
+                        dotForOverload.OverloadName = StaticOverloadName(staticOwner, fname, picked);
                     AdoptEmptyTableArguments(pc, picked, call.Arguments, argTypes, 0);
                     CheckCallArguments(pc, call.Span, picked, argTypes);
                     var ret = SpecializedReturn(pc, picked, argTypes);
@@ -3347,7 +3391,8 @@ public sealed class InferTypesPass() : Pass(PassName, PassScope.PerBuild)
             var resolved = ResolveOverload(pc, call.Span, overloads, argTypes);
             if (resolved != null)
             {
-                ne.Name.Sym = resolved.Value.sym;
+                if (!IsImported(pc, ne.Name.Sym)) ne.Name.Sym = resolved.Value.sym;
+                ne.CallsResolvedOverload = resolved.Value.certain;
                 AdoptEmptyTableArguments(pc, resolved.Value.ft, call.Arguments, argTypes, 0);
                 CheckCallArguments(pc, call.Span, resolved.Value.ft, argTypes);
                 var ret = SpecializedReturn(pc, resolved.Value.ft, argTypes);
@@ -3395,11 +3440,12 @@ public sealed class InferTypesPass() : Pass(PassName, PassScope.PerBuild)
         return call.IsOptional ? MakeNullable(pc, resultType) : resultType;
     }
 
-    private (SymID sym, FunctionType ft)? ResolveOverload(PassContext pc, TextSpan span, List<SymID> overloads, List<TypID> argTypes)
+    private (SymID sym, FunctionType ft, bool certain)? ResolveOverload(PassContext pc, TextSpan span, List<SymID> overloads, List<TypID> argTypes)
     {
         FunctionType? bestFn = null;
         SymID bestSym = SymID.Invalid;
         var bestScore = -1;
+        var scores = new List<(FunctionType Function, int Score)>();
 
         foreach (var symId in overloads)
         {
@@ -3407,6 +3453,7 @@ public sealed class InferTypesPass() : Pass(PassName, PassScope.PerBuild)
             if (!pc.Types.GetByID(sym.Type, out var typ) || typ is not FunctionType ft) continue;
 
             var score = ScoreOverload(pc, ft, argTypes);
+            scores.Add((ft, score));
             if (score > bestScore)
             {
                 bestScore = score;
@@ -3417,11 +3464,34 @@ public sealed class InferTypesPass() : Pass(PassName, PassScope.PerBuild)
 
         if (bestFn != null && bestScore >= 0)
         {
-            return (bestSym, bestFn);
+            return (bestSym, bestFn, IsCertainOverload(pc, bestFn, bestScore, scores, argTypes, false));
         }
 
         pc.Diag.Report(span, DiagnosticCode.ErrFuncParamMismatch, "overloaded", argTypes.Count);
         return null;
+    }
+
+    /// <summary>
+    /// Whether <paramref name="symbol"/> is bound by an import, whose overloads are all reached
+    /// through the one function the module exports under that name.
+    /// </summary>
+    private static bool IsImported(PassContext pc, SymID symbol) =>
+        pc.Pkg!.Syms.GetByID(symbol, out var bound) && bound.ImportedFrom != SymID.Invalid;
+
+    /// <summary>
+    /// Whether a call can be bound to <paramref name="picked"/> at compile time: no overload of
+    /// other parameter types scores as well, and no argument is typed <c>any</c>, whose value only
+    /// the runtime dispatcher can match to an overload.
+    /// </summary>
+    private bool IsCertainOverload(PassContext pc, FunctionType picked, int pickedScore,
+        List<(FunctionType Function, int Score)> scores, List<TypID> argTypes, bool hasSelf)
+    {
+        var suffix = OverloadSignature.Suffix(picked, hasSelf);
+        if (scores.Any(entry => entry.Score == pickedScore && OverloadSignature.Suffix(entry.Function, hasSelf) != suffix))
+            return false;
+
+        return argTypes
+            .All(argument => pc.Types.GetByID(argument, out var type) && type.Kind != TypeKind.PrimitiveAny);
     }
 
     private int ScoreOverload(PassContext pc, FunctionType ft, List<TypID> argTypes)
@@ -3523,9 +3593,11 @@ public sealed class InferTypesPass() : Pass(PassName, PassScope.PerBuild)
         if (mcFns.Count > 1)
         {
             var ovPrefixSelf = objType is ClassType || (mcFns.Count > 0 && StartsWithSelfParam(mcFns[0]));
-            var picked = PickOverload(pc, mcFns, mcSides, argTypes, prefixSelf: ovPrefixSelf);
+            var picked = PickOverload(pc, mcFns, mcSides, argTypes, prefixSelf: ovPrefixSelf, out var certain);
             if (picked != null)
             {
+                if (certain && objType is ClassType overloadReceiver)
+                    mc.OverloadName = InstanceOverloadName(overloadReceiver, mc.MethodName.Name, picked);
                 var pickedArgs = ovPrefixSelf
                     ? new List<TypID>(argTypes.Count + 1) { objTyp }
                     : new List<TypID>(argTypes.Count);
@@ -3800,13 +3872,19 @@ public sealed class InferTypesPass() : Pass(PassName, PassScope.PerBuild)
     /// result so existing diagnostics still fire.
     /// </summary>
     private FunctionType? PickOverload(PassContext pc, List<FunctionType> fns,
-        List<Side> sides, List<TypID> argTypes, bool prefixSelf)
+        List<Side> sides, List<TypID> argTypes, bool prefixSelf) =>
+        PickOverload(pc, fns, sides, argTypes, prefixSelf, out _);
+
+    private FunctionType? PickOverload(PassContext pc, List<FunctionType> fns,
+        List<Side> sides, List<TypID> argTypes, bool prefixSelf, out bool certain)
     {
+        certain = false;
         if (fns.Count == 0) return null;
         var fileMask = ResolveFileSideMask(pc);
 
         FunctionType? best = null;
         var bestScore = -1;
+        var scores = new List<(FunctionType Function, int Score)>();
 
         for (var i = 0; i < fns.Count; i++)
         {
@@ -3826,10 +3904,44 @@ public sealed class InferTypesPass() : Pass(PassName, PassScope.PerBuild)
             effective.AddRange(argTypes);
 
             var score = ScoreOverload(pc, fn, effective);
+            scores.Add((fn, score));
             if (score > bestScore) { bestScore = score; best = fn; }
         }
 
-        return bestScore >= 0 ? best : null;
+        if (bestScore < 0) return null;
+        certain = IsCertainOverload(pc, best!, bestScore, scores, argTypes, prefixSelf);
+        return best;
+    }
+
+    /// <summary>
+    /// The name of the Lua function holding the overload <paramref name="picked"/> of the instance
+    /// method <paramref name="name"/> called on a <paramref name="receiver"/>, or <c>null</c> when
+    /// the class declaring it keeps the overload under the method's plain name.
+    /// </summary>
+    private static string? InstanceOverloadName(ClassType receiver, string name, FunctionType picked)
+    {
+        var suffix = OverloadSignature.Suffix(picked, true);
+        var owner = OverloadSignature.InstanceOverloads(receiver, name)
+            .FirstOrDefault(overload => OverloadSignature.Suffix(overload.Function, true) == suffix).Owner;
+        return owner != null && OverloadSignature.IsSplit(owner, name, false)
+            ? OverloadSignature.VariantName(name, picked, true)
+            : null;
+    }
+
+    /// <summary>
+    /// The name of the Lua function holding the overload <paramref name="picked"/> of the static
+    /// method <paramref name="name"/> reached through <paramref name="receiver"/>, or <c>null</c>
+    /// when the class declaring it keeps the overload under the method's plain name.
+    /// </summary>
+    private static string? StaticOverloadName(ClassType receiver, string name, FunctionType picked)
+    {
+        for (var owner = receiver; owner != null; owner = owner.BaseClass)
+        {
+            if (!owner.StaticMethodOverloads.TryGetValue(name, out var overloads) || !overloads.Contains(picked)) continue;
+            return OverloadSignature.IsSplit(owner, name, true) ? OverloadSignature.VariantName(name, picked, false) : null;
+        }
+
+        return null;
     }
 
     private Side ResolveFileSideMask(PassContext pc)

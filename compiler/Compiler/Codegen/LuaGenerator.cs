@@ -413,6 +413,7 @@ public sealed class LuaGenerator(Config config)
         return RequireHelper("class_proxy", name =>
             $"local function {name}(cls, parent) " +
             $"local mt = {{ " +
+            $"__class = cls, " +
             $"__index = function(t, k) " +
             $"local g = cls[\"__get_\" .. k] " +
             $"if g then return g(t) end " +
@@ -497,6 +498,27 @@ public sealed class LuaGenerator(Config config)
     public string GetUnpackHelper()
     {
         return RequireHelper("unpack", name => $"local {name} = table.unpack or unpack");
+    }
+
+    /// <summary>
+    /// A helper telling whether a value is an instance of the class named by its second argument
+    /// or of a class extending it, comparing the <c>__name</c> each class table carries so the
+    /// class itself need not be in scope.
+    /// </summary>
+    public string GetClassCheckHelper()
+    {
+        return RequireHelper("is_class", name =>
+            $"local function {name}(v, className) " +
+            $"if type(v) ~= \"table\" then return false end " +
+            $"local c = getmetatable(v) " +
+            $"if type(c) == \"table\" and rawget(c, \"__class\") ~= nil then c = rawget(c, \"__class\") end " +
+            $"while type(c) == \"table\" do " +
+            $"if rawget(c, \"__name\") == className then return true end " +
+            $"local mt = getmetatable(c) " +
+            $"c = mt and mt.__index " +
+            $"end " +
+            $"return false " +
+            $"end");
     }
 
     public string GetInstanceOfHelper()
