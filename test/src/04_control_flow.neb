@@ -110,4 +110,19 @@ export function run(): nil
         ::skip::
     end
     expectEq("goto/label", hops, 4)
+
+    -- Ranges: `..` between two numbers
+    local mut ranged: number = 0
+    for i in 1..10 do
+        if i == 3 then continue end
+        if i > 6 then break end
+        ranged = ranged + i
+    end
+    expectEq("for over a range", ranged, 18)
+    local span = 2..5
+    expectEq("range as an array has every number", #span, 4)
+    expectEq("range array ends inclusively", span[#span], 5)
+    local first = 3
+    expectEq("concat with a string stays concat", first .. "!", "3!")
+    expectEq("numbers followed by a string concatenate", 1 .. 2 .. "x", "12x")
 end

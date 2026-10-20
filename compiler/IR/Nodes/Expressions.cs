@@ -64,6 +64,12 @@ public sealed class BinaryExpr(NodeID id, TextSpan span, BinaryOp op, Expr left,
     public Expr Right { get; } = right;
 
     /// <summary>
+    /// Set by type inference when <c>..</c> joins two numbers: the expression is the range of
+    /// every number from the left one up to the right one, rather than a concatenation.
+    /// </summary>
+    public bool IsRange { get; set; }
+
+    /// <summary>
     /// Set by type inference when the operator is an extension of the left operand's type: the
     /// extension it lowers to, called with both operands.
     /// </summary>

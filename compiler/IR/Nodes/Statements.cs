@@ -144,6 +144,12 @@ public sealed class GenericForStmt(
     /// has an <c>iterator()</c> method is only known at runtime, so the loop asks there.
     /// </summary>
     public bool ChecksIteratorAtRuntime { get; set; }
+
+    /// <summary>
+    /// Set when the loop runs its single variable over a range, as in <c>for i in 1..10 do</c>,
+    /// which lowers to Lua's numeric <c>for</c>.
+    /// </summary>
+    public bool RunsOverRange { get; set; }
 }
 
 public sealed class ReturnStmt(NodeID id, TextSpan span, List<Expr> values) : Stmt(id, span)

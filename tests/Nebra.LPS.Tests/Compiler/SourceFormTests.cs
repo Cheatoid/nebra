@@ -127,6 +127,18 @@ public sealed class SourceFormTests
     }
 
     [Fact]
+    public void TwoNumbersJoinedByDotsAreARange()
+    {
+        var build = Build("for i in 1..3 do\n    print(i)\nend\n\nlocal all: number[] = 1..3\nprint(all, 1 .. \"x\")\n");
+
+        Assert.Empty(build.Errors);
+        var lua = build.Lua("src/main.neb");
+        Assert.Contains("for i = 1, 3 do", lua);
+        Assert.Contains("local all = __nebra_range(1, 3)", lua);
+        Assert.Contains("1 .. \"x\"", lua);
+    }
+
+    [Fact]
     public void MethodCallsFollowNewAndContinueOnTheNextLine()
     {
         var build = Build("class Builder\n    function column(name: string): Builder\n        return self\n    end\n\n    function build(): nil\n    end\nend\n\nnew Builder()\n    :column(\"a\")\n    :column(\"b\")\n    :build()\nprint(new Builder():column(\"c\"))\n");

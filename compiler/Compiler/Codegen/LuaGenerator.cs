@@ -205,6 +205,13 @@ public sealed class LuaGenerator(Config config)
     /// A function a loop over a value of unknown type starts through: a table with an
     /// <c>iterator()</c> method is iterated through it, anything else is used as it is.
     /// </summary>
+    /// <summary>A helper building the array of every number from its first argument up to its second.</summary>
+    public string GetRangeHelper()
+    {
+        return RequireHelper("range", name =>
+            $"local function {name}(first, last) local t = {{}} for i = first, last do t[#t + 1] = i end return t end");
+    }
+
     public string GetIterateHelper()
     {
         return RequireHelper("iterate", name =>

@@ -703,7 +703,12 @@ public sealed partial class InferTypesPass() : Pass(PassName, PassScope.PerBuild
                     iterTypes.Add(SynthesizeExpr(pc, iter));
                 }
 
-                if (IteratorMethodOf(pc, gf, iterTypes) is { } iteratorMethod)
+                if (gf is { Iterators: [BinaryExpr { IsRange: true }], VarNames: [var counter] })
+                {
+                    gf.RunsOverRange = true;
+                    if (counter.Sym != SymID.Invalid) pc.Pkg!.Syms.SetType(counter.Sym, pc.Types.PrimNumber.ID);
+                }
+                else if (IteratorMethodOf(pc, gf, iterTypes) is { } iteratorMethod)
                 {
                     gf.CallsIteratorMethod = true;
                     InferIteratedVarTypes(pc, gf, iteratorMethod);
@@ -2503,6 +2508,12 @@ public sealed partial class InferTypesPass() : Pass(PassName, PassScope.PerBuild
         var tt = pc.Types;
         var l = FirstValue(pc, SynthesizeExpr(pc, bin.Left));
         var r = FirstValue(pc, bin.Op is BinaryOp.And or BinaryOp.Or ? SynthesizeShortCircuitRight(pc, bin) : SynthesizeExpr(pc, bin.Right));
+        if (bin.Op == BinaryOp.Concat && l == tt.PrimNumber.ID && r == tt.PrimNumber.ID)
+        {
+            bin.IsRange = true;
+            return tt.ArrayOf(tt.PrimNumber);
+        }
+
         if (TryExtensionOperator(pc, bin, l, r, out var extensionResult)) return extensionResult;
 
         if (IsConfiguredConcatOp(pc, bin.Op)

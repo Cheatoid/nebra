@@ -1424,6 +1424,22 @@ public sealed partial class CodegenPass() : Pass(PassName, PassScope.PerBuild, t
     private void EmitGenericForWithLabel(PassContext ctx, PackageContext pkg, LuaGenerator gen, GenericForStmt gf)
     {
         var label = PushLoop();
+        if (gf is { RunsOverRange: true, Iterators: [BinaryExpr range] })
+        {
+            gen.Write($"for {ResolveName(ctx, pkg, gf.VarNames[0])} = ");
+            EmitExpr(ctx, pkg, gen, range.Left);
+            gen.Write(", ");
+            EmitExpr(ctx, pkg, gen, range.Right);
+            gen.Write(" do");
+            gen.NewLine();
+            gen.Indent();
+            EmitLoopBody(ctx, pkg, gen, gf.Body, label);
+            gen.EndBlock();
+            EmitBreakLabel(gen, label);
+            PopLoop();
+            return;
+        }
+
         gen.Write("for ");
         for (var i = 0; i < gf.VarNames.Count; i++)
         {
@@ -2275,6 +2291,16 @@ public sealed partial class CodegenPass() : Pass(PassName, PassScope.PerBuild, t
 
     private void EmitBinary(PassContext ctx, PackageContext pkg, LuaGenerator gen, BinaryExpr bin)
     {
+        if (bin.IsRange)
+        {
+            gen.Write(gen.GetRangeHelper() + "(");
+            EmitExpr(ctx, pkg, gen, bin.Left);
+            gen.Write(", ");
+            EmitExpr(ctx, pkg, gen, bin.Right);
+            gen.Write(")");
+            return;
+        }
+
         if (bin.Extension != null)
         {
             EmitExtensionCall(ctx, pkg, gen, bin.Extension, bin.Left, [bin.Right]);
