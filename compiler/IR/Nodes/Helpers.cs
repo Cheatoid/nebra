@@ -190,6 +190,44 @@ public sealed class ExtensionMethodNode(
     public TextSpan Span { get; } = span;
     public List<TypeParamDef> TypeParams { get; set; } = [];
     public List<Annotation> Annotations { get; set; } = [];
+
+    /// <summary>Whether this member is a method, a getter or an operator; an operator's name is its metamethod.</summary>
+    public ExtensionMemberKind Kind { get; init; } = ExtensionMemberKind.Method;
+
+    /// <summary>
+    /// The name of the Lua function holding this member, set by type inference once the extended
+    /// type is known.
+    /// </summary>
+    public string LuaName { get; set; } = "";
+
+    /// <summary>The member's signature with the receiver as its first parameter, set by type inference.</summary>
+    public FunctionType? Signature { get; set; }
+
+    /// <summary>The file declaring this member, set by type inference.</summary>
+    public string? DeclaringFile { get; set; }
+
+    /// <summary>
+    /// The <c>declare module</c> holding this member when a declaration describes it, set by type
+    /// inference; its importers may use it.
+    /// </summary>
+    public DeclareModuleDecl? DeclaringModule { get; set; }
+
+    /// <summary>Whether modules importing the declaring one may use this member, set by type inference.</summary>
+    public bool IsExported { get; set; }
+
+    /// <summary>
+    /// Whether this member is declared at the top level of a declaration file, so the runtime
+    /// provides it as a global and every file may use it. Set by type inference.
+    /// </summary>
+    public bool IsGlobal { get; set; }
+}
+
+/// <summary>What an <c>extend</c> block adds to the type it extends.</summary>
+public enum ExtensionMemberKind
+{
+    Method,
+    Getter,
+    Operator,
 }
 
 public sealed class InterfaceFieldNode(NameRef name, TypeRef typeAnnotation, TextSpan span)

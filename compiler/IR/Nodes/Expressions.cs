@@ -62,12 +62,24 @@ public sealed class BinaryExpr(NodeID id, TextSpan span, BinaryOp op, Expr left,
     public BinaryOp Op { get; } = op;
     public Expr Left { get; } = left;
     public Expr Right { get; } = right;
+
+    /// <summary>
+    /// Set by type inference when the operator is an extension of the left operand's type: the
+    /// extension it lowers to, called with both operands.
+    /// </summary>
+    public ExtensionMethodNode? Extension { get; set; }
 }
 
 public sealed class UnaryExpr(NodeID id, TextSpan span, UnaryOp op, Expr operand) : Expr(id, span)
 {
     public UnaryOp Op { get; } = op;
     public Expr Operand { get; } = operand;
+
+    /// <summary>
+    /// Set by type inference when the operator is an extension of the operand's type: the
+    /// extension it lowers to, called with the operand.
+    /// </summary>
+    public ExtensionMethodNode? Extension { get; set; }
 }
 
 public sealed class NameExpr(NodeID id, TextSpan span, NameRef name) : Expr(id, span)
@@ -97,6 +109,12 @@ public sealed class DotAccessExpr(NodeID id, TextSpan span, Expr @object, NameRe
     /// one overload at compile time: the name of the Lua function holding that overload.
     /// </summary>
     public string? OverloadName { get; set; }
+
+    /// <summary>
+    /// Set by type inference when the field is an extension getter of the object's type: the
+    /// extension it lowers to, called with the object.
+    /// </summary>
+    public ExtensionMethodNode? Extension { get; set; }
 }
 
 public sealed class IndexAccessExpr(NodeID id, TextSpan span, Expr @object, Expr index) : Expr(id, span)
@@ -130,6 +148,9 @@ public sealed class MethodCallExpr(NodeID id, TextSpan span, Expr @object, NameR
     /// <c>fn(receiver, args...)</c> instead of a Lua <c>:</c> method call.
     /// </summary>
     public TypID? ExtensionTargetType { get; set; }
+
+    /// <summary>Set by type inference together with <see cref="ExtensionTargetType"/>: the extension method called.</summary>
+    public ExtensionMethodNode? Extension { get; set; }
 
     /// <summary>
     /// Set by type inference when this call picks one overload of the method at compile time:

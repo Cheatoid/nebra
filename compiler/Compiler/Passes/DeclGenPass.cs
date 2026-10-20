@@ -107,13 +107,13 @@ public sealed class DeclGenPass() : Pass(PassName, PassScope.PerBuild, true)
     }
 
     /// <summary>
-    /// Collects the <c>extend</c> blocks declared at the top level of <paramref name="file"/>.
+    /// Collects the <c>export extend</c> blocks declared at the top level of <paramref name="file"/>.
     /// Extensions are not exported by name - they register against the type they extend - so they
     /// are gathered separately from the export list.
     /// </summary>
     private static List<ExtendDecl> CollectExtensions(PreparsedFile file)
     {
-        return file.Hir.Body.OfType<ExtendDecl>().Where(ed => !ed.IsDeclare).ToList();
+        return file.Hir.Body.OfType<ExtendDecl>().Where(ed => !ed.IsDeclare && ed.IsExported).ToList();
     }
 
     private void EmitModuleDeclaration(StringBuilder sb, PassContext ctx, PackageContext pkg,
@@ -169,7 +169,12 @@ public sealed class DeclGenPass() : Pass(PassName, PassScope.PerBuild, true)
         {
             sb.Append("        ");
             if (method.IsAsync) sb.Append("async ");
-            sb.Append($"function {method.Name.Name}(");
+            sb.Append(method.Kind switch
+            {
+                ExtensionMemberKind.Getter => $"get {method.Name.Name}(",
+                ExtensionMemberKind.Operator => $"operator {InferTypesPass.OperatorSymbol(method.Name.Name)}(",
+                _ => $"function {method.Name.Name}(",
+            });
             EmitParams(sb, ctx, pkg, method.Parameters);
             sb.Append(')');
             EmitReturnType(sb, ctx, pkg, method.ReturnType);

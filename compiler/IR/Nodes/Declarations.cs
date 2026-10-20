@@ -152,6 +152,9 @@ public sealed class ExtendDecl(
     public List<ExtensionMethodNode> Methods { get; } = methods;
     public bool IsDeclare { get; } = isDeclare;
     public List<Annotation> Annotations { get; set; } = [];
+
+    /// <summary>Written <c>export extend</c>: modules importing this one may use its members.</summary>
+    public bool IsExported { get; set; }
 }
 
 public sealed class InterfaceDecl(

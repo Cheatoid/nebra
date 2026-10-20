@@ -9,7 +9,7 @@ namespace Nebra.Compiler.Passes;
 /// The infer types pass is responsible for inferring the types of expressions in the source code. It takes care of
 /// inferring the types of variables, function return types, and other expressions based on their usage and context.
 /// </summary>
-public sealed class InferTypesPass() : Pass(PassName, PassScope.PerBuild)
+public sealed partial class InferTypesPass() : Pass(PassName, PassScope.PerBuild)
 {
     public const string PassName = "InferTypes";
     private int _asyncDepth;
@@ -156,17 +156,21 @@ public sealed class InferTypesPass() : Pass(PassName, PassScope.PerBuild)
             }
         }
 
+        // Every extension in the build is registered before any body is resolved, so a use may
+        // precede the `extend` block that declares it, and a use in a module that does not import
+        // the declaring one is still recognised and reported.
         foreach (var pkg in ordered)
         {
-            // Every extension in the package is registered before any body is resolved, so a call
-            // may precede the `extend` block that declares it no matter which file each lives in.
             foreach (var file in pkg.Files)
             {
                 var registerCtx = MakeFileContext(context, pkg, file);
-                foreach (var ed in CollectExtendDecls(file.Hir.Body))
-                    RegisterExtensionSignatures(registerCtx, ed);
+                foreach (var (ed, module) in CollectExtendDecls(file.Hir.Body))
+                    RegisterExtensionSignatures(registerCtx, ed, module);
             }
+        }
 
+        foreach (var pkg in ordered)
+        {
             foreach (var file in pkg.Files)
             {
                 var fileCtx = MakeFileContext(context, pkg, file);
@@ -1848,69 +1852,6 @@ public sealed class InferTypesPass() : Pass(PassName, PassScope.PerBuild)
         return target.ID == pc.Types.PrimAny.ID ? null : target;
     }
 
-    /// <summary>
-    /// Registers each extension method's signature (with an implicit <c>self</c> of the target
-    /// type) on the extended type, so <c>receiver:method(...)</c> resolves. Runs before bodies
-    /// are resolved so a call may precede its <c>extend</c> block.
-    /// </summary>
-    private void RegisterExtensionSignatures(PassContext pc, ExtendDecl ed)
-    {
-        if (!_registeredExtendDecls.Add(ed.ID)) return;
-        var target = ResolveExtendTarget(pc, ed);
-        if (target == null) return;
-
-        foreach (var method in ed.Methods)
-        {
-            var methodParams = new List<Tuple<string, Type>> { new("self", target) };
-            var isVararg = false;
-            Type? varargType = null;
-            var defaultIndices = new List<int>();
-            for (var i = 0; i < method.Parameters.Count; i++)
-            {
-                var p = method.Parameters[i];
-                var t = ResolveParamType(pc, p);
-                if (p.IsVararg) { isVararg = true; varargType = t.Kind == TypeKind.PrimitiveAny ? null : t; }
-                else { methodParams.Add(new Tuple<string, Type>(p.Name.Name, t)); }
-                if (p.DefaultValue != null) defaultIndices.Add(i + 1); // +1: self shifts indices
-            }
-            var retType = method.ReturnType != null && method.ReturnType.ResolvedType != TypID.Invalid
-                ? GetType(pc, method.ReturnType.ResolvedType) : pc.Types.PrimNil;
-            var ft = (FunctionType)GetType(pc, pc.Types.FuncOf(methodParams, retType, isVararg, varargType,
-                defaultIndices.Count > 0 ? defaultIndices : null, method.IsAsync));
-
-            if (target.ExtensionMethods.ContainsKey(method.Name.Name))
-                pc.Diag.Report(method.Name.Span, DiagnosticCode.ErrDuplicateExtension,
-                    method.Name.Name, TypeName(pc, target.ID));
-            else
-            {
-                target.ExtensionMethods[method.Name.Name] = ft;
-                target.ExtensionMethodNodes[method.Name.Name] = method;
-            }
-        }
-    }
-
-    /// <summary>
-    /// Yields every <c>extend</c> block reachable from <paramref name="body"/>, including the ones
-    /// nested inside a <c>declare module</c> as written in a generated declaration file.
-    /// </summary>
-    private static IEnumerable<ExtendDecl> CollectExtendDecls(List<Stmt> body)
-    {
-        foreach (var stmt in body)
-        {
-            if (stmt is ExtendDecl ed)
-            {
-                yield return ed;
-            }
-            else if (stmt is DeclareModuleDecl dmd)
-            {
-                foreach (var member in dmd.Members.OfType<ExtendDecl>())
-                {
-                    yield return member;
-                }
-            }
-        }
-    }
-
     private void ResolveExtendDecl(PassContext pc, ExtendDecl ed)
     {
         if (!_resolvedExtendDecls.Add(ed.ID)) return;
@@ -2562,6 +2503,7 @@ public sealed class InferTypesPass() : Pass(PassName, PassScope.PerBuild)
         var tt = pc.Types;
         var l = FirstValue(pc, SynthesizeExpr(pc, bin.Left));
         var r = FirstValue(pc, bin.Op is BinaryOp.And or BinaryOp.Or ? SynthesizeShortCircuitRight(pc, bin) : SynthesizeExpr(pc, bin.Right));
+        if (TryExtensionOperator(pc, bin, l, r, out var extensionResult)) return extensionResult;
 
         if (IsConfiguredConcatOp(pc, bin.Op)
             && (l == tt.PrimString.ID || r == tt.PrimString.ID))
@@ -2715,6 +2657,7 @@ public sealed class InferTypesPass() : Pass(PassName, PassScope.PerBuild)
     {
         var tt = pc.Types;
         var t = FirstValue(pc, SynthesizeExpr(pc, un.Operand));
+        if (TryExtensionOperator(pc, un, t, out var extensionResult)) return extensionResult;
 
         var metaName = UnaryOpToMetamethod(un.Op);
         if (metaName != null)
@@ -3067,6 +3010,11 @@ public sealed class InferTypesPass() : Pass(PassName, PassScope.PerBuild)
         if (!pc.Pkg!.Types.GetByID(baseTyp, out var baseType))
         {
             return dot.IsOptional ? MakeNullable(pc, pc.Types.PrimAny.ID) : pc.Types.PrimAny.ID;
+        }
+
+        if (TryExtensionGetter(pc, dot, baseType, out var getterType))
+        {
+            return dot.IsOptional ? MakeNullable(pc, getterType) : getterType;
         }
 
         var resultType = pc.Types.PrimAny.ID;
@@ -3616,6 +3564,8 @@ public sealed class InferTypesPass() : Pass(PassName, PassScope.PerBuild)
             if (extFn != null)
             {
                 mc.ExtensionTargetType = extTarget!.ID;
+                mc.Extension = extTarget.ExtensionMethodNodes.GetValueOrDefault(mc.MethodName.Name);
+                if (mc.Extension != null) UseExtension(pc, mc.Extension, mc.MethodName.Span, objType);
                 var extArgs = new List<TypID>(argTypes.Count + 1) { objTyp };
                 extArgs.AddRange(argTypes);
                 AdoptEmptyTableArguments(pc, extFn, mc.Arguments, extArgs, 1);

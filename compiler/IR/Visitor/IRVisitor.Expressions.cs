@@ -356,6 +356,13 @@ internal partial class IRVisitor
     public override Node VisitParenVarOrExp(NebraParser.ParenVarOrExpContext context)
         => new ParenExpr(NewNodeID, SpanFromCtx(context), (Expr)Visit(context.expr()));
 
+    /// <summary>
+    /// A number literal followed by a member access, such as <c>1.hour</c>. It is kept in
+    /// parentheses, the only form in which Lua lets a number be indexed or called on.
+    /// </summary>
+    public override Node VisitNumberVarOrExp(NebraParser.NumberVarOrExpContext context)
+        => new ParenExpr(NewNodeID, SpanFromCtx(context), (Expr)Visit(context.number()));
+
     #endregion
 
     #region Variable references (assignment targets)

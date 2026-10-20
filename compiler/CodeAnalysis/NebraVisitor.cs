@@ -622,6 +622,41 @@ public interface INebraVisitor<Result> : IParseTreeVisitor<Result> {
 	/// <return>The visitor result.</return>
 	Result VisitOpSymHash([NotNull] NebraParser.OpSymHashContext context);
 	/// <summary>
+	/// Visit a parse tree produced by the <c>OpSymAmp</c>
+	/// labeled alternative in <see cref="NebraParser.operatorSymbol"/>.
+	/// </summary>
+	/// <param name="context">The parse tree.</param>
+	/// <return>The visitor result.</return>
+	Result VisitOpSymAmp([NotNull] NebraParser.OpSymAmpContext context);
+	/// <summary>
+	/// Visit a parse tree produced by the <c>OpSymPipe</c>
+	/// labeled alternative in <see cref="NebraParser.operatorSymbol"/>.
+	/// </summary>
+	/// <param name="context">The parse tree.</param>
+	/// <return>The visitor result.</return>
+	Result VisitOpSymPipe([NotNull] NebraParser.OpSymPipeContext context);
+	/// <summary>
+	/// Visit a parse tree produced by the <c>OpSymTilde</c>
+	/// labeled alternative in <see cref="NebraParser.operatorSymbol"/>.
+	/// </summary>
+	/// <param name="context">The parse tree.</param>
+	/// <return>The visitor result.</return>
+	Result VisitOpSymTilde([NotNull] NebraParser.OpSymTildeContext context);
+	/// <summary>
+	/// Visit a parse tree produced by the <c>OpSymShl</c>
+	/// labeled alternative in <see cref="NebraParser.operatorSymbol"/>.
+	/// </summary>
+	/// <param name="context">The parse tree.</param>
+	/// <return>The visitor result.</return>
+	Result VisitOpSymShl([NotNull] NebraParser.OpSymShlContext context);
+	/// <summary>
+	/// Visit a parse tree produced by the <c>OpSymShr</c>
+	/// labeled alternative in <see cref="NebraParser.operatorSymbol"/>.
+	/// </summary>
+	/// <param name="context">The parse tree.</param>
+	/// <return>The visitor result.</return>
+	Result VisitOpSymShr([NotNull] NebraParser.OpSymShrContext context);
+	/// <summary>
 	/// Visit a parse tree produced by <see cref="NebraParser.interfaceDecl"/>.
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
@@ -693,11 +728,26 @@ public interface INebraVisitor<Result> : IParseTreeVisitor<Result> {
 	/// <return>The visitor result.</return>
 	Result VisitExtendDecl([NotNull] NebraParser.ExtendDeclContext context);
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="NebraParser.extendMethod"/>.
+	/// Visit a parse tree produced by the <c>ExtendFunctionMember</c>
+	/// labeled alternative in <see cref="NebraParser.extendMethod"/>.
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	Result VisitExtendMethod([NotNull] NebraParser.ExtendMethodContext context);
+	Result VisitExtendFunctionMember([NotNull] NebraParser.ExtendFunctionMemberContext context);
+	/// <summary>
+	/// Visit a parse tree produced by the <c>ExtendGetterMember</c>
+	/// labeled alternative in <see cref="NebraParser.extendMethod"/>.
+	/// </summary>
+	/// <param name="context">The parse tree.</param>
+	/// <return>The visitor result.</return>
+	Result VisitExtendGetterMember([NotNull] NebraParser.ExtendGetterMemberContext context);
+	/// <summary>
+	/// Visit a parse tree produced by the <c>ExtendOperatorMember</c>
+	/// labeled alternative in <see cref="NebraParser.extendMethod"/>.
+	/// </summary>
+	/// <param name="context">The parse tree.</param>
+	/// <return>The visitor result.</return>
+	Result VisitExtendOperatorMember([NotNull] NebraParser.ExtendOperatorMemberContext context);
 	/// <summary>
 	/// Visit a parse tree produced by the <c>ExportFunction</c>
 	/// labeled alternative in <see cref="NebraParser.exportStat"/>.
@@ -740,6 +790,13 @@ public interface INebraVisitor<Result> : IParseTreeVisitor<Result> {
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
 	Result VisitExportInterface([NotNull] NebraParser.ExportInterfaceContext context);
+	/// <summary>
+	/// Visit a parse tree produced by the <c>ExportExtend</c>
+	/// labeled alternative in <see cref="NebraParser.exportStat"/>.
+	/// </summary>
+	/// <param name="context">The parse tree.</param>
+	/// <return>The visitor result.</return>
+	Result VisitExportExtend([NotNull] NebraParser.ExportExtendContext context);
 	/// <summary>
 	/// Visit a parse tree produced by the <c>ExportFrom</c>
 	/// labeled alternative in <see cref="NebraParser.exportStat"/>.
@@ -943,11 +1000,26 @@ public interface INebraVisitor<Result> : IParseTreeVisitor<Result> {
 	/// <return>The visitor result.</return>
 	Result VisitModuleDeclareExtend([NotNull] NebraParser.ModuleDeclareExtendContext context);
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="NebraParser.declareExtendMethod"/>.
+	/// Visit a parse tree produced by the <c>DeclareExtendFunctionMember</c>
+	/// labeled alternative in <see cref="NebraParser.declareExtendMethod"/>.
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	Result VisitDeclareExtendMethod([NotNull] NebraParser.DeclareExtendMethodContext context);
+	Result VisitDeclareExtendFunctionMember([NotNull] NebraParser.DeclareExtendFunctionMemberContext context);
+	/// <summary>
+	/// Visit a parse tree produced by the <c>DeclareExtendGetterMember</c>
+	/// labeled alternative in <see cref="NebraParser.declareExtendMethod"/>.
+	/// </summary>
+	/// <param name="context">The parse tree.</param>
+	/// <return>The visitor result.</return>
+	Result VisitDeclareExtendGetterMember([NotNull] NebraParser.DeclareExtendGetterMemberContext context);
+	/// <summary>
+	/// Visit a parse tree produced by the <c>DeclareExtendOperatorMember</c>
+	/// labeled alternative in <see cref="NebraParser.declareExtendMethod"/>.
+	/// </summary>
+	/// <param name="context">The parse tree.</param>
+	/// <return>The visitor result.</return>
+	Result VisitDeclareExtendOperatorMember([NotNull] NebraParser.DeclareExtendOperatorMemberContext context);
 	/// <summary>
 	/// Visit a parse tree produced by <see cref="NebraParser.funcName"/>.
 	/// </summary>
@@ -1590,6 +1662,13 @@ public interface INebraVisitor<Result> : IParseTreeVisitor<Result> {
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
 	Result VisitSuperMethodVarOrExp([NotNull] NebraParser.SuperMethodVarOrExpContext context);
+	/// <summary>
+	/// Visit a parse tree produced by the <c>NumberVarOrExp</c>
+	/// labeled alternative in <see cref="NebraParser.varOrExp"/>.
+	/// </summary>
+	/// <param name="context">The parse tree.</param>
+	/// <return>The visitor result.</return>
+	Result VisitNumberVarOrExp([NotNull] NebraParser.NumberVarOrExpContext context);
 	/// <summary>
 	/// Visit a parse tree produced by the <c>DotSuffix</c>
 	/// labeled alternative in <see cref="NebraParser.suffix"/>.

@@ -45,6 +45,7 @@ public sealed class IRLuaCodec
         "Overloads",
         "OverloadName",
         "CallsResolvedOverload",
+        "Extension",
         "ResolvedType",
     ];
 

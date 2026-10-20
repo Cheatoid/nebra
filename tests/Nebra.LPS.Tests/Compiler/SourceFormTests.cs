@@ -95,6 +95,38 @@ public sealed class SourceFormTests
     }
 
     [Fact]
+    public void ExtensionGettersAndOperatorsLowerToCallsOfLocalFunctions()
+    {
+        var build = Build("import \"./units\"\n\nprint(1.hour + 2.min, \"hello\" << 3, -\"abc\")\n",
+            ("src/units.neb", "export extend number\n    get hour(): number\n        return self * 3600\n    end\n\n    get min(): number\n        return self * 60\n    end\nend\n\nexport extend string\n    operator <<(n: number): string\n        return string.sub(self, n + 1) .. string.sub(self, 1, n)\n    end\n\n    operator -(): string\n        return string.reverse(self)\n    end\nend\n"));
+
+        Assert.Empty(build.Errors);
+        var main = build.Lua("src/main.neb");
+        Assert.Contains("local __ext_PrimitiveNumber_get_hour = _mod0.__ext_PrimitiveNumber_get_hour", main);
+        Assert.Contains("print(__ext_PrimitiveNumber_get_hour((1)) + __ext_PrimitiveNumber_get_min((2)), __ext_PrimitiveString_shl_number(\"hello\", 3), __ext_PrimitiveString_unm(\"abc\"))", main);
+        var units = build.Lua("src/units.neb");
+        Assert.Contains("function __ext_PrimitiveString_shl_number(self, n)", units);
+        Assert.Contains("__ext_PrimitiveString_unm = __ext_PrimitiveString_unm", units);
+    }
+
+    [Fact]
+    public void AnExtensionIsOnlyUsableWhereItIsDeclaredOrImported()
+    {
+        var units = ("src/units.neb", "export extend number\n    get hour(): number\n        return self * 3600\n    end\nend\n\nextend number\n    get secret(): number\n        return 42\n    end\nend\n\nexport function local_(): number\n    return 1.secret\nend\n");
+
+        Assert.Equal(DiagnosticCode.ErrExtensionNotImported, Assert.Single(Build("print(1.hour)\n", units).Errors).Code);
+        Assert.Equal(DiagnosticCode.ErrExtensionNotExported, Assert.Single(Build("import \"./units\"\n\nprint(1.secret)\n", units).Errors).Code);
+        Assert.Empty(Build("import \"./units\"\n\nprint(1.hour)\n", units).Errors);
+    }
+
+    [Fact]
+    public void AnExtensionCannotReplaceABuiltInOperatorOrDeclareASetter()
+    {
+        Assert.Equal(DiagnosticCode.ErrExtensionReplacesOperator, Assert.Single(Build("extend number\n    operator +(n: number): number\n        return 0\n    end\nend\n").Errors).Code);
+        Assert.Equal(DiagnosticCode.ErrExtensionSetter, Assert.Single(Build("extend number\n    set size(value: number)\n    end\nend\n").Errors).Code);
+    }
+
+    [Fact]
     public void MethodCallsFollowNewAndContinueOnTheNextLine()
     {
         var build = Build("class Builder\n    function column(name: string): Builder\n        return self\n    end\n\n    function build(): nil\n    end\nend\n\nnew Builder()\n    :column(\"a\")\n    :column(\"b\")\n    :build()\nprint(new Builder():column(\"c\"))\n");

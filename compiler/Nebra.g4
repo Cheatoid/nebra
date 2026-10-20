@@ -309,8 +309,8 @@ classMember
     ;
 
 // --- Overloadable Operators ---
-// Binary arity:  +  -  *  /  //  %  ^  ..  ==  <  <=
-// Unary arity:   -  #   (disambiguated from binary by parameter count)
+// Binary arity:  +  -  *  /  //  %  ^  ..  ==  <  <=  &  |  ~  <<  >>
+// Unary arity:   -  #  ~   (disambiguated from binary by parameter count)
 
 operatorKeyword
     : NAME
@@ -329,6 +329,11 @@ operatorSymbol
     | LT                                                         # OpSymLt
     | LTE                                                        # OpSymLte
     | HASH                                                       # OpSymHash
+    | AMP                                                        # OpSymAmp
+    | PIPE                                                       # OpSymPipe
+    | TILDE                                                      # OpSymTilde
+    | LSHIFT                                                     # OpSymShl
+    | GT GT                                                      # OpSymShr
     ;
 
 interfaceDecl
@@ -382,15 +387,17 @@ interfaceMemberKind
     ;
 
 // --- Extension Blocks ---
-// Adds methods to an existing type (class, interface or built-in like string/number).
-// The method call lowers at compile time to a plain function call, so it works on any type.
+// Adds methods, getters and operators to an existing type (class, interface or built-in like
+// string/number). Every use lowers at compile time to a plain function call, so it works on any type.
 
 extendDecl
     : annotationList EXTEND typeExpr extendMethod* END
     ;
 
 extendMethod
-    : annotationList ASYNC? FUNCTION NAME funcBody
+    : annotationList ASYNC? FUNCTION NAME funcBody                                   # ExtendFunctionMember
+    | annotationList NAME NAME funcBody                                              # ExtendGetterMember
+    | annotationList operatorKeyword operatorSymbol funcBody                         # ExtendOperatorMember
     ;
 
 exportStat
@@ -400,6 +407,7 @@ exportStat
     | annotationList EXPORT enumDecl                             # ExportEnum
     | annotationList EXPORT classDecl                            # ExportClass
     | annotationList EXPORT interfaceDecl                        # ExportInterface
+    | annotationList EXPORT extendDecl                           # ExportExtend
     | EXPORT LBRACE (importName (COMMA importName)* COMMA?)? RBRACE fromKeyword str # ExportFrom
     ;
 
@@ -524,9 +532,11 @@ declareModuleMember
     | annotationList EXTEND typeExpr declareExtendMethod* END     # ModuleDeclareExtend
     ;
 
-// An extension block in a declaration file: method signatures without bodies.
+// An extension block in a declaration file: signatures without bodies.
 declareExtendMethod
-    : annotationList ASYNC? FUNCTION NAME funcSignature
+    : annotationList ASYNC? FUNCTION NAME funcSignature                              # DeclareExtendFunctionMember
+    | annotationList NAME NAME funcSignature                                         # DeclareExtendGetterMember
+    | annotationList operatorKeyword operatorSymbol funcSignature                    # DeclareExtendOperatorMember
     ;
 
 // -----------------------------------------------------------------------------
@@ -833,6 +843,7 @@ varOrExp
     | LPAREN expr RPAREN                                        # ParenVarOrExp
     | NEW NAME LPAREN exprList? RPAREN                          # NewVarOrExp
     | SUPER COLON memberName args                               # SuperMethodVarOrExp
+    | number                                                    # NumberVarOrExp
     ;
 
 suffix
@@ -1101,7 +1112,7 @@ HEX
     ;
 
 FLOAT
-    : Digit+ '.' Digit* ExponentPart?
+    : Digit+ '.' Digit+ ExponentPart?
     | '.' Digit+ ExponentPart?
     | Digit+ ExponentPart
     ;

@@ -313,6 +313,21 @@ public sealed class CompletionHandler(NebraWorkspace workspace) : CompletionHand
     /// resolves the receiver chain to a type, and returns its struct fields as completion items.
     /// Returns null if this is not a member-completion context.
     /// </summary>
+    /// <summary>The extension getters visible on <paramref name="type"/> whose names are not taken yet.</summary>
+    private IEnumerable<CompletionItem> ExtensionGetterItems(Nebra.IR.Type type, AnalysisResult result, HashSet<string> seen)
+    {
+        foreach (var getter in Nebra.IR.Type.EnumerateExtensionGetters(type, result.Types.PrimFunction))
+        {
+            if (getter.Signature == null || !seen.Add(getter.Name.Name)) continue;
+            yield return new CompletionItem
+            {
+                Label = getter.Name.Name,
+                Kind = CompletionItemKind.Property,
+                Detail = "(extension) " + workspace.FormatType(result.Types, getter.Signature.ReturnType.ID)
+            };
+        }
+    }
+
     private List<CompletionItem>? TryMemberCompletion(AnalysisResult result,
         OmniSharp.Extensions.LanguageServer.Protocol.Models.Position pos)
     {
@@ -574,6 +589,8 @@ public sealed class CompletionHandler(NebraWorkspace workspace) : CompletionHand
                 });
             }
 
+            classItems.AddRange(ExtensionGetterItems(classType, result, seen));
+
             if (classType.ConstructorType != null)
             {
                 classItems.Add(new CompletionItem
@@ -604,6 +621,7 @@ public sealed class CompletionHandler(NebraWorkspace workspace) : CompletionHand
                     Detail = "(extension) " + workspace.FormatType(result.Types, method.ID)
                 });
             }
+            extItems.AddRange(ExtensionGetterItems(finalType, result, extSeen));
             return extItems;
         }
 

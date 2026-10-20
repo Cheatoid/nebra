@@ -408,6 +408,14 @@ internal partial class IRVisitor
             case "<": return paramCount == 1 ? "__lt" : Err(out diagMessage, "binary '<' operator must take exactly one parameter");
             case "<=": return paramCount == 1 ? "__le" : Err(out diagMessage, "binary '<=' operator must take exactly one parameter");
             case "#": return paramCount == 0 ? "__len" : Err(out diagMessage, "unary '#' operator must take no parameters");
+            case "&": return paramCount == 1 ? "__band" : Err(out diagMessage, "binary '&' operator must take exactly one parameter");
+            case "|": return paramCount == 1 ? "__bor" : Err(out diagMessage, "binary '|' operator must take exactly one parameter");
+            case "~":
+                if (paramCount == 0) return "__bnot";
+                if (paramCount == 1) return "__bxor";
+                return Err(out diagMessage, "'~' operator must take zero (unary) or one (binary) parameter");
+            case "<<": return paramCount == 1 ? "__shl" : Err(out diagMessage, "binary '<<' operator must take exactly one parameter");
+            case ">>": return paramCount == 1 ? "__shr" : Err(out diagMessage, "binary '>>' operator must take exactly one parameter");
             default: diagMessage = sym; return null;
         }
 

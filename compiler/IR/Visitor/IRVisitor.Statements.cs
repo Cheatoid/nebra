@@ -392,6 +392,14 @@ internal partial class IRVisitor
         return new ExportStmt(NewNodeID, SpanFromCtx(context), decl);
     }
 
+    public override Node VisitExportExtend(NebraParser.ExportExtendContext context)
+    {
+        var decl = (ExtendDecl)Visit(context.extendDecl());
+        decl.Annotations.InsertRange(0, VisitAnnotationListContent(context.annotationList()));
+        decl.IsExported = true;
+        return decl;
+    }
+
     public override Node VisitExportInterface(NebraParser.ExportInterfaceContext context)
     {
         var decl = (Decl)Visit(context.interfaceDecl());

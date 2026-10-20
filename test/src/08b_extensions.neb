@@ -1,9 +1,27 @@
 ﻿--- Extension methods declared in their own module, so the suite covers a call emitted in a file
 --- other than the one that declares them.
 
-extend string
+export extend string
     function exclaim(): string
         return self .. "!"
+    end
+
+    operator <<(n: number): string
+        return string.sub(self, n + 1) .. string.sub(self, 1, n)
+    end
+
+    operator -(): string
+        return string.reverse(self)
+    end
+end
+
+export extend number
+    get minutes(): number
+        return self * 60
+    end
+
+    get hours(): number
+        return self * 3600
     end
 end
 

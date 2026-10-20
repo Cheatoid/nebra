@@ -80,6 +80,19 @@ public class Type(TypeKind kind)
     public Dictionary<string, ExtensionMethodNode> ExtensionMethodNodes { get; } = new();
 
     /// <summary>
+    /// Extension getters registered on this type, by property name. Reading such a property lowers
+    /// to a call of the getter with the receiver as <c>self</c>.
+    /// </summary>
+    public Dictionary<string, ExtensionMethodNode> ExtensionGetters { get; } = new();
+
+    /// <summary>
+    /// Extension operators registered on this type, by metamethod name, each with every overload
+    /// declared for it. Applying the operator to a value of this type lowers to a call of the one
+    /// whose operand fits.
+    /// </summary>
+    public Dictionary<string, List<ExtensionMethodNode>> ExtensionOperators { get; } = new();
+
+    /// <summary>
     /// The stable reflection id (<c>package::Name</c>) for a named type (class/interface/enum),
     /// assigned once at type creation using its defining package's namespace. Both the metadata
     /// emission and cross-references read this so ids stay consistent across files and packages.
@@ -100,40 +113,75 @@ public class Type(TypeKind kind)
     /// </summary>
     public static (FunctionType? Fn, Type? Target) ResolveExtension(Type objType, string name, Type? functionCategory = null)
     {
-        if (objType.ExtensionMethods.TryGetValue(name, out var direct)) return (direct, objType);
+        foreach (var target in ExtensionTargets(objType, functionCategory))
+        {
+            if (target.ExtensionMethods.TryGetValue(name, out var function)) return (function, target);
+        }
 
-        // Every concrete function signature inherits the extensions declared on `extend function`.
-        if (objType is FunctionType && functionCategory != null
-            && functionCategory.ExtensionMethods.TryGetValue(name, out var fnExt))
-            return (fnExt, functionCategory);
+        return (null, null);
+    }
+
+    /// <summary>
+    /// The extension getter <paramref name="name"/> visible on <paramref name="objType"/>, looked up
+    /// the way <see cref="ResolveExtension"/> looks up methods.
+    /// </summary>
+    public static ExtensionMethodNode? ResolveExtensionGetter(Type objType, string name, Type? functionCategory = null)
+    {
+        foreach (var target in ExtensionTargets(objType, functionCategory))
+        {
+            if (target.ExtensionGetters.TryGetValue(name, out var getter)) return getter;
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// Every extension getter visible on <paramref name="objType"/>, nearest first; a name may
+    /// appear more than once. Used by editor completion.
+    /// </summary>
+    public static IEnumerable<ExtensionMethodNode> EnumerateExtensionGetters(Type objType, Type? functionCategory = null) =>
+        ExtensionTargets(objType, functionCategory).SelectMany(target => target.ExtensionGetters.Values);
+
+    /// <summary>
+    /// The overloads of the extension operator <paramref name="metamethod"/> visible on
+    /// <paramref name="objType"/>: those of the nearest type declaring any.
+    /// </summary>
+    public static List<ExtensionMethodNode> ResolveExtensionOperators(Type objType, string metamethod, Type? functionCategory = null)
+    {
+        foreach (var target in ExtensionTargets(objType, functionCategory))
+        {
+            if (target.ExtensionOperators.TryGetValue(metamethod, out var overloads)) return overloads;
+        }
+
+        return [];
+    }
+
+    /// <summary>
+    /// The types whose extensions apply to <paramref name="objType"/>, nearest first: the type
+    /// itself, the <c>function</c> category for a function signature, its base classes and the
+    /// interfaces it implements or extends.
+    /// </summary>
+    private static IEnumerable<Type> ExtensionTargets(Type objType, Type? functionCategory)
+    {
+        yield return objType;
+
+        if (objType is FunctionType && functionCategory != null)
+            yield return functionCategory;
 
         switch (objType)
         {
             case ClassType ct:
                 for (var cur = ct.BaseClass; cur != null; cur = cur.BaseClass)
-                {
-                    if (cur.ExtensionMethods.TryGetValue(name, out var bft))
-                    {
-                        return (bft, cur);
-                    }
-                }
+                    yield return cur;
 
                 foreach (var iface in ImplementedInterfaces(ct))
-                {
-                    if (iface.ExtensionMethods.TryGetValue(name, out var ift))
-                    {
-                        return (ift, iface);
-                    }
-                }
-
+                    yield return iface;
                 break;
             case InterfaceType it:
                 foreach (var b in BaseInterfacesOf(it))
-                    if (b.ExtensionMethods.TryGetValue(name, out var bift)) return (bift, b);
+                    yield return b;
                 break;
         }
-
-        return (null, null);
     }
 
     /// <summary>

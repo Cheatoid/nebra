@@ -1,4 +1,6 @@
-﻿namespace Nebra.IR;
+﻿using Antlr4.Runtime;
+
+namespace Nebra.IR;
 
 internal partial class IRVisitor
 {
@@ -694,21 +696,23 @@ internal partial class IRVisitor
         // typeExpr is null when the extend head failed to parse (e.g. `extend function`);
         // keep a null target and let later passes report the error without crashing.
         var target = context.typeExpr() != null ? (TypeRef)Visit(context.typeExpr()) : null!;
-        var methods = new List<ExtensionMethodNode>();
-        foreach (var m in context.extendMethod())
+        var members = new List<ExtensionMethodNode>();
+        foreach (var member in context.extendMethod())
         {
-            var isAsync = m.ASYNC() != null;
-            var methodName = NameRefFromTerm(m.NAME());
-            var (parameters, returnType, body, ret) = VisitFuncBodyContent(m.funcBody());
-            var node = new ExtensionMethodNode(methodName, parameters, returnType, body, ret, isAsync, SpanFromCtx(m))
+            var node = member switch
             {
-                TypeParams = VisitTypeParamListContent(m.funcBody().typeParamList()),
-                Annotations = VisitAnnotationListContent(m.annotationList())
+                NebraParser.ExtendFunctionMemberContext function => ExtensionFunction(function.annotationList(),
+                    function.ASYNC() != null, function.NAME(), VisitFuncBodyContent(function.funcBody()), function.funcBody().typeParamList(), function),
+                NebraParser.ExtendGetterMemberContext getter => ExtensionGetter(getter.annotationList(),
+                    getter.NAME(0), getter.NAME(1), VisitFuncBodyContent(getter.funcBody()), getter),
+                NebraParser.ExtendOperatorMemberContext op => ExtensionOperator(op.annotationList(),
+                    op.operatorKeyword(), op.operatorSymbol(), VisitFuncBodyContent(op.funcBody()), op),
+                _ => null,
             };
-            methods.Add(node);
+            if (node != null) members.Add(node);
         }
 
-        return new ExtendDecl(NewNodeID, SpanFromCtx(context), target, methods)
+        return new ExtendDecl(NewNodeID, SpanFromCtx(context), target, members)
         {
             Annotations = VisitAnnotationListContent(context.annotationList())
         };
@@ -717,23 +721,79 @@ internal partial class IRVisitor
     public override Node VisitModuleDeclareExtend(NebraParser.ModuleDeclareExtendContext context)
     {
         var target = context.typeExpr() != null ? (TypeRef)Visit(context.typeExpr()) : null!;
-        var methods = new List<ExtensionMethodNode>();
-        foreach (var m in context.declareExtendMethod())
+        var members = new List<ExtensionMethodNode>();
+        foreach (var member in context.declareExtendMethod())
         {
-            var isAsync = m.ASYNC() != null;
-            var methodName = NameRefFromTerm(m.NAME());
-            var (parameters, returnType) = VisitFuncSignatureContent(m.funcSignature());
-            var node = new ExtensionMethodNode(methodName, parameters, returnType, [], null, isAsync, SpanFromCtx(m))
+            var node = member switch
             {
-                TypeParams = VisitTypeParamListContent(m.funcSignature().typeParamList()),
-                Annotations = VisitAnnotationListContent(m.annotationList())
+                NebraParser.DeclareExtendFunctionMemberContext function => ExtensionFunction(function.annotationList(),
+                    function.ASYNC() != null, function.NAME(), Signature(function.funcSignature()), function.funcSignature().typeParamList(), function),
+                NebraParser.DeclareExtendGetterMemberContext getter => ExtensionGetter(getter.annotationList(),
+                    getter.NAME(0), getter.NAME(1), Signature(getter.funcSignature()), getter),
+                NebraParser.DeclareExtendOperatorMemberContext op => ExtensionOperator(op.annotationList(),
+                    op.operatorKeyword(), op.operatorSymbol(), Signature(op.funcSignature()), op),
+                _ => null,
             };
-            methods.Add(node);
+            if (node != null) members.Add(node);
         }
 
-        return new ExtendDecl(NewNodeID, SpanFromCtx(context), target, methods, true)
+        return new ExtendDecl(NewNodeID, SpanFromCtx(context), target, members, true)
         {
             Annotations = VisitAnnotationListContent(context.annotationList())
+        };
+    }
+
+    private (List<Parameter> Parameters, TypeRef? ReturnType, List<Stmt> Body, ReturnStmt? Return) Signature(NebraParser.FuncSignatureContext signature)
+    {
+        var (parameters, returnType) = VisitFuncSignatureContent(signature);
+        return (parameters, returnType, [], null);
+    }
+
+    private ExtensionMethodNode ExtensionFunction(NebraParser.AnnotationListContext annotations, bool isAsync,
+        Antlr4.Runtime.Tree.ITerminalNode name, (List<Parameter> Parameters, TypeRef? ReturnType, List<Stmt> Body, ReturnStmt? Return) function,
+        NebraParser.TypeParamListContext? typeParams, ParserRuleContext context)
+    {
+        return new ExtensionMethodNode(NameRefFromTerm(name), function.Parameters, function.ReturnType, function.Body,
+            function.Return, isAsync, SpanFromCtx(context))
+        {
+            TypeParams = VisitTypeParamListContent(typeParams),
+            Annotations = VisitAnnotationListContent(annotations),
+        };
+    }
+
+    private ExtensionMethodNode ExtensionGetter(NebraParser.AnnotationListContext annotations,
+        Antlr4.Runtime.Tree.ITerminalNode kind, Antlr4.Runtime.Tree.ITerminalNode name,
+        (List<Parameter> Parameters, TypeRef? ReturnType, List<Stmt> Body, ReturnStmt? Return) getter, ParserRuleContext context)
+    {
+        if (ResolveAccessorKind(kind.GetText(), kind) == AccessorKind.Setter)
+            diag.Report(SpanFromTerm(kind), Diagnostics.DiagnosticCode.ErrExtensionSetter, name.GetText());
+
+        return new ExtensionMethodNode(NameRefFromTerm(name), getter.Parameters, getter.ReturnType, getter.Body,
+            getter.Return, false, SpanFromCtx(context))
+        {
+            Annotations = VisitAnnotationListContent(annotations),
+            Kind = ExtensionMemberKind.Getter,
+        };
+    }
+
+    private ExtensionMethodNode? ExtensionOperator(NebraParser.AnnotationListContext annotations,
+        NebraParser.OperatorKeywordContext keyword, NebraParser.OperatorSymbolContext symbol,
+        (List<Parameter> Parameters, TypeRef? ReturnType, List<Stmt> Body, ReturnStmt? Return) op, ParserRuleContext context)
+    {
+        if (!IsOperatorKeyword(keyword)) return null;
+
+        var metamethod = OperatorSymbolToMetamethod(symbol.GetText(), op.Parameters.Count, out var message);
+        if (metamethod == null)
+        {
+            diag.Report(SpanFromCtx(symbol), Diagnostics.DiagnosticCode.ErrInvalidOperator, message ?? symbol.GetText());
+            return null;
+        }
+
+        return new ExtensionMethodNode(NameRefFromText(metamethod, SpanFromCtx(symbol)), op.Parameters, op.ReturnType,
+            op.Body, op.Return, false, SpanFromCtx(context))
+        {
+            Annotations = VisitAnnotationListContent(annotations),
+            Kind = ExtensionMemberKind.Operator,
         };
     }
 

@@ -194,6 +194,12 @@ export function run(): nil
     expect("reflection registry reachable", reflectedClassCount() >= 0)
     expectEq("type-only module stays requireable", (new Marked()):mark(), "marked")
     expectEq("extension declared in another file", ("hi"):exclaim(), "hi!")
+    expectEq("extension getters on number literals", 1.hours + 2.minutes, 3720)
+    expectEq("extension getter on a decimal literal", 1.5.minutes, 90)
+    local maybeHours: number? = 2
+    expectEq("extension getter through optional access", maybeHours?.hours, 7200)
+    expectEq("binary extension operator", "hello" << 3, "lohel")
+    expectEq("unary extension operator", -"abc", "cba")
 
     local deep: DeepBase = new DeepImpl()
     expectEq("interface reached through two extends levels", deep:deepA(), "a")

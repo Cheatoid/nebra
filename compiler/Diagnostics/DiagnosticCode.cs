@@ -263,6 +263,29 @@ public enum DiagnosticCode
     [Format("Type predicate refers to '{0}', which is not a parameter of this function")]
     ErrUnknownPredicateParam = 0x2010,
 
+    [Level(DiagnosticLevel.Error)]
+    [Category(DiagnosticCategory.Type)]
+    [Format("the extension '{0}' of '{1}' is declared in '{2}', which this file does not import")]
+    [Help("import that module to use its extensions")]
+    ErrExtensionNotImported = 0x2020,
+
+    [Level(DiagnosticLevel.Error)]
+    [Category(DiagnosticCategory.Type)]
+    [Format("the extension '{0}' of '{1}' is local to '{2}'")]
+    [Help("declare it with 'export extend' to use it in other modules")]
+    ErrExtensionNotExported = 0x2021,
+
+    [Level(DiagnosticLevel.Error)]
+    [Category(DiagnosticCategory.Type)]
+    [Format("'{0}' already supports '{1}' with '{2}'; an extension cannot replace a built-in operator")]
+    ErrExtensionReplacesOperator = 0x2022,
+
+    [Level(DiagnosticLevel.Error)]
+    [Category(DiagnosticCategory.Type)]
+    [Format("an extension cannot declare a setter; '{0}' can only be read")]
+    [Help("declare a method that takes the new value instead")]
+    ErrExtensionSetter = 0x2023,
+
     #endregion
 
     #region Module

@@ -16,6 +16,7 @@ public sealed partial class CodegenPass() : Pass(PassName, PassScope.PerBuild, t
     private readonly HashSet<int> _neededBreakLabels = [];
     private readonly Dictionary<ScopeID, string> _staticMemberTables = [];
     private readonly HashSet<string> _hoistedNames = [];
+    private readonly HashSet<string> _boundExtensions = [];
     private string? _currentFile;
     private string? _superClassName;
 
@@ -118,6 +119,12 @@ public sealed partial class CodegenPass() : Pass(PassName, PassScope.PerBuild, t
         _hoistedNames.Clear();
         _overloadVariants.Clear();
         _overloadDispatchers.Clear();
+        _boundExtensions.Clear();
+        foreach (var extend in body.OfType<ExtendDecl>().Where(extend => !extend.IsDeclare))
+        {
+            foreach (var member in extend.Methods.Where(member => member.LuaName.Length > 0))
+                _hoistedNames.Add(member.LuaName);
+        }
         foreach (var group in FunctionOverloadGroups(ctx, pkg, body))
         {
             foreach (var variant in RegisterOverloadVariants(ctx, pkg, group) ?? [])
@@ -156,6 +163,12 @@ public sealed partial class CodegenPass() : Pass(PassName, PassScope.PerBuild, t
     {
         foreach (var stmt in stmts)
         {
+            if (stmt is ExtendDecl { IsExported: true, IsDeclare: false } exportedExtend)
+            {
+                foreach (var member in exportedExtend.Methods.Where(member => member.LuaName.Length > 0))
+                    names.Add(new ExportName(member.LuaName, member.LuaName));
+            }
+
             if (stmt is ImportStmt { IsReExport: true } reExport)
             {
                 foreach (var spec in reExport.Specifiers)
@@ -766,7 +779,7 @@ public sealed partial class CodegenPass() : Pass(PassName, PassScope.PerBuild, t
         // does not propagate operator overloads from parent to child automatically.
         if (hasBase)
         {
-            gen.Write("for _, __k in ipairs({\"__add\",\"__sub\",\"__mul\",\"__div\",\"__mod\",\"__pow\",\"__unm\",\"__concat\",\"__len\",\"__eq\",\"__lt\",\"__le\",\"__idiv\"}) do ");
+            gen.Write("for _, __k in ipairs({\"__add\",\"__sub\",\"__mul\",\"__div\",\"__mod\",\"__pow\",\"__unm\",\"__concat\",\"__len\",\"__eq\",\"__lt\",\"__le\",\"__idiv\",\"__band\",\"__bor\",\"__bxor\",\"__bnot\",\"__shl\",\"__shr\"}) do ");
             gen.Write("if rawget(");
             gen.Write(baseName!);
             gen.Write(", __k) and not rawget(");
@@ -1516,7 +1529,7 @@ public sealed partial class CodegenPass() : Pass(PassName, PassScope.PerBuild, t
                 gen.WriteLine(")");
                 break;
             case MethodCallExpr { ExtensionTargetType: { } extensionTarget } extension:
-                gen.Write($"{gen.GetDeferHelper()}(__defers, {ExtensionFnName(ctx, extensionTarget, extension.MethodName.Name)}, ");
+                gen.Write($"{gen.GetDeferHelper()}(__defers, {extension.Extension?.LuaName ?? ExtensionFnName(ctx, extensionTarget, extension.MethodName.Name)}, ");
                 EmitExpr(ctx, pkg, gen, extension.Object);
                 EmitDeferredArguments(ctx, pkg, gen, extension.Arguments);
                 gen.WriteLine(")");
@@ -1587,9 +1600,17 @@ public sealed partial class CodegenPass() : Pass(PassName, PassScope.PerBuild, t
 
         var runtimeGlobal = RuntimeGlobalOf(ctx, import);
         var modExpr = runtimeGlobal ?? gen.EmitImport(ImportPathOf(ctx, import));
+        var extensions = ImportedExtensions(ctx, import);
 
         switch (import.Kind)
         {
+            case ImportKind.SideEffect when extensions.Count > 0:
+            {
+                var temp = gen.FreshTemp("_mod");
+                gen.WriteLine($"local {temp} = {(runtimeGlobal != null ? $"assert({RequireGlobal(ctx, import)})" : modExpr)}");
+                EmitExtensionBindings(gen, temp, extensions);
+                break;
+            }
             case ImportKind.SideEffect when runtimeGlobal != null:
                 gen.WriteLine($"assert({RequireGlobal(ctx, import)})");
                 break;
@@ -1606,12 +1627,13 @@ public sealed partial class CodegenPass() : Pass(PassName, PassScope.PerBuild, t
                 gen.Write(alias);
                 gen.Write(" = ");
                 gen.WriteLine(modExpr);
+                EmitExtensionBindings(gen, alias, extensions);
                 break;
             }
             case ImportKind.Named:
             {
                 var runtimeSpecs = import.Specifiers.Where(spec => !IsCompileTimeOnly(ctx, pkg, spec)).ToList();
-                if (runtimeSpecs.Count == 0)
+                if (runtimeSpecs.Count == 0 && extensions.Count == 0)
                 {
                     gen.WriteLine(modExpr);
                     break;
@@ -1635,6 +1657,7 @@ public sealed partial class CodegenPass() : Pass(PassName, PassScope.PerBuild, t
                     gen.Write(".");
                     gen.WriteLine(spec.Name.Name);
                 }
+                EmitExtensionBindings(gen, temp, extensions);
                 break;
             }
         }
@@ -1792,6 +1815,10 @@ public sealed partial class CodegenPass() : Pass(PassName, PassScope.PerBuild, t
                 if (dot.IsOptional)
                 {
                     EmitOptionalDotAccess(ctx, pkg, gen, dot);
+                }
+                else if (dot.Extension != null)
+                {
+                    EmitExtensionCall(ctx, pkg, gen, dot.Extension, dot.Object, []);
                 }
                 else if (!TryEmitUnpack(pkg, gen, expr))
                 {
@@ -2248,6 +2275,12 @@ public sealed partial class CodegenPass() : Pass(PassName, PassScope.PerBuild, t
 
     private void EmitBinary(PassContext ctx, PackageContext pkg, LuaGenerator gen, BinaryExpr bin)
     {
+        if (bin.Extension != null)
+        {
+            EmitExtensionCall(ctx, pkg, gen, bin.Extension, bin.Left, [bin.Right]);
+            return;
+        }
+
         if (bin.Op == BinaryOp.NilCoalesce)
         {
             EmitNilCoalesce(ctx, pkg, gen, bin);
@@ -2306,8 +2339,8 @@ public sealed partial class CodegenPass() : Pass(PassName, PassScope.PerBuild, t
     {
         gen.Write("(function() local __v = (");
         EmitExpr(ctx, pkg, gen, dot.Object);
-        gen.Write("); if __v == nil then return nil else return __v.");
-        gen.Write(dot.FieldName.Name);
+        gen.Write("); if __v == nil then return nil else return ");
+        gen.Write(dot.Extension != null ? $"{dot.Extension.LuaName}(__v)" : "__v." + dot.FieldName.Name);
         gen.Write(" end end)()");
     }
 
@@ -2335,6 +2368,12 @@ public sealed partial class CodegenPass() : Pass(PassName, PassScope.PerBuild, t
 
     private void EmitUnary(PassContext ctx, PackageContext pkg, LuaGenerator gen, UnaryExpr un)
     {
+        if (un.Extension != null)
+        {
+            EmitExtensionCall(ctx, pkg, gen, un.Extension, un.Operand, []);
+            return;
+        }
+
         if (un.Op == UnaryOp.BitwiseNot && gen.Features.BitwiseStyle == BitwiseStyle.BitLib)
         {
             gen.Write("bit.bnot(");
@@ -2473,7 +2512,7 @@ public sealed partial class CodegenPass() : Pass(PassName, PassScope.PerBuild, t
         // Extension method: lower `receiver:m(args)` to `__ext_<type>_m(receiver, args)`.
         if (mc.ExtensionTargetType is { } extTarget)
         {
-            gen.Write(ExtensionFnName(ctx, extTarget, mc.MethodName.Name));
+            gen.Write(mc.Extension?.LuaName ?? ExtensionFnName(ctx, extTarget, mc.MethodName.Name));
             gen.Write("(");
             EmitExpr(ctx, pkg, gen, mc.Object);
             if (mc.Arguments.Count > 0)
@@ -2524,18 +2563,18 @@ public sealed partial class CodegenPass() : Pass(PassName, PassScope.PerBuild, t
            && ed.TargetType.ResolvedType != ctx.Types.PrimAny.ID;
 
     /// <summary>
-    /// Emits an <c>extend</c> block's methods as plain functions under a generated
-    /// <c>__ext_&lt;Type&gt;_&lt;name&gt;</c> name. They are deliberately global: the type system
-    /// registers an extension across the whole build, so a call may be emitted in a file other
-    /// than the one declaring it, and a file-local function would not be reachable from there.
+    /// Emits the members of an <c>extend</c> block as local functions under their generated names.
+    /// At the top level they assign the locals declared before the first statement, so a use above
+    /// the block reaches them; an exported block also hands them to its importers through the
+    /// module's export table.
     /// </summary>
     private void EmitExtendDecl(PassContext ctx, PackageContext pkg, LuaGenerator gen, ExtendDecl ed)
     {
-        if (!IsExtendableTarget(ctx, ed)) return;
-        foreach (var m in ed.Methods)
+        if (ed.IsDeclare || !IsExtendableTarget(ctx, ed)) return;
+        foreach (var m in ed.Methods.Where(member => member.LuaName.Length > 0))
         {
-            gen.Write("function ");
-            gen.Write(ExtensionFnName(ctx, ed.TargetType.ResolvedType, m.Name.Name));
+            gen.Write(IsHoisted(m.LuaName) ? "function " : "local function ");
+            gen.Write(m.LuaName);
             gen.Write("(self");
             if (m.Parameters.Count > 0)
             {
@@ -2551,6 +2590,49 @@ public sealed partial class CodegenPass() : Pass(PassName, PassScope.PerBuild, t
             gen.WriteLine("end");
             gen.WriteSemicolon();
         }
+    }
+
+    /// <summary>
+    /// Emits a use of an extension getter or operator: a call of its function with
+    /// <paramref name="receiver"/> as <c>self</c>, followed by <paramref name="arguments"/>.
+    /// </summary>
+    private void EmitExtensionCall(PassContext ctx, PackageContext pkg, LuaGenerator gen, ExtensionMethodNode extension,
+        Expr receiver, List<Expr> arguments)
+    {
+        gen.Write(extension.LuaName);
+        gen.Write("(");
+        EmitExpr(ctx, pkg, gen, receiver);
+        foreach (var argument in arguments)
+        {
+            gen.Write(", ");
+            EmitExpr(ctx, pkg, gen, argument);
+        }
+        gen.Write(")");
+    }
+
+    /// <summary>
+    /// The extensions this file uses that <paramref name="import"/> brings in, each named once per
+    /// file, which the import binds to locals of the same name.
+    /// </summary>
+    private List<ExtensionMethodNode> ImportedExtensions(PassContext ctx, ImportStmt import)
+    {
+        if (_currentFile == null || import.IsTypeOnly || import.IsTypeImport) return [];
+        if (!ctx.Cache.TryGetValue(InferTypesPass.UsedExtensionsKey(_currentFile), out var cached) || cached is not HashSet<ExtensionMethodNode> used) return [];
+
+        var resolved = ResolvedImport(ctx, import);
+        return used
+            .Where(member => !member.IsGlobal && member.DeclaringFile != null
+                && !string.Equals(Path.GetFullPath(member.DeclaringFile), Path.GetFullPath(_currentFile), StringComparison.Ordinal)
+                && InferTypesPass.ExtensionComesFrom(member, import, resolved)
+                && _boundExtensions.Add(member.LuaName))
+            .OrderBy(member => member.LuaName, StringComparer.Ordinal)
+            .ToList();
+    }
+
+    private static void EmitExtensionBindings(LuaGenerator gen, string module, List<ExtensionMethodNode> extensions)
+    {
+        foreach (var extension in extensions)
+            gen.WriteLine($"local {extension.LuaName} = {module}.{extension.LuaName}");
     }
 
     private void EmitTableConstructor(PassContext ctx, PackageContext pkg, LuaGenerator gen, TableConstructorExpr tc)
