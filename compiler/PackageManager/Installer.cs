@@ -410,7 +410,7 @@ public sealed class Installer
         var barePath = await _fetcher.EnsureBareCloneAsync(spec);
         var (commit, versionTag) = await ResolveGitRefAsync(barePath, spec);
 
-        var storePath = NebraHome.PackagePath(spec.Host!, spec.Owner!, spec.Repo!, commit);
+        var storePath = NebraHome.PackagePath(spec.Host!, spec.Owner!, spec.Repo!, commit, spec.Subdir);
         await _fetcher.EnsureSnapshotAsync(barePath, commit, storePath, spec.Subdir);
 
         var integrity = GitFetcher.ComputeIntegrity(storePath);
@@ -418,7 +418,8 @@ public sealed class Installer
         // If an existing entry has the same commit, the integrity must match.
         if (existingMatch != null && existingMatch.Commit == commit
             && !string.IsNullOrEmpty(existingMatch.Integrity)
-            && existingMatch.Integrity != integrity)
+            && existingMatch.Integrity != integrity
+            && !WasExtractedBelowItsSubdir(spec, commit))
         {
             throw new PackageManagerException(
                 $"integrity mismatch for {name}@{commit[..8]}: expected {existingMatch.Integrity}, got {integrity}");
@@ -515,7 +516,7 @@ public sealed class Installer
     private async Task EnsureStorePopulatedAsync(LockedPackage locked, PackageSpec spec)
     {
         if (spec.Kind != SpecKind.Git) return;
-        var storePath = NebraHome.PackagePath(spec.Host!, spec.Owner!, spec.Repo!, locked.Commit);
+        var storePath = NebraHome.PackagePath(spec.Host!, spec.Owner!, spec.Repo!, locked.Commit, spec.Subdir);
         if (Directory.Exists(storePath) && Directory.EnumerateFileSystemEntries(storePath).Any())
             return;
 
@@ -546,7 +547,19 @@ public sealed class Installer
         var slash = rest.IndexOf('/');
         var owner = rest[..slash];
         var repo = rest[(slash + 1)..];
-        return NebraHome.PackagePath(host, owner, repo, locked.Commit);
+        return NebraHome.PackagePath(host, owner, repo, locked.Commit, locked.Subdir);
+    }
+
+    /// <summary>
+    /// Whether an earlier install stored this package from a subdirectory the way versions before
+    /// the fix did: the whole commit's path, with the package below a folder of the
+    /// subdirectory's name. A lockfile written then hashed that tree, so its integrity cannot
+    /// match the package's own files and is replaced rather than reported.
+    /// </summary>
+    private static bool WasExtractedBelowItsSubdir(PackageSpec spec, string commit)
+    {
+        if (NebraHome.NormalizeSubdir(spec.Subdir) is not { } subdir) return false;
+        return Directory.Exists(Path.Combine(NebraHome.PackagePath(spec.Host!, spec.Owner!, spec.Repo!, commit), subdir));
     }
 
     private static void PruneStaleLinks(string modulesDir, IEnumerable<string> keep)

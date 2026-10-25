@@ -136,7 +136,9 @@ public sealed class GitFetcher
     }
 
     /// <summary>
-    /// Extracts a commit snapshot from the bare clone into <paramref name="destDir"/>.
+    /// Extracts a commit snapshot from the bare clone into <paramref name="destDir"/>. With a
+    /// <paramref name="subdir"/>, only that directory's tree is archived, so its contents land in
+    /// <paramref name="destDir"/> itself rather than below a folder of the subdirectory's name.
     /// Idempotent by default — if the destination already exists and is non-empty,
     /// returns immediately. Pass <paramref name="forceFresh"/> to wipe the destination
     /// first (used by <c>nebra create</c> so the target staging dir always reflects the
@@ -158,9 +160,8 @@ public sealed class GitFetcher
 
         try
         {
-            var args = new List<string> { "archive", "--format=tar", "-o", tarPath, commit };
-            if (!string.IsNullOrEmpty(subdir))
-                args.Add(subdir.TrimStart('/'));
+            var tree = NebraHome.NormalizeSubdir(subdir) is { } folder ? $"{commit}:{folder}" : commit;
+            var args = new List<string> { "archive", "--format=tar", "-o", tarPath, tree };
 
             var (ec, _, err) = await GitRunner.RunAsync(barePath, args.ToArray());
             if (ec != 0) throw new PackageManagerException($"git archive failed: {err.Trim()}");

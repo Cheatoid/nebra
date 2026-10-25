@@ -24,6 +24,27 @@ public sealed class LocalDependencyTests
     }
 
     [Fact]
+    public async Task APackageInASubdirectoryIsStoredWithoutTheSubdirectoryPrefix()
+    {
+        var repo = Directory.CreateTempSubdirectory("nebra-subdir-repo").FullName;
+        Directory.CreateDirectory(Path.Combine(repo, "nebra"));
+        File.WriteAllText(Path.Combine(repo, "nebra", "nebra.toml"), "name = \"types\"\n");
+        File.WriteAllText(Path.Combine(repo, "README.md"), "root\n");
+        await GitRunner.RunAsync(repo, "init", "-q");
+        await GitRunner.RunAsync(repo, "add", "-A");
+        await GitRunner.RunAsync(repo, "-c", "user.name=test", "-c", "user.email=test@example.com", "-c", "commit.gpgsign=false", "commit", "-q", "-m", "init");
+        var (_, commit, _) = await GitRunner.RunAsync(repo, "rev-parse", "HEAD");
+        var destination = Path.Combine(Directory.CreateTempSubdirectory("nebra-subdir-store").FullName, "snapshot");
+
+        await new GitFetcher().EnsureSnapshotAsync(repo, commit.Trim(), destination, "nebra");
+
+        Assert.True(File.Exists(Path.Combine(destination, "nebra.toml")));
+        Assert.False(File.Exists(Path.Combine(destination, "README.md")));
+        Assert.NotEqual(NebraHome.PackagePath("github", "owner", "repo", "abc"), NebraHome.PackagePath("github", "owner", "repo", "abc", "nebra"));
+        Assert.Equal(NebraHome.PackagePath("github", "owner", "repo", "abc"), NebraHome.PackagePath("github", "owner", "repo", "abc", "/"));
+    }
+
+    [Fact]
     public void TheDeclarationsOfADependencysNestedProjectsAreNotLoaded()
     {
         var build = ProjectBuild.Run(null,

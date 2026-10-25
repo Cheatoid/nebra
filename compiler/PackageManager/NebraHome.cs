@@ -37,11 +37,22 @@ public static class NebraHome
     public static string LockRoot => Path.Combine(Root, "lock");
 
     /// <summary>
-    /// Returns the store path for a specific package commit.
+    /// Returns the store path for a specific package commit. A package living in a subdirectory of
+    /// its repository gets a path of its own, <c>&lt;commit&gt;@&lt;subdir&gt;</c>, so packages from one
+    /// repository and commit do not overwrite each other.
     /// </summary>
-    public static string PackagePath(string host, string owner, string repo, string commit)
+    public static string PackagePath(string host, string owner, string repo, string commit, string? subdir = null)
     {
-        return Path.Combine(StoreRoot, SafeSeg(host), SafeSeg(owner), SafeSeg(repo), commit);
+        var folder = NormalizeSubdir(subdir);
+        var snapshot = folder == null ? commit : $"{commit}@{SafeSeg(folder)}";
+        return Path.Combine(StoreRoot, SafeSeg(host), SafeSeg(owner), SafeSeg(repo), snapshot);
+    }
+
+    /// <summary>A repository subdirectory without leading or trailing slashes, or <c>null</c> for the root.</summary>
+    public static string? NormalizeSubdir(string? subdir)
+    {
+        var trimmed = subdir?.Replace('\\', '/').Trim('/');
+        return string.IsNullOrEmpty(trimmed) ? null : trimmed;
     }
 
     /// <summary>
