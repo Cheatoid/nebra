@@ -1286,6 +1286,48 @@ public partial class NebraBaseListener : INebraListener {
 	/// <param name="context">The parse tree.</param>
 	public virtual void ExitOpSymShr([NotNull] NebraParser.OpSymShrContext context) { }
 	/// <summary>
+	/// Enter a parse tree produced by the <c>OpSymNewIndex</c>
+	/// labeled alternative in <see cref="NebraParser.operatorSymbol"/>.
+	/// <para>The default implementation does nothing.</para>
+	/// </summary>
+	/// <param name="context">The parse tree.</param>
+	public virtual void EnterOpSymNewIndex([NotNull] NebraParser.OpSymNewIndexContext context) { }
+	/// <summary>
+	/// Exit a parse tree produced by the <c>OpSymNewIndex</c>
+	/// labeled alternative in <see cref="NebraParser.operatorSymbol"/>.
+	/// <para>The default implementation does nothing.</para>
+	/// </summary>
+	/// <param name="context">The parse tree.</param>
+	public virtual void ExitOpSymNewIndex([NotNull] NebraParser.OpSymNewIndexContext context) { }
+	/// <summary>
+	/// Enter a parse tree produced by the <c>OpSymIndex</c>
+	/// labeled alternative in <see cref="NebraParser.operatorSymbol"/>.
+	/// <para>The default implementation does nothing.</para>
+	/// </summary>
+	/// <param name="context">The parse tree.</param>
+	public virtual void EnterOpSymIndex([NotNull] NebraParser.OpSymIndexContext context) { }
+	/// <summary>
+	/// Exit a parse tree produced by the <c>OpSymIndex</c>
+	/// labeled alternative in <see cref="NebraParser.operatorSymbol"/>.
+	/// <para>The default implementation does nothing.</para>
+	/// </summary>
+	/// <param name="context">The parse tree.</param>
+	public virtual void ExitOpSymIndex([NotNull] NebraParser.OpSymIndexContext context) { }
+	/// <summary>
+	/// Enter a parse tree produced by the <c>OpSymCall</c>
+	/// labeled alternative in <see cref="NebraParser.operatorSymbol"/>.
+	/// <para>The default implementation does nothing.</para>
+	/// </summary>
+	/// <param name="context">The parse tree.</param>
+	public virtual void EnterOpSymCall([NotNull] NebraParser.OpSymCallContext context) { }
+	/// <summary>
+	/// Exit a parse tree produced by the <c>OpSymCall</c>
+	/// labeled alternative in <see cref="NebraParser.operatorSymbol"/>.
+	/// <para>The default implementation does nothing.</para>
+	/// </summary>
+	/// <param name="context">The parse tree.</param>
+	public virtual void ExitOpSymCall([NotNull] NebraParser.OpSymCallContext context) { }
+	/// <summary>
 	/// Enter a parse tree produced by <see cref="NebraParser.interfaceDecl"/>.
 	/// <para>The default implementation does nothing.</para>
 	/// </summary>

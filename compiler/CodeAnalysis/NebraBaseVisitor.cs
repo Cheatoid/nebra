@@ -1032,6 +1032,39 @@ public partial class NebraBaseVisitor<Result> : AbstractParseTreeVisitor<Result>
 	/// <return>The visitor result.</return>
 	public virtual Result VisitOpSymShr([NotNull] NebraParser.OpSymShrContext context) { return VisitChildren(context); }
 	/// <summary>
+	/// Visit a parse tree produced by the <c>OpSymNewIndex</c>
+	/// labeled alternative in <see cref="NebraParser.operatorSymbol"/>.
+	/// <para>
+	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
+	/// on <paramref name="context"/>.
+	/// </para>
+	/// </summary>
+	/// <param name="context">The parse tree.</param>
+	/// <return>The visitor result.</return>
+	public virtual Result VisitOpSymNewIndex([NotNull] NebraParser.OpSymNewIndexContext context) { return VisitChildren(context); }
+	/// <summary>
+	/// Visit a parse tree produced by the <c>OpSymIndex</c>
+	/// labeled alternative in <see cref="NebraParser.operatorSymbol"/>.
+	/// <para>
+	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
+	/// on <paramref name="context"/>.
+	/// </para>
+	/// </summary>
+	/// <param name="context">The parse tree.</param>
+	/// <return>The visitor result.</return>
+	public virtual Result VisitOpSymIndex([NotNull] NebraParser.OpSymIndexContext context) { return VisitChildren(context); }
+	/// <summary>
+	/// Visit a parse tree produced by the <c>OpSymCall</c>
+	/// labeled alternative in <see cref="NebraParser.operatorSymbol"/>.
+	/// <para>
+	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
+	/// on <paramref name="context"/>.
+	/// </para>
+	/// </summary>
+	/// <param name="context">The parse tree.</param>
+	/// <return>The visitor result.</return>
+	public virtual Result VisitOpSymCall([NotNull] NebraParser.OpSymCallContext context) { return VisitChildren(context); }
+	/// <summary>
 	/// Visit a parse tree produced by <see cref="NebraParser.interfaceDecl"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>

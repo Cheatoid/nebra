@@ -311,6 +311,8 @@ classMember
 // --- Overloadable Operators ---
 // Binary arity:  +  -  *  /  //  %  ^  ..  ==  <  <=  &  |  ~  <<  >>
 // Unary arity:   -  #  ~   (disambiguated from binary by parameter count)
+// Index:         []  (one key)   []=  (a key and a value)
+// Call:          ()  (any parameters)
 
 operatorKeyword
     : NAME
@@ -334,6 +336,9 @@ operatorSymbol
     | TILDE                                                      # OpSymTilde
     | LSHIFT                                                     # OpSymShl
     | GT GT                                                      # OpSymShr
+    | LBRACK RBRACK ASSIGN                                       # OpSymNewIndex
+    | LBRACK RBRACK                                              # OpSymIndex
+    | LPAREN RPAREN                                              # OpSymCall
     ;
 
 interfaceDecl

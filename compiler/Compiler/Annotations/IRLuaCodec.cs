@@ -47,6 +47,7 @@ public sealed class IRLuaCodec
         "CallsResolvedOverload",
         "Extension",
         "IsRange",
+        "UsesIndexOperator",
         "RunsOverRange",
         "ResolvedType",
     ];

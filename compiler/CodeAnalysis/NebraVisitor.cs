@@ -657,6 +657,27 @@ public interface INebraVisitor<Result> : IParseTreeVisitor<Result> {
 	/// <return>The visitor result.</return>
 	Result VisitOpSymShr([NotNull] NebraParser.OpSymShrContext context);
 	/// <summary>
+	/// Visit a parse tree produced by the <c>OpSymNewIndex</c>
+	/// labeled alternative in <see cref="NebraParser.operatorSymbol"/>.
+	/// </summary>
+	/// <param name="context">The parse tree.</param>
+	/// <return>The visitor result.</return>
+	Result VisitOpSymNewIndex([NotNull] NebraParser.OpSymNewIndexContext context);
+	/// <summary>
+	/// Visit a parse tree produced by the <c>OpSymIndex</c>
+	/// labeled alternative in <see cref="NebraParser.operatorSymbol"/>.
+	/// </summary>
+	/// <param name="context">The parse tree.</param>
+	/// <return>The visitor result.</return>
+	Result VisitOpSymIndex([NotNull] NebraParser.OpSymIndexContext context);
+	/// <summary>
+	/// Visit a parse tree produced by the <c>OpSymCall</c>
+	/// labeled alternative in <see cref="NebraParser.operatorSymbol"/>.
+	/// </summary>
+	/// <param name="context">The parse tree.</param>
+	/// <return>The visitor result.</return>
+	Result VisitOpSymCall([NotNull] NebraParser.OpSymCallContext context);
+	/// <summary>
 	/// Visit a parse tree produced by <see cref="NebraParser.interfaceDecl"/>.
 	/// </summary>
 	/// <param name="context">The parse tree.</param>

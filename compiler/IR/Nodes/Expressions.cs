@@ -127,6 +127,20 @@ public sealed class IndexAccessExpr(NodeID id, TextSpan span, Expr @object, Expr
 {
     public Expr Object { get; } = @object;
     public Expr Index { get; } = index;
+
+    /// <summary>
+    /// Set by type inference when the access goes through an extension index operator of the
+    /// object's type: <c>operator []</c> for a read, <c>operator []=</c> when the access is the
+    /// target of an assignment. Codegen calls it instead of indexing.
+    /// </summary>
+    public ExtensionMethodNode? Extension { get; set; }
+
+    /// <summary>
+    /// Set by type inference when the access goes through an index operator, a class's or an
+    /// extension's. The operator receives the key as written, so it is not shifted by the
+    /// configured index base.
+    /// </summary>
+    public bool UsesIndexOperator { get; set; }
 }
 
 public sealed class FunctionCallExpr(NodeID id, TextSpan span, Expr callee, List<Expr> arguments, bool isOptional = false) : Expr(id, span)
@@ -134,6 +148,12 @@ public sealed class FunctionCallExpr(NodeID id, TextSpan span, Expr callee, List
     public Expr Callee { get; } = callee;
     public List<Expr> Arguments { get; } = arguments;
     public bool IsOptional { get; } = isOptional;
+
+    /// <summary>
+    /// Set by type inference when the callee is a value whose type has an extension call operator:
+    /// the extension, called with the callee and the arguments.
+    /// </summary>
+    public ExtensionMethodNode? Extension { get; set; }
 }
 
 public sealed class MethodCallExpr(NodeID id, TextSpan span, Expr @object, NameRef methodName, List<Expr> arguments) : Expr(id, span)

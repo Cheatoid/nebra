@@ -139,6 +139,32 @@ public sealed class SourceFormTests
     }
 
     [Fact]
+    public void IndexAndCallOperatorsReachTheClassThroughGeneratedMetamethods()
+    {
+        var build = Build("class Grid\n    cells: number[] = {}\n\n    operator [](i: number): string\n        return \"cell\"\n    end\n\n    operator ()(n: number): number\n        return n\n    end\nend\n\nlocal grid = new Grid()\nprint(grid[0], grid(1))\n");
+
+        Assert.Empty(build.Errors);
+        var lua = build.Lua("src/main.neb");
+        Assert.Contains("Grid.__nebra_fields = { [\"cells\"] = true }", lua);
+        Assert.Contains("return Grid.__op_index(t, k)", lua);
+        Assert.Contains("Grid.__call = function(self, ...) return self:__op_call(...) end", lua);
+        Assert.Contains("print(grid[0], grid(1))", lua);
+        Assert.Equal(DiagnosticCode.ErrIndexWithoutAssignment, Assert.Single(Build("class Grid\n    operator [](i: number): string\n        return \"\"\n    end\nend\n\nlocal grid = new Grid()\ngrid[0] = \"x\"\n").Errors).Code);
+    }
+
+    [Fact]
+    public void ExtensionIndexAndCallOperatorsLowerToCalls()
+    {
+        var build = Build("class Vec\n    x: number = 1\nend\n\nextend Vec\n    operator [](i: number): number\n        return self.x\n    end\n\n    operator []=(i: number, value: number)\n        self.x = value\n    end\n\n    operator ()(scale: number): number\n        return self.x * scale\n    end\nend\n\nlocal v = new Vec()\nv[0] = 2\nprint(v[0], v(3))\n");
+
+        Assert.Empty(build.Errors);
+        var lua = build.Lua("src/main.neb");
+        Assert.Contains("__ext_class_Vec__op_newindex_number_number(v, 0, __value0)", lua);
+        Assert.Contains("print(__ext_class_Vec__op_index_number(v, 0), __ext_class_Vec__op_call_number(v, 3))", lua);
+        Assert.Equal(DiagnosticCode.ErrExtensionReplacesOperator, Assert.Single(Build("extend string\n    operator [](i: number): string\n        return \"\"\n    end\nend\n").Errors).Code);
+    }
+
+    [Fact]
     public void MethodCallsFollowNewAndContinueOnTheNextLine()
     {
         var build = Build("class Builder\n    function column(name: string): Builder\n        return self\n    end\n\n    function build(): nil\n    end\nend\n\nnew Builder()\n    :column(\"a\")\n    :column(\"b\")\n    :build()\nprint(new Builder():column(\"c\"))\n");

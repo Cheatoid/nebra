@@ -538,7 +538,18 @@ public sealed partial class CodegenPass() : Pass(PassName, PassScope.PerBuild, t
         gen.NewLine();
         gen.WriteSemicolon();
 
-        if (!hasAccessors)
+        var operatorClass = pkg.Syms.GetByID(cd.Name.Sym, out var operatorSymbol)
+                            && ctx.Types.GetByID(operatorSymbol.Type, out var operatorType)
+            ? operatorType as ClassType
+            : null;
+        if (operatorClass != null && (HasClassOperator(operatorClass, "__op_index") || HasClassOperator(operatorClass, "__op_newindex")))
+            EmitDeclaredFieldSet(gen, className, operatorClass);
+
+        if (!hasAccessors && operatorClass != null && HasClassOperator(operatorClass, "__op_index"))
+        {
+            EmitIndexMetamethod(gen, className);
+        }
+        else if (!hasAccessors)
         {
             gen.Write(className);
             gen.Write(".__index = ");
@@ -546,6 +557,11 @@ public sealed partial class CodegenPass() : Pass(PassName, PassScope.PerBuild, t
             gen.NewLine();
             gen.WriteSemicolon();
         }
+
+        if (!hasAccessors && operatorClass != null && HasClassOperator(operatorClass, "__op_newindex"))
+            EmitNewIndexMetamethod(gen, className);
+        if (operatorClass != null && HasClassOperator(operatorClass, "__op_call"))
+            EmitCallMetamethod(gen, className);
 
         gen.Write(className);
         gen.Write(".__name = \"");
@@ -620,7 +636,7 @@ public sealed partial class CodegenPass() : Pass(PassName, PassScope.PerBuild, t
                     gen.NewLine();
                     gen.WriteSemicolon();
                     gen.Write("setmetatable(self, ");
-                    gen.Write(className);
+                    gen.Write(ClassNeedsProxy(ctx, pkg, cd) ? $"{gen.GetClassProxyHelper()}({className}, {baseName})" : className);
                     gen.Write(")");
                     gen.NewLine();
                     gen.WriteSemicolon();
@@ -1243,6 +1259,12 @@ public sealed partial class CodegenPass() : Pass(PassName, PassScope.PerBuild, t
 
     private void EmitAssign(PassContext ctx, PackageContext pkg, LuaGenerator gen, AssignStmt assign)
     {
+        if (assign.Targets.Any(target => target is IndexAccessExpr { Extension: not null }))
+        {
+            EmitAssignThroughExtensions(ctx, pkg, gen, assign);
+            return;
+        }
+
         for (var i = 0; i < assign.Targets.Count; i++)
         {
             if (i > 0) gen.Write(", ");
@@ -2374,7 +2396,9 @@ public sealed partial class CodegenPass() : Pass(PassName, PassScope.PerBuild, t
     {
         gen.Write("(function() local __f = (");
         EmitExpr(ctx, pkg, gen, call.Callee);
-        gen.Write("); if __f == nil then return nil else return __f(");
+        gen.Write(call.Extension != null
+            ? $"); if __f == nil then return nil else return {call.Extension.LuaName}(__f" + (call.Arguments.Count > 0 ? ", " : "")
+            : "); if __f == nil then return nil else return __f(");
         for (var i = 0; i < call.Arguments.Count; i++)
         {
             if (i > 0) gen.Write(", ");
@@ -2499,9 +2523,15 @@ public sealed partial class CodegenPass() : Pass(PassName, PassScope.PerBuild, t
 
     private void EmitIndexAccess(PassContext ctx, PackageContext pkg, LuaGenerator gen, IndexAccessExpr idx)
     {
+        if (idx.Extension != null)
+        {
+            EmitExtensionCall(ctx, pkg, gen, idx.Extension, idx.Object, [idx.Index]);
+            return;
+        }
+
         EmitExpr(ctx, pkg, gen, idx.Object);
         gen.Write("[");
-        if (gen.IndexBase != 1 && MayBeNumber(ctx, pkg, idx.Index))
+        if (gen.IndexBase != 1 && !idx.UsesIndexOperator && MayBeNumber(ctx, pkg, idx.Index))
         {
             gen.Write(gen.AdjustIndex(ExprToInline(ctx, pkg, gen, idx.Index)));
         }
@@ -2527,6 +2557,12 @@ public sealed partial class CodegenPass() : Pass(PassName, PassScope.PerBuild, t
     private void EmitFunctionCall(PassContext ctx, PackageContext pkg, LuaGenerator gen, FunctionCallExpr call)
     {
         if (TryEmitReflectOf(ctx, pkg, gen, call)) return;
+        if (call.Extension != null)
+        {
+            EmitExtensionCall(ctx, pkg, gen, call.Extension, call.Callee, call.Arguments);
+            return;
+        }
+
         EmitExpr(ctx, pkg, gen, call.Callee);
         gen.Write("(");
         EmitExprList(ctx, pkg, gen, call.Arguments);

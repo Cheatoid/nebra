@@ -2139,6 +2139,7 @@ public sealed partial class InferTypesPass() : Pass(PassName, PassScope.PerBuild
             if (narrowedPath != null && !KeepsNarrowing(pc, narrowedPath, assigned)) _narrowed.Remove(narrowedPath);
 
             CheckAssignableTarget(pc, target);
+            if (target is IndexAccessExpr indexTarget && TryNewIndexOperator(pc, indexTarget, assigned)) continue;
 
             var targetType = SynthesizeExpr(pc, target);
             if (i < valueTypes.Count && targetType != TypID.Invalid && targetType != pc.Types.PrimAny.ID)
@@ -3230,6 +3231,11 @@ public sealed partial class InferTypesPass() : Pass(PassName, PassScope.PerBuild
             return pc.Types.PrimAny.ID;
         }
 
+        if (TryIndexOperator(pc, idx, baseType, indexTyp, out var operatorResult))
+        {
+            return operatorResult;
+        }
+
         switch (baseType)
         {
             case TableArrayType at:
@@ -3387,6 +3393,11 @@ public sealed partial class InferTypesPass() : Pass(PassName, PassScope.PerBuild
             if (calleeType.Kind is TypeKind.PrimitiveAny or TypeKind.PrimitiveFunction)
             {
                 return call.IsOptional ? MakeNullable(pc, pc.Types.PrimAny.ID) : pc.Types.PrimAny.ID;
+            }
+
+            if (TryCallOperator(pc, call, calleeType, argTypes, out var callResult))
+            {
+                return call.IsOptional ? MakeNullable(pc, callResult) : callResult;
             }
 
             pc.Diag.Report(call.Callee.Span, DiagnosticCode.ErrTypeMismatch, "function", TypeName(pc, calleeTyp));

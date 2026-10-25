@@ -386,7 +386,10 @@ internal partial class IRVisitor
     /// <summary>
     /// Maps a Nebra operator symbol (written after the <c>operator</c> keyword in a class)
     /// to its corresponding Lua metamethod name. Arity is used to disambiguate
-    /// <c>-</c> (binary <c>__sub</c> vs. unary <c>__unm</c>).
+    /// <c>-</c> (binary <c>__sub</c> vs. unary <c>__unm</c>). The index and call operators get
+    /// names of their own, <c>__op_index</c>, <c>__op_newindex</c> and <c>__op_call</c>: the class
+    /// table's <c>__index</c> is what finds its methods, so codegen generates the metamethods that
+    /// reach these.
     /// </summary>
     private static string? OperatorSymbolToMetamethod(string sym, int paramCount, out string? diagMessage)
     {
@@ -416,6 +419,9 @@ internal partial class IRVisitor
                 return Err(out diagMessage, "'~' operator must take zero (unary) or one (binary) parameter");
             case "<<": return paramCount == 1 ? "__shl" : Err(out diagMessage, "binary '<<' operator must take exactly one parameter");
             case ">>": return paramCount == 1 ? "__shr" : Err(out diagMessage, "binary '>>' operator must take exactly one parameter");
+            case "[]": return paramCount == 1 ? "__op_index" : Err(out diagMessage, "index operator '[]' must take exactly one parameter, the key");
+            case "[]=": return paramCount == 2 ? "__op_newindex" : Err(out diagMessage, "index assignment operator '[]=' must take exactly two parameters, the key and the value");
+            case "()": return "__op_call";
             default: diagMessage = sym; return null;
         }
 

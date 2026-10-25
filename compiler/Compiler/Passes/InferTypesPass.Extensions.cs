@@ -12,6 +12,7 @@ public sealed partial class InferTypesPass
         ["__mod"] = "%", ["__pow"] = "^", ["__concat"] = "..", ["__eq"] = "==", ["__lt"] = "<",
         ["__le"] = "<=", ["__len"] = "#", ["__unm"] = "-", ["__band"] = "&", ["__bor"] = "|",
         ["__bxor"] = "~", ["__bnot"] = "~", ["__shl"] = "<<", ["__shr"] = ">>",
+        ["__op_index"] = "[]", ["__op_newindex"] = "[]=", ["__op_call"] = "()",
     };
 
     /// <summary>The symbol an operator is written with, given the name of its metamethod.</summary>
@@ -151,8 +152,9 @@ public sealed partial class InferTypesPass
     /// Whether Lua already applies <paramref name="metamethod"/> to a value of
     /// <paramref name="target"/> and an <paramref name="operand"/>, which an extension must not
     /// take over: arithmetic and bitwise operators between numbers, concatenation of strings and
-    /// numbers, comparisons within numbers or strings, the length of strings and tables, equality
-    /// everywhere, and any metamethod a class declares itself.
+    /// numbers, comparisons within numbers or strings, the length of strings and tables, indexing
+    /// strings and tables, calling functions, equality everywhere, and any operator a class
+    /// declares itself.
     /// </summary>
     private static bool ReplacesBuiltInOperator(Type target, string metamethod, Type? operand)
     {
@@ -170,12 +172,16 @@ public sealed partial class InferTypesPass
 
         var number = target.Kind == TypeKind.PrimitiveNumber;
         var text = target.Kind == TypeKind.PrimitiveString;
+        var table = target.Kind is TypeKind.TableArray or TypeKind.TableMap or TypeKind.Struct or TypeKind.Tuple;
         var operandNumber = operand == null || operand.Kind is TypeKind.PrimitiveNumber or TypeKind.PrimitiveAny;
         var operandText = operand == null || operand.Kind is TypeKind.PrimitiveString or TypeKind.PrimitiveAny;
         return metamethod switch
         {
             "__unm" or "__bnot" => number,
-            "__len" => text || target.Kind is TypeKind.TableArray or TypeKind.TableMap or TypeKind.Tuple,
+            "__len" => text || table,
+            "__op_index" => text || table,
+            "__op_newindex" => table,
+            "__op_call" => target.Kind is TypeKind.Function or TypeKind.PrimitiveFunction,
             "__concat" => (number || text) && (operandNumber || operandText),
             "__lt" or "__le" => (number && operandNumber) || (text && operandText),
             _ => number && operandNumber,

@@ -218,6 +218,43 @@ class LoudPainter extends Painter
     end
 end
 
+class Store
+    data: { [string]: number } = {}
+    label: string? = nil
+
+    operator [](key: string): number
+        return self.data[key] ?? 0
+    end
+
+    operator []=(key: string, value: number)
+        self.data[key] = value * 2
+    end
+
+    function count(): number
+        local mut n: number = 0
+        for _, _ in pairs(self.data) do n = n + 1 end
+        return n
+    end
+end
+
+class NamedStore extends Store
+    get title(): string
+        return "named"
+    end
+end
+
+class Greeter
+    prefix: string = "hi"
+
+    operator ()(who: string): string
+        return self.prefix .. " " .. who
+    end
+
+    operator ()(times: number): string
+        return string.rep(self.prefix, times)
+    end
+end
+
 export function run(): nil
     section("classes")
 
@@ -321,5 +358,23 @@ export function run(): nil
     local loud: Painter = new LoudPainter()
     expectEq("an overridden overload is called through the base type", loud:paint(new Tile()), "loud tile")
     expectEq("an inherited overload stays reachable", loud:paint("y"), "named y")
+
+    -- Index and call operators
+    local store = new Store()
+    store["hp"] = 50
+    expectEq("operator [] reads through the class", store["hp"], 100)
+    expectEq("operator [] handles a missing key", store["mp"], 0)
+    expectEq("methods stay reachable next to operator []", store:count(), 1)
+    expectEq("a declared field is not routed to the operator", store.label, nil)
+    store.label = "box"
+    expectEq("assigning a declared field stores it", store.label, "box")
+    expectEq("assigning a declared field skips operator []=", store:count(), 1)
+    local named = new NamedStore()
+    named["a"] = 1
+    expectEq("a subclass with a getter keeps the inherited operators", named["a"], 2)
+    expectEq("a subclass without a constructor keeps its getter", named.title, "named")
+    local greet = new Greeter()
+    expectEq("operator () is called with the arguments", greet("bob"), "hi bob")
+    expectEq("operator () overloads by parameter type", greet(2), "hihi")
 
 end

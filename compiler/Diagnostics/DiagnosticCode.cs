@@ -286,6 +286,12 @@ public enum DiagnosticCode
     [Help("declare a method that takes the new value instead")]
     ErrExtensionSetter = 0x2023,
 
+    [Level(DiagnosticLevel.Error)]
+    [Category(DiagnosticCategory.Type)]
+    [Format("'{0}' can be read by index but not assigned to")]
+    [Help("declare 'operator []=(key, value)' to support assignments by index")]
+    ErrIndexWithoutAssignment = 0x2024,
+
     #endregion
 
     #region Module

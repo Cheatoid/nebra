@@ -429,8 +429,11 @@ public sealed class LuaGenerator(Config config)
             $"if parent then " +
             $"g = parent[\"__get_\" .. k] " +
             $"if g then return g(t) end " +
-            $"return parent[k] " +
+            $"v = parent[k] " +
+            $"if v ~= nil then return v end " +
             $"end " +
+            $"local op = cls.__op_index " +
+            $"if op ~= nil and not (cls.__nebra_fields and cls.__nebra_fields[k]) then return op(t, k) end " +
             $"end, " +
             $"__newindex = function(t, k, v) " +
             $"local s = cls[\"__set_\" .. k] " +
@@ -441,10 +444,12 @@ public sealed class LuaGenerator(Config config)
             $"if s then s(t, v) return end " +
             $"if parent[\"__get_\" .. k] then error(\"Cannot set readonly property '\" .. k .. \"'\") end " +
             $"end " +
+            $"local op = cls.__op_newindex " +
+            $"if op ~= nil and not (cls.__nebra_fields and cls.__nebra_fields[k]) then op(t, k, v) return end " +
             $"rawset(t, k, v) " +
             $"end " +
             $"}} " +
-            $"local __ops = {{\"__add\",\"__sub\",\"__mul\",\"__div\",\"__mod\",\"__pow\",\"__unm\",\"__concat\",\"__len\",\"__eq\",\"__lt\",\"__le\",\"__idiv\",\"__band\",\"__bor\",\"__bxor\",\"__bnot\",\"__shl\",\"__shr\"}} " +
+            $"local __ops = {{\"__add\",\"__sub\",\"__mul\",\"__div\",\"__mod\",\"__pow\",\"__unm\",\"__concat\",\"__len\",\"__eq\",\"__lt\",\"__le\",\"__idiv\",\"__band\",\"__bor\",\"__bxor\",\"__bnot\",\"__shl\",\"__shr\",\"__call\"}} " +
             $"for i = 1, #__ops do " +
             $"local k = __ops[i] " +
             $"if rawget(cls, k) then mt[k] = cls[k] " +
