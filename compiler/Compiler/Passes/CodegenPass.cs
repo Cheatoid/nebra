@@ -2883,9 +2883,14 @@ public sealed partial class CodegenPass() : Pass(PassName, PassScope.PerBuild, t
         return _staticMemberTables.GetValueOrDefault(symbol.Owner);
     }
 
+    /// <summary>
+    /// Whether a configured concatenation operator joins strings here: an operand is a string and
+    /// so is the result, which it is not when a class operator takes the string operand.
+    /// </summary>
     private bool IsStringTyped(PassContext ctx, PackageContext pkg, BinaryExpr bin)
     {
-        return IsStringType(ctx, pkg, bin.Left.Type) || IsStringType(ctx, pkg, bin.Right.Type);
+        return IsStringType(ctx, pkg, bin.Type)
+               && (IsStringType(ctx, pkg, bin.Left.Type) || IsStringType(ctx, pkg, bin.Right.Type));
     }
 
     private bool IsStringType(PassContext ctx, PackageContext pkg, TypID t)

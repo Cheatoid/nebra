@@ -243,6 +243,26 @@ class NamedStore extends Store
     end
 end
 
+class Money
+    cents: number
+
+    constructor(cents: number)
+        self.cents = cents
+    end
+
+    operator *(factor: number): Money
+        return new Money(self.cents * factor)
+    end
+
+    operator *(other: Money): number
+        return self.cents * other.cents
+    end
+
+    operator +(other: Money | number | string): Money
+        return new Money(self.cents + (tonumber(tostring(other)) ?? 0))
+    end
+end
+
 class Greeter
     prefix: string = "hi"
 
@@ -376,5 +396,9 @@ export function run(): nil
     local greet = new Greeter()
     expectEq("operator () is called with the arguments", greet("bob"), "hi bob")
     expectEq("operator () overloads by parameter type", greet(2), "hihi")
+    local price = new Money(5)
+    expectEq("binary operator overload for a number", (price * 2).cents, 10)
+    expectEq("binary operator overload for the class", price * price, 25)
+    expectEq("binary operator taking a string is not concatenation", (price + "3").cents, 8)
 
 end

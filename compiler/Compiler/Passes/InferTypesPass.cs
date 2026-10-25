@@ -2517,6 +2517,9 @@ public sealed partial class InferTypesPass() : Pass(PassName, PassScope.PerBuild
 
         if (TryExtensionOperator(pc, bin, l, r, out var extensionResult)) return extensionResult;
 
+        var metaName = BinaryOpToMetamethod(bin.Op);
+        if (metaName != null && TryClassBinaryOperator(pc, bin, metaName, l, r, out var classResult)) return classResult;
+
         if (IsConfiguredConcatOp(pc, bin.Op)
             && (l == tt.PrimString.ID || r == tt.PrimString.ID))
         {
@@ -2525,7 +2528,6 @@ public sealed partial class InferTypesPass() : Pass(PassName, PassScope.PerBuild
             return tt.PrimString.ID;
         }
 
-        var metaName = BinaryOpToMetamethod(bin.Op);
         if (metaName != null)
         {
             var metaReturn = TryGetMetamethodReturn(pc, l, metaName) ?? TryGetMetamethodReturn(pc, r, metaName);
@@ -4801,6 +4803,32 @@ public sealed partial class InferTypesPass() : Pass(PassName, PassScope.PerBuild
     {
         if (!pc.Pkg!.Types.GetByID(t, out var type)) return false;
         return type.Kind is TypeKind.TableArray or TypeKind.TableMap or TypeKind.Struct;
+    }
+
+    /// <summary>
+    /// Types a binary operator whose left operand is an instance of a class declaring it: the
+    /// overload whose parameter takes the right operand, reported when none does. Runs before the
+    /// string concatenation shortcut, since a class may accept a string operand.
+    /// </summary>
+    private bool TryClassBinaryOperator(PassContext pc, BinaryExpr bin, string metamethod, TypID left, TypID right, out TypID result)
+    {
+        result = pc.Types.PrimAny.ID;
+        if (!pc.Pkg!.Types.GetByID(left, out var leftType) || leftType is not ClassType classType) return false;
+
+        var (overloads, sides) = CollectMethodOverloads(pc, classType, metamethod, staticOnly: false);
+        if (overloads.Count == 0) return false;
+
+        var picked = PickOverload(pc, overloads, sides, [right], prefixSelf: true);
+        if (picked == null)
+        {
+            var accepted = overloads.Where(overload => overload.ParamTypes.Count > 1)
+                .Select(overload => TypeName(pc, overload.ParamTypes[1].ID)).Distinct();
+            pc.Diag.Report(bin.Right.Span, DiagnosticCode.ErrTypeMismatch, string.Join(" or ", accepted), TypeName(pc, right));
+            return true;
+        }
+
+        result = SpecializedReturn(pc, picked, [left, right]);
+        return true;
     }
 
     private TypID? TryGetMetamethodReturn(PassContext pc, TypID operandType, string metamethodName)

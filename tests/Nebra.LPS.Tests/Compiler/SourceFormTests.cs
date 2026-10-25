@@ -184,6 +184,17 @@ public sealed class SourceFormTests
     }
 
     [Fact]
+    public void AClassOperatorPicksTheOverloadTakingTheRightOperand()
+    {
+        var classes = "class Point\n    x: number = 0\nend\n\nclass Num\n    v: number = 1\n\n    operator *(other: Num): Num\n        return self\n    end\n\n    operator *(other: Point): Point\n        return other\n    end\n\n    operator +(other: Num | number | string): Num\n        return self\nend\nend\n\nlocal value = new Num()\n";
+
+        var build = Build(classes + "local squared: Num = value * value\nlocal point: Point = value * new Point()\nlocal summed: Num = value + \"2\"\nprint(squared, point, summed)\n");
+        Assert.Empty(build.Errors);
+        Assert.Contains("local summed = value + \"2\"", build.Lua("src/main.neb"));
+        Assert.Equal(DiagnosticCode.ErrTypeMismatch, Assert.Single(Build(classes + "print(value * true)\n").Errors).Code);
+    }
+
+    [Fact]
     public void MethodCallsFollowNewAndContinueOnTheNextLine()
     {
         var build = Build("class Builder\n    function column(name: string): Builder\n        return self\n    end\n\n    function build(): nil\n    end\nend\n\nnew Builder()\n    :column(\"a\")\n    :column(\"b\")\n    :build()\nprint(new Builder():column(\"c\"))\n");
