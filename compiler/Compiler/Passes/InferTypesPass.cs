@@ -4606,9 +4606,53 @@ public sealed partial class InferTypesPass() : Pass(PassName, PassScope.PerBuild
             {
                 return true;
             }
+
+            if (dstTypeNode is StructType dstShape && srcTypeNode is StructType srcShape
+                && dstShape.Fields.Where(field => !field.IsMeta).All(field => HasFittingField(pc, srcShape, field.Name.Name, field.Type)))
+            {
+                return true;
+            }
+
+            if (dstTypeNode is InterfaceType dstContract && srcTypeNode is StructType srcTable
+                && TableFitsInterface(pc, srcTable, dstContract))
+            {
+                return true;
+            }
         }
 
         return StructEqual(pc, dst, src);
+    }
+
+    /// <summary>
+    /// Whether the table <paramref name="table"/> holds a field <paramref name="name"/> that fits
+    /// <paramref name="expected"/>, or leaves it out where <paramref name="expected"/> allows
+    /// <c>nil</c>. Fields the table holds beyond the expected ones do not matter.
+    /// </summary>
+    private bool HasFittingField(PassContext pc, StructType table, string name, Type expected)
+    {
+        var field = table.Fields.FirstOrDefault(candidate => !candidate.IsMeta && candidate.Name.Name == name);
+        return field == null ? IsNullable(pc, expected.ID) : IsTypeAssignable(pc, expected.ID, field.Type.ID);
+    }
+
+    /// <summary>
+    /// Whether a table literal's type satisfies <paramref name="contract"/> structurally: it holds
+    /// every field the interface and the interfaces it extends declare, and a function for each of
+    /// their methods, since a plain table has no class to supply one.
+    /// </summary>
+    private bool TableFitsInterface(PassContext pc, StructType table, InterfaceType contract)
+    {
+        foreach (var iface in Type.BaseInterfacesOf(contract).Prepend(contract))
+        {
+            if (!iface.Fields.All(field => HasFittingField(pc, table, field.Key, field.Value.Type))) return false;
+
+            foreach (var method in iface.Methods.Keys)
+            {
+                var field = table.Fields.FirstOrDefault(candidate => !candidate.IsMeta && candidate.Name.Name == method);
+                if (field == null || field.Type.Kind is not (TypeKind.Function or TypeKind.PrimitiveFunction or TypeKind.PrimitiveAny)) return false;
+            }
+        }
+
+        return true;
     }
 
     /// <summary>
@@ -5343,11 +5387,11 @@ public sealed partial class InferTypesPass() : Pass(PassName, PassScope.PerBuild
     {
         switch (t)
         {
-            case TableArrayType arr: return FormatTypeName(arr.ElementType) + "[]";
+            case TableArrayType arr: return Type.Grouped(arr.ElementType, FormatTypeName(arr.ElementType)) + "[]";
             case TableMapType m: return $"{{ [{FormatTypeName(m.KeyType)}]: {FormatTypeName(m.ValueType)} }}";
-            case UnionType u: return string.Join(" | ", u.Types.Select(FormatTypeName));
+            case UnionType u: return string.Join(" | ", u.Types.Select(member => Type.Grouped(member, FormatTypeName(member))));
             case TupleType tup: return "(" + string.Join(", ", tup.Fields.Select(f => FormatTypeName(f.Type))) + ")";
-            case VariadicType v: return "..." + FormatTypeName(v.ElementType);
+            case VariadicType v: return "..." + Type.Grouped(v.ElementType, FormatTypeName(v.ElementType));
             case FunctionType ft:
             {
                 var ps = string.Join(", ", ft.ParamTypes.Select(FormatTypeName));

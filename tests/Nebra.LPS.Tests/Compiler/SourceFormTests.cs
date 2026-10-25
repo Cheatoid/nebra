@@ -165,6 +165,25 @@ public sealed class SourceFormTests
     }
 
     [Fact]
+    public void AnOptionalFunctionIsNotTheFunctionReturningAnOptional()
+    {
+        var build = Build("interface Source\n    function next(): number?\nend\n\nclass Holder\n    callback: (() -> number)? = nil\nend\n\nlocal holder = new Holder()\nholder.callback = \"x\"\n");
+
+        var error = Assert.Single(build.Errors);
+        Assert.Equal(DiagnosticCode.ErrTypeMismatch, error.Code);
+        Assert.Contains("(() -> number) | nil", error.Message);
+    }
+
+    [Fact]
+    public void ATableFitsAStructOrInterfaceItsFieldsSatisfy()
+    {
+        var shapes = "interface Point\n    X: number\n    Z: number?\nend\n\nfunction place(options: { X: number, Z: number? }): number\n    return options.X\nend\n\nfunction onPoint(point: Point): number\n    return point.X\nend\n\n";
+
+        Assert.Empty(Build(shapes + "print(place({ X = 1, Z = 2 }), place({ X = 1 }), onPoint({ X = 3 }), onPoint({ X = 1, Z = 2, Extra = true }))\n").Errors);
+        Assert.Equal(3, Build(shapes + "print(place({ Z = 2 }), place({ X = \"a\" }), onPoint({ Z = 1 }))\n").Errors.Count(error => error.Code == DiagnosticCode.ErrTypeMismatch));
+    }
+
+    [Fact]
     public void MethodCallsFollowNewAndContinueOnTheNextLine()
     {
         var build = Build("class Builder\n    function column(name: string): Builder\n        return self\n    end\n\n    function build(): nil\n    end\nend\n\nnew Builder()\n    :column(\"a\")\n    :column(\"b\")\n    :build()\nprint(new Builder():column(\"c\"))\n");

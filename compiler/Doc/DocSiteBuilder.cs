@@ -338,9 +338,9 @@ public static class DocSiteBuilder
         return t switch
         {
             FunctionType ft => $"({string.Join(", ", ft.ParamTypes.Select(p => FormatType(pkg, p)))}) -> {FormatType(pkg, ft.ReturnType)}",
-            TableArrayType arr => $"{FormatType(pkg, arr.ElementType)}[]",
+            TableArrayType arr => $"{IR.Type.Grouped(arr.ElementType, FormatType(pkg, arr.ElementType))}[]",
             TableMapType map => $"{{ [{FormatType(pkg, map.KeyType)}]: {FormatType(pkg, map.ValueType)} }}",
-            UnionType union => string.Join(" | ", union.Types.Select(u => FormatType(pkg, u))),
+            UnionType union => string.Join(" | ", union.Types.Select(u => IR.Type.Grouped(u, FormatType(pkg, u)))),
             StructType st => $"{{ {string.Join(", ", st.Fields.Select(f => $"{f.Name.Name}: {FormatType(pkg, f.Type)}"))} }}",
             TupleType tu => $"({string.Join(", ", tu.Fields.Select(f => FormatType(pkg, f.Type)))})",
             ClassType c => c.Name,

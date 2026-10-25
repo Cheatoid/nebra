@@ -751,14 +751,14 @@ public sealed class NebraProject(Func<ServerSettings>? settings = null)
             case ClassType ct: return ct.Name;
             case InterfaceType it: return it.Name;
             case FunctionType ft: return FormatFunctionType(types, ft);
-            case UnionType ut: return string.Join(" | ", ut.Types.Select(t => FormatType(types, t)));
-            case TableArrayType ta: return FormatType(types, ta.ElementType) + "[]";
+            case UnionType ut: return string.Join(" | ", ut.Types.Select(t => IR.Type.Grouped(t, FormatType(types, t))));
+            case TableArrayType ta: return IR.Type.Grouped(ta.ElementType, FormatType(types, ta.ElementType)) + "[]";
             case TableMapType tm: return $"{{ [{FormatType(types, tm.KeyType)}]: {FormatType(types, tm.ValueType)} }}";
             case TupleType tt: return "(" + string.Join(", ", tt.Fields.Select(f =>
                 f.Name == null ? FormatType(types, f.Type) : $"{f.Name.Name}: {FormatType(types, f.Type)}")) + ")";
             case StructType st: return "{ " + string.Join(", ", st.Fields.Select(f =>
                 $"{f.Name.Name}: {FormatType(types, f.Type)}")) + " }";
-            case VariadicType variadic: return "..." + FormatType(types, variadic.ElementType);
+            case VariadicType variadic: return "..." + IR.Type.Grouped(variadic.ElementType, FormatType(types, variadic.ElementType));
             default: return PrettifyTypeKey(typ.Key);
         }
     }

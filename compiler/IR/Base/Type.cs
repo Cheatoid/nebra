@@ -106,6 +106,22 @@ public class Type(TypeKind kind)
     public NameRef? DeclaredAt { get; set; }
 
     /// <summary>
+    /// The key of <paramref name="type"/> as part of a larger key, in parentheses when it is a
+    /// union or a function, which would otherwise run into the surrounding key: the optional
+    /// function <c>(() -&gt; number) | nil</c> must not read like <c>() -&gt; number | nil</c>, a
+    /// function returning an optional number.
+    /// </summary>
+    protected static string GroupedKey(Type type) => Grouped(type, type.Key.Value);
+
+    /// <summary>
+    /// <paramref name="text"/>, the rendering of <paramref name="type"/>, in parentheses when it is
+    /// a union or a function and stands inside another union, an array or a variadic, so the
+    /// rendering reads back as the same type.
+    /// </summary>
+    public static string Grouped(Type type, string text) =>
+        type is UnionType or FunctionType ? $"({text})" : text;
+
+    /// <summary>
     /// Resolves an extension method named <paramref name="name"/> visible on
     /// <paramref name="objType"/> — checking the type itself, its base classes, and its
     /// implemented/extended interfaces. Returns the self-prefixed signature and the type the
@@ -302,7 +318,7 @@ public sealed class TableArrayType(Type elementType) : Type(TypeKind.TableArray)
 
     protected override TypeKey GenerateNewKey()
     {
-        return $"{ElementType.Key}[]";
+        return $"{GroupedKey(ElementType)}[]";
     }
 }
 
@@ -320,7 +336,7 @@ public sealed class VariadicType(Type elementType) : Type(TypeKind.Variadic)
 
     protected override TypeKey GenerateNewKey()
     {
-        return $"...{ElementType.Key}";
+        return $"...{GroupedKey(ElementType)}";
     }
 }
 
@@ -402,8 +418,7 @@ public sealed class UnionType(IEnumerable<Type> types) : Type(TypeKind.Union)
 
     protected override TypeKey GenerateNewKey()
     {
-        var typeKeys = Types.Select(t => t.Key);
-        return string.Join(" | ", typeKeys);
+        return string.Join(" | ", Types.Select(GroupedKey));
     }
 
     /// <summary>
