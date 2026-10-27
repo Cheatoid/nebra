@@ -23,8 +23,17 @@ public sealed partial class InferTypesPass
         {
             KeyOfType keyOf => EvaluateKeyOf(pc, keyOf),
             IndexedAccessType indexed => EvaluateIndexedAccess(pc, indexed),
+            UnionType union when union.Types.Any(member => member is KeyOfType or IndexedAccessType) => EvaluateUnion(pc, union),
             _ => type,
         };
+    }
+
+    private Type EvaluateUnion(PassContext pc, UnionType union)
+    {
+        var members = union.Types.Select(member => Evaluate(pc, member)).ToList();
+        return members.Zip(union.Types).All(pair => ReferenceEquals(pair.First, pair.Second))
+            ? union
+            : GetType(pc, pc.Types.UnionOf(members));
     }
 
     private TypID Evaluate(PassContext pc, TypID type) =>
@@ -124,7 +133,11 @@ public sealed partial class InferTypesPass
     /// </summary>
     private bool? UnevaluatedAccessFits(PassContext pc, TypID dst, TypID src)
     {
-        if (pc.Pkg!.Types.GetByID(dst, out var destination) && destination is IndexedAccessType)
+        if (pc.Pkg!.Types.GetByID(dst, out var destination) && pc.Pkg.Types.GetByID(src, out var accessed)
+            && SameKeyAccessFits(pc, destination, accessed) is { } keyFits)
+            return keyFits;
+
+        if (destination is IndexedAccessType)
         {
             var apparent = ApparentType(pc, dst);
             return apparent == dst || IsTypeAssignable(pc, apparent, src);
@@ -140,12 +153,70 @@ public sealed partial class InferTypesPass
     }
 
     /// <summary>
-    /// The type an argument is reported against: for a type parameter bounded by literal types or
-    /// <c>keyof</c>, such as <c>K extends keyof Events</c>, the keys it takes rather than its name.
+    /// Assignability of <c>B[K]</c> to <c>A[K]</c> for the same type parameter <c>K</c> bounded by
+    /// literal keys: the field of each key <c>K</c> may be fits the field of the same key, which
+    /// keeps the key and the field together where a comparison of every field type would not.
+    /// </summary>
+    private bool? SameKeyAccessFits(PassContext pc, Type destination, Type source)
+    {
+        if (destination is not IndexedAccessType { Index: TypeParameterType { ExtendsBound: { } bound } key } target) return null;
+        if (source is not IndexedAccessType accessed || accessed.Index.ID != key.ID) return null;
+        if (LiteralKeys(GetType(pc, Evaluate(pc, bound))) is not { } keys) return null;
+
+        return keys.All(name =>
+        {
+            var literal = pc.Types.LiteralOf(LiteralValue.Of(name));
+            var targetField = Evaluate(pc, pc.Pkg!.Types.DeclareType(new IndexedAccessType(target.Target, literal)));
+            var sourceField = Evaluate(pc, pc.Pkg.Types.DeclareType(new IndexedAccessType(accessed.Target, literal)));
+            return IsTypeAssignable(pc, targetField.ID, sourceField.ID);
+        });
+    }
+
+    /// <summary>
+    /// <paramref name="method"/> with its own type parameters replaced by those of
+    /// <paramref name="declared"/> at the same position, so a generic method is compared with
+    /// the generic signature it implements as one signature, not two unrelated ones.
+    /// </summary>
+    private FunctionType WithTypeParametersOf(PassContext pc, FunctionType method, FunctionType declared)
+    {
+        var own = TypeParametersIn(method).ToList();
+        var theirs = TypeParametersIn(declared).ToList();
+        var bindings = new Dictionary<TypID, Type>();
+        foreach (var typeParameter in own.Where(candidate => theirs.All(other => other.ID != candidate.ID)))
+        {
+            var match = theirs.Where(other => other.Index == typeParameter.Index && own.All(mine => mine.ID != other.ID)).ToList();
+            if (match.Count == 1) bindings[typeParameter.ID] = match[0];
+        }
+
+        return bindings.Count == 0 ? method : (FunctionType)pc.Pkg!.Types.Substitute(method, bindings);
+    }
+
+    private static IEnumerable<TypeParameterType> TypeParametersIn(Type type)
+    {
+        IEnumerable<Type> parts = type switch
+        {
+            TypeParameterType typeParameter => [],
+            FunctionType function => function.ParamTypes.Append(function.ReturnType),
+            UnionType union => union.Types,
+            TableArrayType list => [list.ElementType],
+            TableMapType map => [map.KeyType, map.ValueType],
+            KeyOfType keyOf => [keyOf.Target],
+            IndexedAccessType indexed => [indexed.Target, indexed.Index],
+            _ => [],
+        };
+
+        var found = type is TypeParameterType self ? [self] : parts.SelectMany(TypeParametersIn);
+        return found.DistinctBy(typeParameter => typeParameter.ID);
+    }
+
+    /// <summary>
+    /// The type an argument is reported against, worked out as far as it is known: for a type
+    /// parameter bounded by literal types or <c>keyof</c>, such as <c>K extends keyof Events</c>,
+    /// the keys it takes rather than its name.
     /// </summary>
     private TypID ExpectedForMessage(PassContext pc, TypID expected)
     {
-        if (!pc.Pkg!.Types.GetByID(expected, out var type) || type is not TypeParameterType { ExtendsBound: { } bound }) return expected;
+        if (!pc.Pkg!.Types.GetByID(expected, out var type) || type is not TypeParameterType { ExtendsBound: { } bound }) return Evaluate(pc, expected);
         return WantsLiteral(pc, bound) ? Evaluate(pc, bound) : expected;
     }
 

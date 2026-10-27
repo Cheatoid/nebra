@@ -81,6 +81,20 @@ public sealed class LiteralTypeTests
     }
 
     [Fact]
+    public void AGenericMethodImplementsAGenericInterfaceMethodKeyByKey()
+    {
+        const string source = "interface PawnEvents\n    Spawn: (Pawn) -> any\n    Death: (Pawn, number) -> any\nend\n\ninterface Pawn\n    method Subscribe<K extends keyof PawnEvents>(name: K, callback: PawnEvents[K]): function\n    method Unsubscribe(name: keyof PawnEvents, callback: function?): nil\nend\n\ninterface CharacterEvents\n    Spawn: (Pawn) -> any\n    Death: (Pawn, number) -> any\n    Punch: (Character) -> any\nend\n\ndeclare class Character implements Pawn\n    function Subscribe<K extends keyof CharacterEvents>(name: K, callback: CharacterEvents[K]): function\n    function Unsubscribe(name: keyof CharacterEvents, callback: function?): nil\nend\n\nlocal function use(character: Character): nil\n    local callback = character:Subscribe(\"Punch\", function(self)\n        local own: Character = self\n    end)\n    character:Unsubscribe(\"Punch\", callback)\nend\n";
+
+        Assert.Empty(Build(source).Errors);
+    }
+
+    [Fact]
+    public void AUnionFitsAUnionHoldingEachOfItsMembers()
+    {
+        Assert.Empty(Build("local value: number | string = 1\nlocal wide: number | string | boolean = value\nprint(wide)\n").Errors);
+    }
+
+    [Fact]
     public void GeneratedDeclarationsKeepLiteralTypesKeyOfAndQuotedFields()
     {
         var root = Directory.CreateTempSubdirectory("nebra-declgen").FullName;

@@ -7,7 +7,7 @@
 ir = {}
 
 local function span()
-    return { 1, 1, 1, 1 }
+    return nil
 end
 
 local function nameRef(name)

@@ -1764,6 +1764,7 @@ public sealed partial class InferTypesPass() : Pass(PassName, PassScope.PerBuild
     {
         var method = cd.Methods.FirstOrDefault(m => !m.IsStatic && !m.IsLocal && m.Name.Name == name);
         var span = method?.Name.Span ?? cd.Name.Span;
+        classFt = WithTypeParametersOf(pc, classFt, ifaceFt);
         var offset = StartsWithSelfParam(classFt) ? 1 : 0;
         var classParamCount = classFt.ParamTypes.Count - offset;
         var ifaceParamCount = ifaceFt.ParamTypes.Count;
@@ -4823,7 +4824,8 @@ public sealed partial class InferTypesPass() : Pass(PassName, PassScope.PerBuild
                 if (IsTypeAssignable(pc, member.ID, src)) return true;
             }
 
-            return false;
+            return pc.Pkg.Types.GetByID(src, out var sourceUnion) && sourceUnion is UnionType { } members
+                && members.Types.All(member => IsTypeAssignable(pc, dst, member.ID));
         }
 
         if (pc.Pkg.Types.GetByID(src, out var srcType) && srcType is UnionType unionSrc)
