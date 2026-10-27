@@ -572,7 +572,7 @@ internal partial class IRVisitor
             {
                 case NebraParser.DeclareInterfaceFieldMemberContext field:
                 {
-                    var fieldName = NameRefFromMember(field.memberName());
+                    var fieldName = NameRefFromField(field.fieldName());
                     var typeAnn = (TypeRef)Visit(field.typeAnnotation().typeExpr());
                     var fnode = new InterfaceFieldNode(fieldName, typeAnn, SpanFromCtx(field));
                     fnode.Annotations = VisitAnnotationListContent(field.annotationList());
@@ -880,7 +880,7 @@ internal partial class IRVisitor
             {
                 case NebraParser.InterfaceFieldMemberContext field:
                 {
-                    var fieldName = NameRefFromMember(field.memberName());
+                    var fieldName = NameRefFromField(field.fieldName());
                     var typeAnn = (TypeRef)Visit(field.typeAnnotation().typeExpr());
                     var ifaceField = new InterfaceFieldNode(fieldName, typeAnn, SpanFromCtx(field));
                     ifaceField.Annotations = VisitAnnotationListContent(field.annotationList());

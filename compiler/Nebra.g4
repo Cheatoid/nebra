@@ -377,7 +377,7 @@ classRef
     ;
 
 interfaceMember
-    : annotationList memberName typeAnnotation                           # InterfaceFieldMember
+    : annotationList fieldName typeAnnotation                            # InterfaceFieldMember
     | annotationList ASYNC? interfaceMemberKind memberName funcBody      # InterfaceDefaultMethodMember
     | annotationList ASYNC? interfaceMemberKind memberName funcSignature # InterfaceMethodMember
     ;
@@ -387,7 +387,7 @@ interfaceMember
 // a default method whose body opens with a function statement; telling them apart there needs
 // lookahead to the end of the interface, which is quadratic in its size.
 declareInterfaceMember
-    : annotationList memberName typeAnnotation                           # DeclareInterfaceFieldMember
+    : annotationList fieldName typeAnnotation                            # DeclareInterfaceFieldMember
     | annotationList ASYNC? interfaceMemberKind memberName funcSignature # DeclareInterfaceMethodMember
     ;
 
@@ -659,6 +659,9 @@ typeAnnotation
 //   () -> void                          no-param function
 //   (number) -> (string, boolean)       function with multi-return
 //   (string, number)                    tuple (used for multi-return)
+//   "user:login" | 1 | true             literal types
+//   keyof Events                        the field names of Events as literal types
+//   Events[K]                           the type of the field K of Events
 
 typeExpr
     : typeSingle (PIPE typeSingle)*                             # UnionType
@@ -676,6 +679,7 @@ typeSingle
 typeSuffix
     : LBRACK RBRACK                                             # ArraySuffix
     | QMARK                                                     # NullableSuffix
+    | LBRACK typeExpr RBRACK                                    # IndexedAccessSuffix
     ;
 
 // --- Atomic Types ---
@@ -683,6 +687,11 @@ typeSuffix
 typeAtom
     : NIL                                                       # NilType
     | FUNCTION                                                  # BareFunctionType
+    | KEYOF typeSingle                                          # KeyOfType
+    | str                                                       # StringLiteralType
+    | MINUS? number                                             # NumberLiteralType
+    | TRUE                                                      # TrueLiteralType
+    | FALSE                                                     # FalseLiteralType
     | NAME typeArgList?                                         # NamedType
     | functionType                                              # FuncType
     | tableType                                                 # TableType_
@@ -738,7 +747,12 @@ tableType
     ;
 
 structField
-    : META? memberName COLON typeExpr
+    : META? fieldName COLON typeExpr
+    ;
+
+fieldName
+    : memberName
+    | str
     ;
 
 
@@ -872,7 +886,7 @@ memberName
     : NAME
     | AS | DECLARE | ENUM | EXPORT | IMPORT | IS | CASE | MATCH | META | MODULE | MUT | WHEN
     | ASYNC | AWAIT | ABSTRACT | CLASS | INTERFACE | EXTENDS | EXTEND | IMPLEMENTS | CONSTRUCTOR
-    | STATIC | NEW | SUPER | OVERRIDE | PROTECTED | TYPEOF | INSTANCEOF | DEFER | GUARD
+    | STATIC | NEW | SUPER | OVERRIDE | PROTECTED | TYPEOF | INSTANCEOF | KEYOF | DEFER | GUARD
     | CONTINUE
     ;
 
@@ -1020,6 +1034,7 @@ SUPER       : 'super';
 OVERRIDE    : 'override';
 PROTECTED   : 'protected';
 TYPEOF      : 'typeof';
+KEYOF       : 'keyof';
 INSTANCEOF  : 'instanceof';
 DEFER       : 'defer';
 GUARD       : 'guard';

@@ -342,12 +342,13 @@ public static class DocSiteBuilder
             TableArrayType arr => $"{IR.Type.Grouped(arr.ElementType, FormatType(pkg, arr.ElementType))}[]",
             TableMapType map => $"{{ [{FormatType(pkg, map.KeyType)}]: {FormatType(pkg, map.ValueType)} }}",
             UnionType union => string.Join(" | ", union.Types.Select(u => IR.Type.Grouped(u, FormatType(pkg, u)))),
-            StructType st => $"{{ {string.Join(", ", st.Fields.Select(f => $"{f.Name.Name}: {FormatType(pkg, f.Type)}"))} }}",
+            StructType st => $"{{ {string.Join(", ", st.Fields.Select(f => $"{IR.Type.FieldLabel(f.Name.Name)}: {FormatType(pkg, f.Type)}"))} }}",
             TupleType tu => $"({string.Join(", ", tu.Fields.Select(f => FormatType(pkg, f.Type)))})",
             ClassType c => IR.Type.WithTypeArguments(c.Name, c.ShownArguments, t => FormatType(pkg, t)),
             InterfaceType i => IR.Type.WithTypeArguments(i.Name, i.ShownArguments, t => FormatType(pkg, t)),
             EnumType e => e.Name,
             TypeParameterType tp => tp.Name,
+            LiteralType or KeyOfType or IndexedAccessType => IR.Type.FormatComputed(t, type => FormatType(pkg, type))!,
             _ => t.Kind switch
             {
                 TypeKind.PrimitiveString => "string",

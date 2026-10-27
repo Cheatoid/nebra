@@ -603,6 +603,13 @@ public static class NodeFinder
             case ArrayTypeRef at:
                 SearchTypeRefForNameRef(at.ElementType, line, col, ref best);
                 break;
+            case KeyOfTypeRef keyOf:
+                SearchTypeRefForNameRef(keyOf.Target, line, col, ref best);
+                break;
+            case IndexedAccessTypeRef indexed:
+                SearchTypeRefForNameRef(indexed.Target, line, col, ref best);
+                SearchTypeRefForNameRef(indexed.Index, line, col, ref best);
+                break;
             case NullableTypeRef nu:
                 SearchTypeRefForNameRef(nu.InnerType, line, col, ref best);
                 break;
@@ -978,6 +985,11 @@ public static class NodeFinder
                 foreach (var a in gt.Arguments) CollectFromTypeArgRef(a, refs);
                 break;
             case ArrayTypeRef at: CollectFromTypeRef(at.ElementType, refs); break;
+            case KeyOfTypeRef keyOf: CollectFromTypeRef(keyOf.Target, refs); break;
+            case IndexedAccessTypeRef indexed:
+                CollectFromTypeRef(indexed.Target, refs);
+                CollectFromTypeRef(indexed.Index, refs);
+                break;
             case NullableTypeRef nu: CollectFromTypeRef(nu.InnerType, refs); break;
             case UnionTypeRef ut:
                 foreach (var t in ut.Types) CollectFromTypeRef(t, refs);

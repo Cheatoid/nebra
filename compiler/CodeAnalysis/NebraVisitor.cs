@@ -1156,6 +1156,13 @@ public interface INebraVisitor<Result> : IParseTreeVisitor<Result> {
 	/// <return>The visitor result.</return>
 	Result VisitNullableSuffix([NotNull] NebraParser.NullableSuffixContext context);
 	/// <summary>
+	/// Visit a parse tree produced by the <c>IndexedAccessSuffix</c>
+	/// labeled alternative in <see cref="NebraParser.typeSuffix"/>.
+	/// </summary>
+	/// <param name="context">The parse tree.</param>
+	/// <return>The visitor result.</return>
+	Result VisitIndexedAccessSuffix([NotNull] NebraParser.IndexedAccessSuffixContext context);
+	/// <summary>
 	/// Visit a parse tree produced by the <c>NilType</c>
 	/// labeled alternative in <see cref="NebraParser.typeAtom"/>.
 	/// </summary>
@@ -1169,6 +1176,41 @@ public interface INebraVisitor<Result> : IParseTreeVisitor<Result> {
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
 	Result VisitBareFunctionType([NotNull] NebraParser.BareFunctionTypeContext context);
+	/// <summary>
+	/// Visit a parse tree produced by the <c>KeyOfType</c>
+	/// labeled alternative in <see cref="NebraParser.typeAtom"/>.
+	/// </summary>
+	/// <param name="context">The parse tree.</param>
+	/// <return>The visitor result.</return>
+	Result VisitKeyOfType([NotNull] NebraParser.KeyOfTypeContext context);
+	/// <summary>
+	/// Visit a parse tree produced by the <c>StringLiteralType</c>
+	/// labeled alternative in <see cref="NebraParser.typeAtom"/>.
+	/// </summary>
+	/// <param name="context">The parse tree.</param>
+	/// <return>The visitor result.</return>
+	Result VisitStringLiteralType([NotNull] NebraParser.StringLiteralTypeContext context);
+	/// <summary>
+	/// Visit a parse tree produced by the <c>NumberLiteralType</c>
+	/// labeled alternative in <see cref="NebraParser.typeAtom"/>.
+	/// </summary>
+	/// <param name="context">The parse tree.</param>
+	/// <return>The visitor result.</return>
+	Result VisitNumberLiteralType([NotNull] NebraParser.NumberLiteralTypeContext context);
+	/// <summary>
+	/// Visit a parse tree produced by the <c>TrueLiteralType</c>
+	/// labeled alternative in <see cref="NebraParser.typeAtom"/>.
+	/// </summary>
+	/// <param name="context">The parse tree.</param>
+	/// <return>The visitor result.</return>
+	Result VisitTrueLiteralType([NotNull] NebraParser.TrueLiteralTypeContext context);
+	/// <summary>
+	/// Visit a parse tree produced by the <c>FalseLiteralType</c>
+	/// labeled alternative in <see cref="NebraParser.typeAtom"/>.
+	/// </summary>
+	/// <param name="context">The parse tree.</param>
+	/// <return>The visitor result.</return>
+	Result VisitFalseLiteralType([NotNull] NebraParser.FalseLiteralTypeContext context);
 	/// <summary>
 	/// Visit a parse tree produced by the <c>NamedType</c>
 	/// labeled alternative in <see cref="NebraParser.typeAtom"/>.
@@ -1263,6 +1305,12 @@ public interface INebraVisitor<Result> : IParseTreeVisitor<Result> {
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
 	Result VisitStructField([NotNull] NebraParser.StructFieldContext context);
+	/// <summary>
+	/// Visit a parse tree produced by <see cref="NebraParser.fieldName"/>.
+	/// </summary>
+	/// <param name="context">The parse tree.</param>
+	/// <return>The visitor result.</return>
+	Result VisitFieldName([NotNull] NebraParser.FieldNameContext context);
 	/// <summary>
 	/// Visit a parse tree produced by the <c>PreIncExpr</c>
 	/// labeled alternative in <see cref="NebraParser.expr"/>.

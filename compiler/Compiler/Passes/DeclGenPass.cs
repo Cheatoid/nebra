@@ -423,7 +423,7 @@ public sealed class DeclGenPass() : Pass(PassName, PassScope.PerBuild, true)
         {
             EmitDoc(sb, "        ", field.Doc);
             sb.Append("        ");
-            sb.Append(field.Name.Name);
+            sb.Append(Type.FieldLabel(field.Name.Name));
             sb.Append(": ");
             sb.Append(FormatAnnotatedType(ctx, pkg, field.TypeAnnotation, field.Name));
             sb.AppendLine();
@@ -565,10 +565,11 @@ public sealed class DeclGenPass() : Pass(PassName, PassScope.PerBuild, true)
             TableArrayType arr => $"{Type.Grouped(arr.ElementType, FormatType(ctx, arr.ElementType))}[]",
             TableMapType map => $"{{ [{FormatType(ctx, map.KeyType)}]: {FormatType(ctx, map.ValueType)} }}",
             UnionType union => string.Join(" | ", union.Types.Select(t => Type.Grouped(t, FormatType(ctx, t)))),
-            StructType st => $"{{ {string.Join(", ", st.Fields.Select(f => $"{f.Name.Name}: {FormatType(ctx, f.Type)}"))} }}",
+            StructType st => $"{{ {string.Join(", ", st.Fields.Select(f => $"{Type.FieldLabel(f.Name.Name)}: {FormatType(ctx, f.Type)}"))} }}",
             TupleType tuple => $"({string.Join(", ", tuple.Fields.Select(f => FormatType(ctx, f.Type)))})",
             VariadicType variadic => $"...{Type.Grouped(variadic.ElementType, FormatType(ctx, variadic.ElementType))}",
             TypeParameterType typeParameter => typeParameter.Name,
+            LiteralType or KeyOfType or IndexedAccessType => Type.FormatComputed(typ, type => FormatType(ctx, type))!,
             ClassType ct => Type.WithTypeArguments(ct.Name, ct.ShownArguments, t => FormatType(ctx, t)),
             InterfaceType it => Type.WithTypeArguments(it.Name, it.ShownArguments, t => FormatType(ctx, t)),
             EnumType et => et.Name,

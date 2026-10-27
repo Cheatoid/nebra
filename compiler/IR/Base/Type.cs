@@ -40,6 +40,9 @@ public enum TypeKind
     Parameterized,
     Variadic,
     Predicate,
+    Literal,
+    KeyOf,
+    IndexedAccess,
     /// <summary>
     /// A type written by its name, as a type reference carries it before the name is resolved:
     /// it may still turn out to be a class, an interface, an enum or an alias.
@@ -114,16 +117,41 @@ public class Type(TypeKind kind)
     protected static string GroupedKey(Type type) => Grouped(type, type.Key.Value);
 
     /// <summary>
-    /// <paramref name="text"/>, the rendering of <paramref name="type"/>, in parentheses when it is
-    /// a union or a function and stands inside another union, an array or a variadic, so the
-    /// rendering reads back as the same type.
-    /// </summary>
-    /// <summary>
     /// <paramref name="name"/> followed by its type arguments, or parameters, such as
     /// <c>Box&lt;number&gt;</c>, rendered with <paramref name="format"/>; the bare name without any.
     /// </summary>
     public static string WithTypeArguments(string name, IReadOnlyList<Type> arguments, Func<Type, string> format) =>
         arguments.Count == 0 ? name : $"{name}<{string.Join(", ", arguments.Select(format))}>";
+
+    /// <summary>
+    /// <paramref name="text"/>, the rendering of <paramref name="type"/>, in parentheses when it is
+    /// a union or a function and stands inside another union, an array or a variadic, so the
+    /// rendering reads back as the same type.
+    /// </summary>
+    /// <summary>
+    /// The name of a field as it is written in a type: as it is when it is a name, quoted when it
+    /// is a key such as <c>"user:login"</c>.
+    /// </summary>
+    public static string FieldLabel(string name) =>
+        System.Text.RegularExpressions.Regex.IsMatch(name, "^[A-Za-z_][A-Za-z0-9_]*$") ? name : LiteralValue.Of(name).Text;
+
+    /// <summary>
+    /// The rendering of the types only Nebra's checker knows, literal, <c>keyof</c> and indexed
+    /// access types, with <paramref name="format"/> for the types inside them; <c>null</c> for any other type.
+    /// </summary>
+    public static string? FormatComputed(Type type, Func<Type, string> format)
+    {
+        return type switch
+        {
+            LiteralType literal => literal.Value.Text,
+            KeyOfType keyOf => "keyof " + GroupedComputed(keyOf.Target, format(keyOf.Target)),
+            IndexedAccessType indexed => GroupedComputed(indexed.Target, format(indexed.Target)) + "[" + format(indexed.Index) + "]",
+            _ => null,
+        };
+    }
+
+    private static string GroupedComputed(Type type, string text) =>
+        type is UnionType or FunctionType or KeyOfType ? $"({text})" : text;
 
     public static string Grouped(Type type, string text) =>
         type is UnionType or FunctionType ? $"({text})" : text;
@@ -283,6 +311,44 @@ public class Type(TypeKind kind)
                     }
                 }
             }
+        }
+    }
+
+    /// <summary>
+    /// The names of the fields of a struct, class or interface, inherited ones included, in the
+    /// order they are declared; <c>null</c> for any other type.
+    /// </summary>
+    public static List<string>? FieldNamesOf(Type shape)
+    {
+        IEnumerable<string>? names = shape switch
+        {
+            StructType structType => structType.Fields.Where(field => !field.IsMeta).Select(field => field.Name.Name),
+            InterfaceType interfaceType => BaseInterfacesOf(interfaceType).Reverse().Append(interfaceType).SelectMany(candidate => candidate.Fields.Keys),
+            ClassType classType => ClassChain(classType).Reverse().SelectMany(candidate => candidate.InstanceFields.Keys),
+            _ => null,
+        };
+        return names?.Distinct().ToList();
+    }
+
+    /// <summary>The type of the field <paramref name="name"/> of a struct, class or interface, inherited ones included.</summary>
+    public static Type? FieldTypeOf(Type shape, string name)
+    {
+        return shape switch
+        {
+            StructType structType => structType.Fields.FirstOrDefault(field => !field.IsMeta && field.Name.Name == name)?.Type,
+            ClassType classType => ClassChain(classType).Select(candidate => candidate.InstanceFields.GetValueOrDefault(name)?.Type).FirstOrDefault(type => type != null),
+            InterfaceType interfaceType => BaseInterfacesOf(interfaceType).Prepend(interfaceType)
+                .Select(candidate => candidate.Fields.GetValueOrDefault(name)?.Type)
+                .FirstOrDefault(type => type != null),
+            _ => null,
+        };
+    }
+
+    private static IEnumerable<ClassType> ClassChain(ClassType classType)
+    {
+        for (var current = classType; current != null; current = current.BaseClass)
+        {
+            yield return current;
         }
     }
 
@@ -913,6 +979,44 @@ public sealed class ParameterizedType(Type definition, List<TypeArg> args) : Typ
 }
 
 /// <summary>
+/// A literal type such as <c>"user:login"</c>, <c>1</c> or <c>true</c>: the one value it is
+/// written as. It fits its <see cref="BaseType"/>, the string, number or boolean type.
+/// </summary>
+public sealed class LiteralType(LiteralValue value, Type baseType) : Type(TypeKind.Literal)
+{
+    public LiteralValue Value { get; } = value;
+
+    public Type BaseType { get; } = baseType;
+
+    protected override TypeKey GenerateNewKey() => $"literal<{Value.Text}>";
+}
+
+/// <summary>
+/// <c>keyof T</c>: the names of the fields of <see cref="Target"/>, each as a string literal type.
+/// Kept as it is written until <see cref="Target"/> is known, as for a type parameter, and until
+/// the members of a class or interface are declared.
+/// </summary>
+public sealed class KeyOfType(Type target) : Type(TypeKind.KeyOf)
+{
+    public Type Target { get; } = target;
+
+    protected override TypeKey GenerateNewKey() => $"keyof<{Target.Key}>";
+}
+
+/// <summary>
+/// <c>T[K]</c>: the type of the field <see cref="Index"/> of <see cref="Target"/>, or the union of
+/// the types of several fields for a union of names. Kept as it is written until both are known.
+/// </summary>
+public sealed class IndexedAccessType(Type target, Type index) : Type(TypeKind.IndexedAccess)
+{
+    public Type Target { get; } = target;
+
+    public Type Index { get; } = index;
+
+    protected override TypeKey GenerateNewKey() => $"index<{Target.Key},{Index.Key}>";
+}
+
+/// <summary>
 /// Represents a type table that maps type keys to their corresponding types. This is used to keep track of the types in
 /// the IR, and to ensure that the types are unique and do not conflict with each other.
 /// </summary>
@@ -1186,6 +1290,18 @@ public sealed partial class TypeTable
         return (TypeParameterType)DeclareType(tp);
     }
 
+    /// <summary>The literal type of <paramref name="value"/>.</summary>
+    public LiteralType LiteralOf(LiteralValue value)
+    {
+        var baseType = value.Kind switch
+        {
+            LiteralKind.String => PrimString,
+            LiteralKind.Number => PrimNumber,
+            _ => PrimBool,
+        };
+        return (LiteralType)DeclareType(new LiteralType(value, baseType));
+    }
+
     /// <summary>
     /// Creates (or returns cached) a <see cref="ParameterizedType"/> representing a generic
     /// instantiation like <c>List&lt;number&gt;</c>.
@@ -1243,6 +1359,18 @@ public sealed partial class TypeTable
             {
                 var element = Substitute(variadic.ElementType, subst);
                 return ReferenceEquals(element, variadic.ElementType) ? t : DeclareType(new VariadicType(element));
+            }
+            case KeyOfType keyOf:
+            {
+                var target = Substitute(keyOf.Target, subst);
+                return ReferenceEquals(target, keyOf.Target) ? t : DeclareType(new KeyOfType(target));
+            }
+            case IndexedAccessType indexed:
+            {
+                var target = Substitute(indexed.Target, subst);
+                var index = Substitute(indexed.Index, subst);
+                return ReferenceEquals(target, indexed.Target) && ReferenceEquals(index, indexed.Index)
+                    ? t : DeclareType(new IndexedAccessType(target, index));
             }
             case FunctionType fn:
             {

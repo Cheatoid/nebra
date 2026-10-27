@@ -2597,10 +2597,23 @@ public sealed partial class CodegenPass() : Pass(PassName, PassScope.PerBuild, t
     /// </summary>
     private static bool MayBeNumber(PassContext ctx, PackageContext pkg, Expr key)
     {
-        if (!pkg.Types.GetByID(key.Type, out var type)) return true;
-        var members = type is UnionType union ? union.Types : [type];
-        return members.Any(member => member.Kind is TypeKind.PrimitiveNumber or TypeKind.PrimitiveAny
-            or TypeKind.TypeParameter or TypeKind.Enum);
+        return !pkg.Types.GetByID(key.Type, out var type) || MayBeNumber(pkg, type);
+    }
+
+    /// <summary>
+    /// Whether a key of <paramref name="type"/> may be a number at runtime, so a list index needs
+    /// shifting: a string literal or <c>keyof</c> never is, and a type parameter is what its bound is.
+    /// </summary>
+    private static bool MayBeNumber(PackageContext pkg, IR.Type type)
+    {
+        return type switch
+        {
+            UnionType union => union.Types.Any(member => MayBeNumber(pkg, member)),
+            LiteralType literal => literal.BaseType.Kind == TypeKind.PrimitiveNumber,
+            KeyOfType => false,
+            TypeParameterType { ExtendsBound: { } bound } when pkg.Types.GetByID(bound, out var boundType) => MayBeNumber(pkg, boundType),
+            _ => type.Kind is TypeKind.PrimitiveNumber or TypeKind.PrimitiveAny or TypeKind.TypeParameter or TypeKind.Enum or TypeKind.IndexedAccess,
+        };
     }
 
     private void EmitFunctionCall(PassContext ctx, PackageContext pkg, LuaGenerator gen, FunctionCallExpr call)

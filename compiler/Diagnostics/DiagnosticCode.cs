@@ -478,6 +478,23 @@ public enum DiagnosticCode
     [Help("give it a default value, assign it in every path of the constructor, or make its type nullable with '?'")]
     ErrUninitializedField = 0x403B,
 
+    [Level(DiagnosticLevel.Error)]
+    [Category(DiagnosticCategory.Type)]
+    [Format("an interpolated string cannot be a literal type")]
+    [Help("write the literal without interpolation, such as \"user:login\"")]
+    ErrInterpolatedLiteralType = 0x403C,
+
+    [Level(DiagnosticLevel.Error)]
+    [Category(DiagnosticCategory.Type)]
+    [Format("'{0}' has no field {1}")]
+    [Help("use one of its fields: {2}")]
+    ErrNoSuchKey = 0x403D,
+
+    [Level(DiagnosticLevel.Error)]
+    [Category(DiagnosticCategory.Type)]
+    [Format("'keyof' needs a struct, class or interface type, but got '{0}'")]
+    ErrKeyOfNonShape = 0x403E,
+
     [Level(DiagnosticLevel.Warning)]
     [Category(DiagnosticCategory.Semantic)]
     [Format("Method '{0}' shadows a method in parent class '{1}'; use 'override' to indicate this is intentional")]

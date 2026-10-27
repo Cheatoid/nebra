@@ -1943,6 +1943,18 @@ public interface INebraListener : IParseTreeListener {
 	/// <param name="context">The parse tree.</param>
 	void ExitNullableSuffix([NotNull] NebraParser.NullableSuffixContext context);
 	/// <summary>
+	/// Enter a parse tree produced by the <c>IndexedAccessSuffix</c>
+	/// labeled alternative in <see cref="NebraParser.typeSuffix"/>.
+	/// </summary>
+	/// <param name="context">The parse tree.</param>
+	void EnterIndexedAccessSuffix([NotNull] NebraParser.IndexedAccessSuffixContext context);
+	/// <summary>
+	/// Exit a parse tree produced by the <c>IndexedAccessSuffix</c>
+	/// labeled alternative in <see cref="NebraParser.typeSuffix"/>.
+	/// </summary>
+	/// <param name="context">The parse tree.</param>
+	void ExitIndexedAccessSuffix([NotNull] NebraParser.IndexedAccessSuffixContext context);
+	/// <summary>
 	/// Enter a parse tree produced by the <c>NilType</c>
 	/// labeled alternative in <see cref="NebraParser.typeAtom"/>.
 	/// </summary>
@@ -1966,6 +1978,66 @@ public interface INebraListener : IParseTreeListener {
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	void ExitBareFunctionType([NotNull] NebraParser.BareFunctionTypeContext context);
+	/// <summary>
+	/// Enter a parse tree produced by the <c>KeyOfType</c>
+	/// labeled alternative in <see cref="NebraParser.typeAtom"/>.
+	/// </summary>
+	/// <param name="context">The parse tree.</param>
+	void EnterKeyOfType([NotNull] NebraParser.KeyOfTypeContext context);
+	/// <summary>
+	/// Exit a parse tree produced by the <c>KeyOfType</c>
+	/// labeled alternative in <see cref="NebraParser.typeAtom"/>.
+	/// </summary>
+	/// <param name="context">The parse tree.</param>
+	void ExitKeyOfType([NotNull] NebraParser.KeyOfTypeContext context);
+	/// <summary>
+	/// Enter a parse tree produced by the <c>StringLiteralType</c>
+	/// labeled alternative in <see cref="NebraParser.typeAtom"/>.
+	/// </summary>
+	/// <param name="context">The parse tree.</param>
+	void EnterStringLiteralType([NotNull] NebraParser.StringLiteralTypeContext context);
+	/// <summary>
+	/// Exit a parse tree produced by the <c>StringLiteralType</c>
+	/// labeled alternative in <see cref="NebraParser.typeAtom"/>.
+	/// </summary>
+	/// <param name="context">The parse tree.</param>
+	void ExitStringLiteralType([NotNull] NebraParser.StringLiteralTypeContext context);
+	/// <summary>
+	/// Enter a parse tree produced by the <c>NumberLiteralType</c>
+	/// labeled alternative in <see cref="NebraParser.typeAtom"/>.
+	/// </summary>
+	/// <param name="context">The parse tree.</param>
+	void EnterNumberLiteralType([NotNull] NebraParser.NumberLiteralTypeContext context);
+	/// <summary>
+	/// Exit a parse tree produced by the <c>NumberLiteralType</c>
+	/// labeled alternative in <see cref="NebraParser.typeAtom"/>.
+	/// </summary>
+	/// <param name="context">The parse tree.</param>
+	void ExitNumberLiteralType([NotNull] NebraParser.NumberLiteralTypeContext context);
+	/// <summary>
+	/// Enter a parse tree produced by the <c>TrueLiteralType</c>
+	/// labeled alternative in <see cref="NebraParser.typeAtom"/>.
+	/// </summary>
+	/// <param name="context">The parse tree.</param>
+	void EnterTrueLiteralType([NotNull] NebraParser.TrueLiteralTypeContext context);
+	/// <summary>
+	/// Exit a parse tree produced by the <c>TrueLiteralType</c>
+	/// labeled alternative in <see cref="NebraParser.typeAtom"/>.
+	/// </summary>
+	/// <param name="context">The parse tree.</param>
+	void ExitTrueLiteralType([NotNull] NebraParser.TrueLiteralTypeContext context);
+	/// <summary>
+	/// Enter a parse tree produced by the <c>FalseLiteralType</c>
+	/// labeled alternative in <see cref="NebraParser.typeAtom"/>.
+	/// </summary>
+	/// <param name="context">The parse tree.</param>
+	void EnterFalseLiteralType([NotNull] NebraParser.FalseLiteralTypeContext context);
+	/// <summary>
+	/// Exit a parse tree produced by the <c>FalseLiteralType</c>
+	/// labeled alternative in <see cref="NebraParser.typeAtom"/>.
+	/// </summary>
+	/// <param name="context">The parse tree.</param>
+	void ExitFalseLiteralType([NotNull] NebraParser.FalseLiteralTypeContext context);
 	/// <summary>
 	/// Enter a parse tree produced by the <c>NamedType</c>
 	/// labeled alternative in <see cref="NebraParser.typeAtom"/>.
@@ -2126,6 +2198,16 @@ public interface INebraListener : IParseTreeListener {
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	void ExitStructField([NotNull] NebraParser.StructFieldContext context);
+	/// <summary>
+	/// Enter a parse tree produced by <see cref="NebraParser.fieldName"/>.
+	/// </summary>
+	/// <param name="context">The parse tree.</param>
+	void EnterFieldName([NotNull] NebraParser.FieldNameContext context);
+	/// <summary>
+	/// Exit a parse tree produced by <see cref="NebraParser.fieldName"/>.
+	/// </summary>
+	/// <param name="context">The parse tree.</param>
+	void ExitFieldName([NotNull] NebraParser.FieldNameContext context);
 	/// <summary>
 	/// Enter a parse tree produced by the <c>PreIncExpr</c>
 	/// labeled alternative in <see cref="NebraParser.expr"/>.

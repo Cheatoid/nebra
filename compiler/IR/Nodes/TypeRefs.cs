@@ -133,3 +133,22 @@ public sealed class TypeParamDef(NodeID id, TextSpan span, NameRef name, TypeRef
     /// <summary>The <see cref="TypID"/> assigned to this parameter after <see cref="ResolveTypeRefsPass"/>.</summary>
     public TypID ResolvedType { get; set; } = TypID.Invalid;
 }
+
+/// <summary>A literal type such as <c>"user:login"</c>, <c>1</c> or <c>true</c>.</summary>
+public sealed class LiteralTypeRef(NodeID id, TextSpan span, LiteralValue value) : TypeRef(id, span, TypeKind.Literal)
+{
+    public LiteralValue Value { get; } = value;
+}
+
+/// <summary><c>keyof T</c>: the names of the fields of <see cref="Target"/> as literal types.</summary>
+public sealed class KeyOfTypeRef(NodeID id, TextSpan span, TypeRef target) : TypeRef(id, span, TypeKind.KeyOf)
+{
+    public TypeRef Target { get; } = target;
+}
+
+/// <summary><c>T[K]</c>: the type of the field <see cref="Index"/> of <see cref="Target"/>.</summary>
+public sealed class IndexedAccessTypeRef(NodeID id, TextSpan span, TypeRef target, TypeRef index) : TypeRef(id, span, TypeKind.IndexedAccess)
+{
+    public TypeRef Target { get; } = target;
+    public TypeRef Index { get; } = index;
+}

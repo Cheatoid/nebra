@@ -75,6 +75,29 @@ local function firstOf<T>(source: Source<T>): T?
     return source:next()
 end
 
+interface BusEvents
+    "player:join": (string) -> nil
+    score: (number) -> nil
+end
+
+class Bus
+    listeners: { [string]: any[] } = {}
+
+    function on<K extends keyof BusEvents>(name: K, callback: BusEvents[K]): nil
+        local list = self.listeners[name] ?? {}
+        table.insert(list, callback)
+        self.listeners[name] = list
+    end
+
+    function count(name: keyof BusEvents): number
+        return #(self.listeners[name] ?? {})
+    end
+end
+
+local function speedOf(mode: "fast" | "slow"): number
+    return mode == "fast" and 2 or 1
+end
+
 local function identity<T>(value: T): T
     return value
 end
@@ -131,4 +154,22 @@ export function run(): nil
     expect("a bare generic class matches every instantiation", anything is Stack)
     local mapped: any = labels
     expect("is checks the type arguments of a mapped value", mapped is Stack<string>)
+
+    local bus = new Bus()
+    local joined = ""
+    bus:on("player:join", function(name)
+        joined = name .. "!"
+    end)
+    bus:on("score", function(points)
+        joined = joined .. tostring(points + 1)
+    end)
+    for _, callback in ipairs(bus.listeners["player:join"]) do
+        callback("Ann")
+    end
+    for _, callback in ipairs(bus.listeners["score"]) do
+        callback(1)
+    end
+    expectEq("keyof callbacks are registered by their key", bus:count("player:join") + bus:count("score"), 2)
+    expectEq("contextually typed callbacks run", joined, "Ann!2")
+    expectEq("literal type parameter", speedOf("fast") + speedOf("slow"), 3)
 end

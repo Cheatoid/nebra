@@ -990,6 +990,18 @@ public class ResolveTypeRefsPass() : Pass(PassName, PassScope.PerBuild)
                 result = tt.DeclareType(new FunctionType(paramTypes, returnType));
                 break;
             }
+            case TypeKind.Literal:
+                result = tt.LiteralOf(((LiteralTypeRef) tr).Value);
+                break;
+            case TypeKind.KeyOf:
+                result = tt.DeclareType(new KeyOfType(ResolveTypeRef(tt, ((KeyOfTypeRef) tr).Target)));
+                break;
+            case TypeKind.IndexedAccess:
+            {
+                var t = (IndexedAccessTypeRef) tr;
+                result = tt.DeclareType(new IndexedAccessType(ResolveTypeRef(tt, t.Target), ResolveTypeRef(tt, t.Index)));
+                break;
+            }
             default:
                 throw new InvalidOperationException($"Unknown type kind: {tr.Kind}");
         }

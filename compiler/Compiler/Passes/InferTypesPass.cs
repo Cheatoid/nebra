@@ -216,7 +216,18 @@ public sealed partial class InferTypesPass() : Pass(PassName, PassScope.PerBuild
     /// </summary>
     private TypID SynthesizeFor(PassContext pc, Expr value, TypID expected)
     {
-        var synthesized = SynthesizeExpr(pc, value);
+        if (value is FunctionDefExpr literal && TakesSignatureFromContext(literal))
+            return SynthesizeWithSignature(pc, literal, ExpectedSignature(pc, Evaluate(pc, expected)));
+
+        if (LiteralFor(pc, value, expected) is { } literalType)
+        {
+            SynthesizeExpr(pc, value);
+            return literalType;
+        }
+
+        var synthesized = value is TableConstructorExpr table
+            ? SynthesizeTableFor(pc, table, Evaluate(pc, expected))
+            : SynthesizeExpr(pc, value);
         return IsEmptyTable(value) && IsTableShape(pc, expected) ? expected : synthesized;
     }
 
@@ -521,10 +532,12 @@ public sealed partial class InferTypesPass() : Pass(PassName, PassScope.PerBuild
     /// <c>break</c> inside it can leave, so it must not count towards the depth a break may ask
     /// for.
     /// </summary>
-    private void ResolveFunctionBody(PassContext pc, List<Stmt> stmts, Stmt? tail = null)
+    private void ResolveFunctionBody(PassContext pc, List<Stmt> stmts, Stmt? tail = null, TypID? declaredReturn = null)
     {
         var enclosingLoops = _loopDepth;
+        var enclosingReturn = _declaredReturn;
         _loopDepth = 0;
+        _declaredReturn = declaredReturn ?? TypID.Invalid;
         try
         {
             ResolveStmts(pc, stmts, tail);
@@ -532,6 +545,7 @@ public sealed partial class InferTypesPass() : Pass(PassName, PassScope.PerBuild
         finally
         {
             _loopDepth = enclosingLoops;
+            _declaredReturn = enclosingReturn;
         }
     }
 
@@ -743,6 +757,7 @@ public sealed partial class InferTypesPass() : Pass(PassName, PassScope.PerBuild
                     SynthesizeExpr(pc, value);
                 }
 
+                AdoptReturnedLiterals(pc, returnStmt.Values);
                 break;
             case ImportStmt:
                 break;
@@ -1189,7 +1204,7 @@ public sealed partial class InferTypesPass() : Pass(PassName, PassScope.PerBuild
         }
 
         foreach (var accessor in cd.Accessors)
-            ResolveFunctionBody(pc, accessor.Body, accessor.ReturnStmt);
+            ResolveFunctionBody(pc, accessor.Body, accessor.ReturnStmt, accessor.ReturnType?.ResolvedType);
 
         ReportUninitializedFields(pc, cd, classType);
 
@@ -1383,7 +1398,7 @@ public sealed partial class InferTypesPass() : Pass(PassName, PassScope.PerBuild
     private void CheckConstructorArguments(PassContext pc, TextSpan span, string className, FunctionType ctorType, List<Expr> arguments, List<TypID> argTypes)
     {
         var argCount = arguments.Count;
-        AdoptEmptyTableArguments(pc, ctorType, arguments, argTypes, 0);
+        AdoptArguments(pc, ctorType, arguments, argTypes, 0);
         var paramCount = ctorType.ParamTypes.Count;
         var minParams = ctorType.MinParamCount;
         if (argCount >= minParams && (argCount <= paramCount || ctorType.IsVararg))
@@ -1953,7 +1968,7 @@ public sealed partial class InferTypesPass() : Pass(PassName, PassScope.PerBuild
         Diagnostics.TextSpan returnSpan)
     {
         if (isAsync) _asyncDepth++;
-        ResolveFunctionBody(pc, body, returnStmt);
+        ResolveFunctionBody(pc, body, returnStmt, returnType.ID);
 
         var collected = CollectReturnTypes(pc, body);
         if (returnStmt != null)
@@ -1996,7 +2011,7 @@ public sealed partial class InferTypesPass() : Pass(PassName, PassScope.PerBuild
 
             if (method.IsAsync) _asyncDepth++;
             using var extensionTypeParams = FixTypeParams(method.TypeParams);
-            ResolveFunctionBody(pc, method.Body, method.ReturnStmt);
+            ResolveFunctionBody(pc, method.Body, method.ReturnStmt, retType.ID);
 
             var collected = CollectReturnTypes(pc, method.Body);
             if (method.ReturnStmt != null)
@@ -2133,7 +2148,7 @@ public sealed partial class InferTypesPass() : Pass(PassName, PassScope.PerBuild
             }
         }
 
-        ResolveFunctionBody(pc, body, returnStmt);
+        ResolveFunctionBody(pc, body, returnStmt, returnTypeRef?.ResolvedType);
 
         Type returnType;
         if (returnTypeRef != null && returnTypeRef.ResolvedType != TypID.Invalid)
@@ -2241,7 +2256,7 @@ public sealed partial class InferTypesPass() : Pass(PassName, PassScope.PerBuild
         var valueTypes = new List<TypID>();
         foreach (var value in stmt.Values)
         {
-            valueTypes.Add(SynthesizeExpr(pc, value));
+            valueTypes.Add(SynthesizeArgument(pc, value));
         }
 
         valueTypes = ExpandTrailingTuple(pc, stmt.Values, valueTypes, stmt.Targets.Count);
@@ -2260,6 +2275,12 @@ public sealed partial class InferTypesPass() : Pass(PassName, PassScope.PerBuild
             _assignmentTarget = target;
             var targetType = SynthesizeExpr(pc, target);
             _assignmentTarget = null;
+            if (i < stmt.Values.Count && stmt.Values[i] is FunctionDefExpr literal && _pendingLiterals.Contains(literal))
+                valueTypes[i] = SynthesizeWithSignature(pc, literal, ExpectedSignature(pc, Evaluate(pc, targetType)));
+            if (i < stmt.Values.Count && stmt.Values[i] is TableConstructorExpr table && _pendingTables.Contains(table))
+                valueTypes[i] = SynthesizeTableFor(pc, table, Evaluate(pc, targetType));
+            if (i < stmt.Values.Count && LiteralFor(pc, stmt.Values[i], targetType) is { } literalValue)
+                valueTypes[i] = literalValue;
             if (i < valueTypes.Count && targetType != TypID.Invalid && targetType != pc.Types.PrimAny.ID)
             {
                 var valueType = i < stmt.Values.Count && IsEmptyTable(stmt.Values[i]) && IsTableShape(pc, targetType)
@@ -2272,6 +2293,8 @@ public sealed partial class InferTypesPass() : Pass(PassName, PassScope.PerBuild
                 }
             }
         }
+
+        FlushPendingLiterals(pc, stmt.Values);
     }
 
     /// <summary>
@@ -2587,9 +2610,11 @@ public sealed partial class InferTypesPass() : Pass(PassName, PassScope.PerBuild
                 break;
             case FunctionCallExpr call:
                 result = InferFunctionCall(pc, call);
+                FlushPendingLiterals(pc, call.Arguments);
                 break;
             case MethodCallExpr mc:
                 result = InferMethodCall(pc, mc);
+                FlushPendingLiterals(pc, mc.Arguments);
                 break;
             case TableConstructorExpr tc:
                 result = InferTableConstructor(pc, tc);
@@ -2602,11 +2627,13 @@ public sealed partial class InferTypesPass() : Pass(PassName, PassScope.PerBuild
                 break;
             case NewExpr newExpr:
                 result = InferNewExpr(pc, newExpr);
+                FlushPendingLiterals(pc, newExpr.Arguments);
                 break;
             case SuperCallExpr superCall:
                 if (!_constructorSuperCalls.Contains(superCall))
                     pc.Diag.Report(superCall.Span, DiagnosticCode.ErrSuperOutsideConstructor);
-                CheckSuperArguments(pc, superCall, superCall.Arguments.Select(arg => SynthesizeExpr(pc, arg)).ToList());
+                CheckSuperArguments(pc, superCall, superCall.Arguments.Select(arg => SynthesizeArgument(pc, arg)).ToList());
+                FlushPendingLiterals(pc, superCall.Arguments);
                 result = tt.PrimAny.ID;
                 break;
             default:
@@ -2614,6 +2641,7 @@ public sealed partial class InferTypesPass() : Pass(PassName, PassScope.PerBuild
                 break;
         }
 
+        result = Evaluate(pc, result);
         expr.Type = result;
         return result;
     }
@@ -2991,7 +3019,7 @@ public sealed partial class InferTypesPass() : Pass(PassName, PassScope.PerBuild
     {
         var classTypId = LookupSymbolType(pc, newExpr.ClassName.Sym);
         var argTypes = new List<TypID>();
-        foreach (var arg in newExpr.Arguments) argTypes.Add(SynthesizeExpr(pc, arg));
+        foreach (var arg in newExpr.Arguments) argTypes.Add(SynthesizeArgument(pc, arg));
 
         if (classTypId == TypID.Invalid || !pc.Types.GetByID(classTypId, out var rawType) || rawType is not ClassType classType)
         {
@@ -3069,7 +3097,7 @@ public sealed partial class InferTypesPass() : Pass(PassName, PassScope.PerBuild
         for (var i = 0; i < fde.Parameters.Count; i++)
         {
             var param = fde.Parameters[i];
-            var t = ResolveParamType(pc, param);
+            var t = ContextualParamType(fde, param, i) ?? ResolveParamType(pc, param);
             if (param.IsVararg)
             {
                 fdeIsVararg = true;
@@ -3098,7 +3126,8 @@ public sealed partial class InferTypesPass() : Pass(PassName, PassScope.PerBuild
             }
         }
 
-        ResolveFunctionBody(pc, fde.Body, fde.ReturnStmt);
+        var declaredReturn = fde.ReturnType?.ResolvedType ?? (_expectedSignatures.TryGetValue(fde, out var expectedSignature) ? expectedSignature.ReturnType.ID : TypID.Invalid);
+        ResolveFunctionBody(pc, fde.Body, fde.ReturnStmt, declaredReturn);
 
         Type returnType;
         if (fde.ReturnType != null && fde.ReturnType.ResolvedType != TypID.Invalid)
@@ -3152,6 +3181,8 @@ public sealed partial class InferTypesPass() : Pass(PassName, PassScope.PerBuild
     /// </summary>
     private TypID MemberTypeOf(PassContext pc, TypID type)
     {
+        type = ApparentType(pc, type);
+        if (pc.Pkg!.Types.GetByID(type, out var shown) && LiteralBase(shown) is { } literalBase) return literalBase.ID;
         if (!pc.Pkg!.Types.GetByID(type, out var resolved) || resolved is not TypeParameterType typeParameter) return type;
         return typeParameter.ExtendsBound ?? (typeParameter.ImplementsBounds.Count > 0 ? typeParameter.ImplementsBounds[0] : type);
     }
@@ -3400,6 +3431,11 @@ public sealed partial class InferTypesPass() : Pass(PassName, PassScope.PerBuild
             return operatorResult;
         }
 
+        if (FieldByKey(pc, idx, baseType, indexTyp) is { } fieldType)
+        {
+            return fieldType;
+        }
+
         switch (baseType)
         {
             case TableArrayType at:
@@ -3479,7 +3515,7 @@ public sealed partial class InferTypesPass() : Pass(PassName, PassScope.PerBuild
         var argTypes = new List<TypID>();
         foreach (var arg in call.Arguments)
         {
-            argTypes.Add(SynthesizeExpr(pc, arg));
+            argTypes.Add(SynthesizeArgument(pc, arg));
         }
 
         // Interface/class method-overload dispatch on dot-access callees.
@@ -3507,7 +3543,7 @@ public sealed partial class InferTypesPass() : Pass(PassName, PassScope.PerBuild
                 {
                     if (certain && isClassRef && receiverTyp is ClassType staticOwner)
                         dotForOverload.OverloadName = StaticOverloadName(staticOwner, fname, picked);
-                    AdoptEmptyTableArguments(pc, picked, call.Arguments, argTypes, 0);
+                    AdoptArguments(pc, picked, call.Arguments, argTypes, 0);
                     CheckCallArguments(pc, call.Span, picked, argTypes);
                     var ret = SpecializedReturn(pc, picked, argTypes);
                     return call.IsOptional ? MakeNullable(pc, ret) : ret;
@@ -3522,7 +3558,7 @@ public sealed partial class InferTypesPass() : Pass(PassName, PassScope.PerBuild
             {
                 if (!IsImported(pc, ne.Name.Sym)) ne.Name.Sym = resolved.Value.sym;
                 ne.CallsResolvedOverload = resolved.Value.certain;
-                AdoptEmptyTableArguments(pc, resolved.Value.ft, call.Arguments, argTypes, 0);
+                AdoptArguments(pc, resolved.Value.ft, call.Arguments, argTypes, 0);
                 CheckCallArguments(pc, call.Span, resolved.Value.ft, argTypes);
                 var ret = SpecializedReturn(pc, resolved.Value.ft, argTypes);
                 return call.IsOptional ? MakeNullable(pc, ret) : ret;
@@ -3546,6 +3582,7 @@ public sealed partial class InferTypesPass() : Pass(PassName, PassScope.PerBuild
             }
         }
 
+        calleeTyp = ApparentType(pc, calleeTyp);
         if (!pc.Pkg!.Types.GetByID(calleeTyp, out var calleeType))
         {
             return call.IsOptional ? MakeNullable(pc, pc.Types.PrimAny.ID) : pc.Types.PrimAny.ID;
@@ -3568,7 +3605,7 @@ public sealed partial class InferTypesPass() : Pass(PassName, PassScope.PerBuild
             return pc.Types.PrimAny.ID;
         }
 
-        AdoptEmptyTableArguments(pc, fnType, call.Arguments, argTypes, 0);
+        AdoptArguments(pc, fnType, call.Arguments, argTypes, 0);
         CheckCallArguments(pc, call.Span, fnType, argTypes);
         var resultType = SpecializedReturn(pc, fnType, argTypes);
         return call.IsOptional ? MakeNullable(pc, resultType) : resultType;
@@ -3724,7 +3761,7 @@ public sealed partial class InferTypesPass() : Pass(PassName, PassScope.PerBuild
         var argTypes = new List<TypID>();
         foreach (var arg in mc.Arguments)
         {
-            argTypes.Add(SynthesizeExpr(pc, arg));
+            argTypes.Add(SynthesizeArgument(pc, arg));
         }
 
         if (!pc.Pkg!.Types.GetByID(objTyp, out var objType))
@@ -3749,7 +3786,7 @@ public sealed partial class InferTypesPass() : Pass(PassName, PassScope.PerBuild
                     ? new List<TypID>(argTypes.Count + 1) { objTyp }
                     : new List<TypID>(argTypes.Count);
                 pickedArgs.AddRange(argTypes);
-                AdoptEmptyTableArguments(pc, picked, mc.Arguments, pickedArgs, ovPrefixSelf ? 1 : 0);
+                AdoptArguments(pc, picked, mc.Arguments, pickedArgs, ovPrefixSelf ? 1 : 0);
                 CheckCallArguments(pc, mc.Span, picked, WithContinuation(picked, pickedArgs, continuationSupplied));
                 return SpecializedReturn(pc, picked, pickedArgs);
             }
@@ -3767,7 +3804,7 @@ public sealed partial class InferTypesPass() : Pass(PassName, PassScope.PerBuild
                 if (mc.Extension != null) UseExtension(pc, mc.Extension, mc.MethodName.Span, objType);
                 var extArgs = new List<TypID>(argTypes.Count + 1) { objTyp };
                 extArgs.AddRange(argTypes);
-                AdoptEmptyTableArguments(pc, extFn, mc.Arguments, extArgs, 1);
+                AdoptArguments(pc, extFn, mc.Arguments, extArgs, 1);
                 CheckCallArguments(pc, mc.Span, extFn, WithContinuation(extFn, extArgs, continuationSupplied));
                 return SpecializedReturn(pc, extFn, extArgs);
             }
@@ -3795,7 +3832,7 @@ public sealed partial class InferTypesPass() : Pass(PassName, PassScope.PerBuild
             ? new List<TypID>(argTypes.Count + 1) { objTyp }
             : new List<TypID>(argTypes.Count);
         fullArgs.AddRange(argTypes);
-        AdoptEmptyTableArguments(pc, methodFn, mc.Arguments, fullArgs, prefixSelf ? 1 : 0);
+        AdoptArguments(pc, methodFn, mc.Arguments, fullArgs, prefixSelf ? 1 : 0);
         CheckCallArguments(pc, mc.Span, methodFn, WithContinuation(methodFn, fullArgs, continuationSupplied));
 
         return SpecializedReturn(pc, methodFn, fullArgs);
@@ -4121,7 +4158,8 @@ public sealed partial class InferTypesPass() : Pass(PassName, PassScope.PerBuild
         }
 
         var allPositional = tc.Fields.All(f => f.Kind == TableFieldKind.Positional);
-        var allNamed = tc.Fields.All(f => f.Kind == TableFieldKind.Named);
+        var shape = _shapedTables.GetValueOrDefault(tc);
+        var allNamed = tc.Fields.All(f => f.Kind == TableFieldKind.Named || shape != null && f.Key is StringLiteralExpr);
 
         if (allPositional)
         {
@@ -4143,8 +4181,11 @@ public sealed partial class InferTypesPass() : Pass(PassName, PassScope.PerBuild
             var fields = new List<StructType.Field>();
             foreach (var field in tc.Fields)
             {
-                var fValType = SynthesizeExpr(pc, field.Value);
-                fields.Add(new StructType.Field(field.Name!, GetType(pc, fValType)));
+                if (field.Key != null) SynthesizeExpr(pc, field.Key);
+                var fieldName = field.Name ?? new NameRef(TableFieldName(field)!, field.Key!.Span);
+                var expectedField = shape != null ? Type.FieldTypeOf(shape, fieldName.Name) : null;
+                var fValType = expectedField != null ? SynthesizeFor(pc, field.Value, expectedField.ID) : SynthesizeExpr(pc, field.Value);
+                fields.Add(new StructType.Field(fieldName, GetType(pc, fValType)));
             }
 
             return tt.StructOf(fields);
@@ -4322,6 +4363,8 @@ public sealed partial class InferTypesPass() : Pass(PassName, PassScope.PerBuild
             FunctionType function => function.ParamTypes.Any(ContainsTypeParameter) || ContainsTypeParameter(function.ReturnType),
             ClassType classType => classType.TypeArguments.Any(ContainsTypeParameter),
             InterfaceType interfaceType => interfaceType.TypeArguments.Any(ContainsTypeParameter),
+            KeyOfType keyOf => ContainsTypeParameter(keyOf.Target),
+            IndexedAccessType indexed => ContainsTypeParameter(indexed.Target) || ContainsTypeParameter(indexed.Index),
             _ => false,
         };
     }
@@ -4332,7 +4375,7 @@ public sealed partial class InferTypesPass() : Pass(PassName, PassScope.PerBuild
     /// <paramref name="offset"/> is the number of argument types before the written arguments,
     /// such as the receiver of a method call.
     /// </summary>
-    private void AdoptEmptyTableArguments(PassContext pc, FunctionType fnType, List<Expr> arguments, List<TypID> argTypes, int offset)
+    private void AdoptArguments(PassContext pc, FunctionType fnType, List<Expr> arguments, List<TypID> argTypes, int offset)
     {
         for (var i = 0; i < arguments.Count; i++)
         {
@@ -4343,10 +4386,14 @@ public sealed partial class InferTypesPass() : Pass(PassName, PassScope.PerBuild
             if (IsEmptyTable(arguments[i]) && IsTableShape(pc, paramType))
                 argTypes[position] = paramType;
         }
+
+        AdoptLiteralArguments(pc, fnType, arguments, argTypes, offset);
+        AdoptFunctionLiterals(pc, fnType, arguments, argTypes, offset);
     }
 
     private void CheckCallArguments(PassContext pc, TextSpan span, FunctionType fnType, List<TypID> argTypes)
     {
+        fnType = WithDependentParameters(pc, fnType, argTypes);
         _openTypeParamDepth++;
         try
         {
@@ -4407,7 +4454,7 @@ public sealed partial class InferTypesPass() : Pass(PassName, PassScope.PerBuild
                 else
                 {
                     pc.Diag.Report(span, DiagnosticCode.ErrTypeMismatch,
-                        TypeName(pc, paramType), TypeName(pc, argType));
+                        TypeName(pc, ExpectedForMessage(pc, paramType)), TypeName(pc, argType));
                 }
             }
         }
@@ -4711,6 +4758,11 @@ public sealed partial class InferTypesPass() : Pass(PassName, PassScope.PerBuild
 
         if (dst == tt.PrimAny.ID || src == tt.PrimAny.ID) return true;
 
+        var evaluatedDst = Evaluate(pc, dst);
+        var evaluatedSrc = Evaluate(pc, src);
+        if (evaluatedDst != dst || evaluatedSrc != src) return IsTypeAssignable(pc, evaluatedDst, evaluatedSrc);
+        if (UnevaluatedAccessFits(pc, dst, src) is { } accessFits) return accessFits;
+
         // The `function` category accepts any concrete function signature.
         if (dst == tt.PrimFunction.ID && pc.Pkg!.Types.GetByID(src, out var srcFn) && srcFn is FunctionType)
             return true;
@@ -4759,6 +4811,10 @@ public sealed partial class InferTypesPass() : Pass(PassName, PassScope.PerBuild
         {
             if (dst == srcEnum.BaseType.ID) return true;
         }
+
+        if (pc.Pkg!.Types.GetByID(dst, out var literalDst) && pc.Pkg.Types.GetByID(src, out var literalSrc)
+            && LiteralAssignable(pc, literalDst, literalSrc) is { } literalFits)
+            return literalFits;
 
         if (pc.Pkg!.Types.GetByID(dst, out var dstType) && dstType is UnionType unionDst)
         {
@@ -5041,6 +5097,7 @@ public sealed partial class InferTypesPass() : Pass(PassName, PassScope.PerBuild
     private void EnsureConcatable(PassContext pc, TextSpan span, TypID t)
     {
         var tt = pc.Types;
+        t = WithoutLiterals(pc, t);
         if (t == tt.PrimAny.ID || t == tt.PrimString.ID || t == tt.PrimNumber.ID) return;
         if (pc.Pkg!.Types.GetByID(t, out var typ) && typ is EnumType) return;
         pc.Diag.Report(span, DiagnosticCode.ErrTypeMismatch, "string or number", TypeName(pc, t));
@@ -5066,10 +5123,10 @@ public sealed partial class InferTypesPass() : Pass(PassName, PassScope.PerBuild
     }
 
     private bool IsNumberLike(PassContext pc, TypID t) =>
-        t == pc.Types.PrimNumber.ID || t == pc.Types.PrimAny.ID;
+        WithoutLiterals(pc, t) == pc.Types.PrimNumber.ID || t == pc.Types.PrimAny.ID;
 
     private bool IsStringLike(PassContext pc, TypID t) =>
-        t == pc.Types.PrimString.ID || t == pc.Types.PrimAny.ID;
+        WithoutLiterals(pc, t) == pc.Types.PrimString.ID || t == pc.Types.PrimAny.ID;
 
     private bool IsTableLike(PassContext pc, TypID t)
     {
@@ -5704,7 +5761,8 @@ public sealed partial class InferTypesPass() : Pass(PassName, PassScope.PerBuild
             case InterfaceType i: return Type.WithTypeArguments(i.Name, i.ShownArguments, FormatTypeName);
             case EnumType e: return e.Name;
             case TypeParameterType tp: return tp.Name;
-            case StructType s: return "{ " + string.Join(", ", s.Fields.Select(f => $"{f.Name.Name}: {FormatTypeName(f.Type)}")) + " }";
+            case LiteralType or KeyOfType or IndexedAccessType: return Type.FormatComputed(t, FormatTypeName)!;
+            case StructType s: return "{ " + string.Join(", ", s.Fields.Select(f => $"{Type.FieldLabel(f.Name.Name)}: {FormatTypeName(f.Type)}")) + " }";
             case ParameterizedType pt: return $"{FormatTypeName(pt.Definition)}<{string.Join(", ", pt.Args.Select(a => a.ToString()))}>";
             default:
                 return t.Kind switch

@@ -212,7 +212,7 @@
         },
         {
           "name": "keyword.operator.type.nebra",
-          "match": "\\b(is|as|typeof|instanceof)\\b"
+          "match": "\\b(is|as|typeof|instanceof|keyof)\\b"
         }
       ]
     },

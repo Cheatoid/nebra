@@ -18,6 +18,19 @@ public sealed class HoverTests
     }
 
     [Fact]
+    public async Task HoverOverAParameterTypedByTheExpectedFunctionShowsThatType()
+    {
+        await using var session = await LspSession.StartAsync(
+            ("src/main.neb", "local function on(callback: (number) -> nil): nil\n    callback(1)\nend\n\non(function(delta)\n    print({|use|}delta)\nend)\n"));
+
+        await session.OpenAsync("src/main.neb");
+        var hover = await session.HoverAsync("use");
+
+        Assert.NotNull(hover);
+        Assert.Contains("number", hover);
+    }
+
+    [Fact]
     public async Task HoverOverAFunctionCallShowsItsSignature()
     {
         await using var session = await LspSession.StartAsync(

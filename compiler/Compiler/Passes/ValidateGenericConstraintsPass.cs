@@ -244,6 +244,15 @@ public sealed class ValidateGenericConstraintsPass() : Pass(PassName, PassScope.
             case NullableTypeRef nt: VisitTypeRef(ctx, pkg, nt.InnerType); break;
             case UnionTypeRef ut: foreach (var t in ut.Types) VisitTypeRef(ctx, pkg, t); break;
             case ArrayTypeRef at: VisitTypeRef(ctx, pkg, at.ElementType); break;
+            case KeyOfTypeRef keyOf:
+                VisitTypeRef(ctx, pkg, keyOf.Target);
+                ValidateKeyOf(ctx, pkg, keyOf);
+                break;
+            case IndexedAccessTypeRef indexed:
+                VisitTypeRef(ctx, pkg, indexed.Target);
+                VisitTypeRef(ctx, pkg, indexed.Index);
+                ValidateIndexedAccess(ctx, pkg, indexed);
+                break;
             case MapTypeRef mt: VisitTypeRef(ctx, pkg, mt.KeyType); VisitTypeRef(ctx, pkg, mt.ValueType); break;
             case TupleTypeRef tt: foreach (var t in tt.ElementTypes) VisitTypeRef(ctx, pkg, t); break;
             case StructTypeRef st: foreach (var f in st.Fields) VisitTypeRef(ctx, pkg, f.Type); break;
@@ -360,6 +369,31 @@ public sealed class ValidateGenericConstraintsPass() : Pass(PassName, PassScope.
         foreach (var b in iface.BaseInterfaces)
             if (InterfaceExtends(b, target, visited)) return true;
         return false;
+    }
+
+    /// <summary>Reports a <c>keyof</c> of a type that has no fields to name, such as <c>keyof number</c>.</summary>
+    private static void ValidateKeyOf(PassContext ctx, PackageContext pkg, KeyOfTypeRef keyOf)
+    {
+        if (!pkg.Types.GetByID(keyOf.Target.ResolvedType, out var target)) return;
+        if (target is TypeParameterType or KeyOfType or IndexedAccessType || target.Kind == TypeKind.PrimitiveAny) return;
+        if (IR.Type.FieldNamesOf(target) == null)
+            ctx.Diag.Report(keyOf.Target.Span, DiagnosticCode.ErrKeyOfNonShape, TypeName(pkg, target.ID));
+    }
+
+    /// <summary>Reports an indexed access type naming a field its type does not have, such as <c>Events["nope"]</c>.</summary>
+    private static void ValidateIndexedAccess(PassContext ctx, PackageContext pkg, IndexedAccessTypeRef indexed)
+    {
+        if (!pkg.Types.GetByID(indexed.Target.ResolvedType, out var target) || IR.Type.FieldNamesOf(target) is not { } names) return;
+        if (!pkg.Types.GetByID(indexed.Index.ResolvedType, out var index)) return;
+
+        var keys = index is UnionType union ? union.Types : [index];
+        foreach (var key in keys)
+        {
+            if (key is not LiteralType { Value.StringValue: { } name } literal || names.Contains(name)) continue;
+
+            ctx.Diag.Report(indexed.Index.Span, DiagnosticCode.ErrNoSuchKey, TypeName(pkg, target.ID), literal.Value.Text,
+                string.Join(", ", names.Select(field => LiteralValue.Of(field).Text)));
+        }
     }
 
     private static string TypeName(PackageContext pkg, TypID id)

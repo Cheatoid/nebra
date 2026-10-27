@@ -34,12 +34,37 @@ internal partial class IRVisitor
             {
                 NebraParser.ArraySuffixContext => new ArrayTypeRef(NewNodeID, SpanFromCtx(suffix), result),
                 NebraParser.NullableSuffixContext => new NullableTypeRef(NewNodeID, SpanFromCtx(suffix), result),
+                NebraParser.IndexedAccessSuffixContext indexed => new IndexedAccessTypeRef(NewNodeID, SpanFromCtx(suffix), result, (TypeRef)Visit(indexed.typeExpr())),
                 _ => throw new InvalidOperationException($"Unknown type suffix: {suffix.GetType().Name}")
             };
         }
 
         return result;
     }
+
+    public override Node VisitKeyOfType(NebraParser.KeyOfTypeContext context)
+        => new KeyOfTypeRef(NewNodeID, SpanFromCtx(context), (TypeRef)Visit(context.typeSingle()));
+
+    public override Node VisitStringLiteralType(NebraParser.StringLiteralTypeContext context)
+    {
+        if (Visit(context.str()) is StringLiteralExpr literal)
+            return new LiteralTypeRef(NewNodeID, SpanFromCtx(context), LiteralValue.Of(literal.Value));
+
+        diag.Report(SpanFromCtx(context), DiagnosticCode.ErrInterpolatedLiteralType);
+        return new PrimitiveTypeRef(NewNodeID, SpanFromCtx(context), TypeKind.PrimitiveString);
+    }
+
+    public override Node VisitNumberLiteralType(NebraParser.NumberLiteralTypeContext context)
+    {
+        var literal = (NumberLiteralExpr)Visit(context.number());
+        return new LiteralTypeRef(NewNodeID, SpanFromCtx(context), LiteralValue.Of(literal, context.MINUS() != null));
+    }
+
+    public override Node VisitTrueLiteralType(NebraParser.TrueLiteralTypeContext context)
+        => new LiteralTypeRef(NewNodeID, SpanFromCtx(context), LiteralValue.Of(true));
+
+    public override Node VisitFalseLiteralType(NebraParser.FalseLiteralTypeContext context)
+        => new LiteralTypeRef(NewNodeID, SpanFromCtx(context), LiteralValue.Of(false));
 
     public override Node VisitNilType(NebraParser.NilTypeContext context)
         => new PrimitiveTypeRef(NewNodeID, SpanFromCtx(context), TypeKind.PrimitiveNil);
@@ -121,7 +146,7 @@ internal partial class IRVisitor
     public override Node VisitStructType(NebraParser.StructTypeContext context)
     {
         var fields = context.structField().Select(f => new StructTypeField(
-            NameRefFromMember(f.memberName()),
+            NameRefFromField(f.fieldName()),
             (TypeRef)Visit(f.typeExpr()),
             f.META() != null,
             SpanFromCtx(f)

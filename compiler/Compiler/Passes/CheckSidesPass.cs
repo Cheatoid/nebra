@@ -300,6 +300,11 @@ public sealed class CheckSidesPass()
                 }
                 break;
             case ArrayTypeRef ar: VisitTypeRef(ctx, ar.ElementType, fileMask); break;
+            case KeyOfTypeRef keyOf: VisitTypeRef(ctx, keyOf.Target, fileMask); break;
+            case IndexedAccessTypeRef indexed:
+                VisitTypeRef(ctx, indexed.Target, fileMask);
+                VisitTypeRef(ctx, indexed.Index, fileMask);
+                break;
             case NullableTypeRef nr: VisitTypeRef(ctx, nr.InnerType, fileMask); break;
             case UnionTypeRef ur:
                 foreach (var t in ur.Types) VisitTypeRef(ctx, t, fileMask);

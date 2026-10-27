@@ -378,6 +378,16 @@ internal partial class IRVisitor
         return member == null ? new NameRef("", TextSpan.Empty) : new NameRef(member.GetText(), SpanFromCtx(member));
     }
 
+    /// <summary>
+    /// The name of an interface or struct field, written as a name or as a string such as
+    /// <c>"user:login"</c> for a key that is not one.
+    /// </summary>
+    private NameRef NameRefFromField(NebraParser.FieldNameContext field)
+    {
+        if (field.memberName() is { } member) return NameRefFromMember(member);
+        return new NameRef(((StringLiteralExpr)Visit(field.str())).Value, SpanFromCtx(field));
+    }
+
     private NameRef NameRefFromText(string name, TextSpan? span = null)
     {
         return new NameRef(name, span ?? TextSpan.Empty);
