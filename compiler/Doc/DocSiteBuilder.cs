@@ -1,6 +1,7 @@
 ﻿using Nebra.Compiler;
 using Nebra.Configuration;
 using Nebra.IR;
+using Nebra.LPS;
 
 namespace Nebra.Doc;
 
@@ -24,7 +25,7 @@ public static class DocSiteBuilder
         }
 
         var compiler = new NebraCompiler { Config = config.Clone() };
-        var files = Directory.EnumerateFiles(srcDir, "*.neb", SearchOption.AllDirectories)
+        var files = ProjectFiles.Files(srcDir, "*.neb")
             .Where(f => !f.EndsWith(".d.neb", StringComparison.OrdinalIgnoreCase))
             .OrderBy(f => f, StringComparer.OrdinalIgnoreCase)
             .ToList();

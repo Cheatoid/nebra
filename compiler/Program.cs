@@ -109,12 +109,12 @@ internal static class Program
         if (runScripts && !RunScripts(config.Scripts.PreBuild, "pre-build"))
             return 1;
 
-        var sourceFiles = Directory.GetFiles(srcDir, "*.neb", SearchOption.AllDirectories)
+        var sourceFiles = ProjectFiles.Files(srcDir, "*.neb")
             .Where(f => !f.EndsWith(".d.neb", StringComparison.OrdinalIgnoreCase))
             .ToArray();
         if (sourceFiles.Length == 0)
         {
-            var hasDecls = Directory.EnumerateFiles(srcDir, "*.d.neb", SearchOption.AllDirectories).Any();
+            var hasDecls = ProjectFiles.Files(srcDir, "*.d.neb").Any();
             if (hasDecls)
             {
                 await Console.Error.WriteLineAsync(
@@ -165,9 +165,7 @@ internal static class Program
             return 1;
         }
 
-        var declarationFiles = Directory
-            .GetFiles(srcDir, "*.d.neb", SearchOption.AllDirectories)
-            .ToArray();
+        var declarationFiles = ProjectFiles.Files(srcDir, "*.d.neb").ToArray();
 
         if (declarationFiles.Length == 0)
         {
@@ -635,8 +633,7 @@ internal static class Program
                 return 1;
             }
 
-            nebraFiles.AddRange(Directory
-                .GetFiles(srcDir, "*.neb", SearchOption.AllDirectories)
+            nebraFiles.AddRange(ProjectFiles.Files(srcDir, "*.neb")
                 .Where(f => !f.EndsWith(".d.neb", StringComparison.OrdinalIgnoreCase)));
 
             if (nebraFiles.Count == 0)
@@ -975,7 +972,7 @@ internal static class Program
 
         var srcDir = Path.Combine(Environment.CurrentDirectory, config.Source);
         var sourceFiles = Directory.Exists(srcDir)
-            ? Directory.GetFiles(srcDir, "*.neb", SearchOption.AllDirectories)
+            ? ProjectFiles.Files(srcDir, "*.neb")
                 .Where(f => !f.EndsWith(".d.neb", StringComparison.OrdinalIgnoreCase))
                 .ToList()
             : [];
@@ -1047,7 +1044,7 @@ internal static class Program
         return ok ? 0 : 1;
     }
 
-    private static List<string> DiscoverTestFiles(Config config, IEnumerable<string> sourceFiles)
+    internal static List<string> DiscoverTestFiles(Config config, IEnumerable<string> sourceFiles)
     {
         var result = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
@@ -1070,14 +1067,31 @@ internal static class Program
                 ? dir
                 : Path.Combine(Environment.CurrentDirectory, dir);
             if (!Directory.Exists(fullDir)) continue;
-            foreach (var f in Directory.EnumerateFiles(fullDir, "*.neb", SearchOption.AllDirectories))
+
+            foreach (var file in TestDirectoryFiles(fullDir))
             {
-                if (f.EndsWith(".d.neb", StringComparison.OrdinalIgnoreCase)) continue;
-                result.Add(Path.GetFullPath(f));
+                result.Add(Path.GetFullPath(file));
             }
         }
 
         return result.OrderBy(f => f, StringComparer.Ordinal).ToList();
+    }
+
+    /// <summary>
+    /// The test sources in <paramref name="testDirectory"/>. A directory beneath it holding its own
+    /// <c>nebra.toml</c> is a separate project, such as a fixture built on its own, so its files
+    /// are not tests of this one.
+    /// </summary>
+    private static IEnumerable<string> TestDirectoryFiles(string testDirectory)
+    {
+        var nestedProjects = ProjectFiles.Directories(testDirectory)
+            .Where(directory => directory != testDirectory && File.Exists(Path.Combine(directory, "nebra.toml")))
+            .Select(directory => directory + Path.DirectorySeparatorChar)
+            .ToList();
+
+        return ProjectFiles.Files(testDirectory, "*.neb")
+            .Where(file => !file.EndsWith(".d.neb", StringComparison.OrdinalIgnoreCase))
+            .Where(file => !nestedProjects.Any(project => file.StartsWith(project, StringComparison.Ordinal)));
     }
 
     private static string BuildTestRunnerScript(List<string> compiledLuaPaths, string? filter, bool quiet)
@@ -1404,7 +1418,7 @@ internal static class Program
             return 1;
         }
 
-        var sourceFiles = Directory.GetFiles(srcDir, "*.neb", SearchOption.AllDirectories)
+        var sourceFiles = ProjectFiles.Files(srcDir, "*.neb")
             .Where(f => !f.EndsWith(".d.neb", StringComparison.OrdinalIgnoreCase))
             .ToArray();
         if (sourceFiles.Length == 0)
