@@ -118,6 +118,13 @@ public class Type(TypeKind kind)
     /// a union or a function and stands inside another union, an array or a variadic, so the
     /// rendering reads back as the same type.
     /// </summary>
+    /// <summary>
+    /// <paramref name="name"/> followed by its type arguments, or parameters, such as
+    /// <c>Box&lt;number&gt;</c>, rendered with <paramref name="format"/>; the bare name without any.
+    /// </summary>
+    public static string WithTypeArguments(string name, IReadOnlyList<Type> arguments, Func<Type, string> format) =>
+        arguments.Count == 0 ? name : $"{name}<{string.Join(", ", arguments.Select(format))}>";
+
     public static string Grouped(Type type, string text) =>
         type is UnionType or FunctionType ? $"({text})" : text;
 
@@ -187,15 +194,26 @@ public class Type(TypeKind kind)
         switch (objType)
         {
             case ClassType ct:
+                if (ct.GenericDefinition != null) yield return ct.GenericDefinition;
                 for (var cur = ct.BaseClass; cur != null; cur = cur.BaseClass)
+                {
                     yield return cur;
+                    if (cur.GenericDefinition != null) yield return cur.GenericDefinition;
+                }
 
                 foreach (var iface in ImplementedInterfaces(ct))
+                {
                     yield return iface;
+                    if (iface.GenericDefinition != null) yield return iface.GenericDefinition;
+                }
                 break;
             case InterfaceType it:
+                if (it.GenericDefinition != null) yield return it.GenericDefinition;
                 foreach (var b in BaseInterfacesOf(it))
+                {
                     yield return b;
+                    if (b.GenericDefinition != null) yield return b.GenericDefinition;
+                }
                 break;
         }
     }
@@ -715,9 +733,33 @@ public sealed class ClassType(
     /// </summary>
     public string? CtorTemplate { get; set; }
 
+    /// <summary>
+    /// The generic class this type instantiates, such as <c>Box</c> for <c>Box&lt;number&gt;</c>;
+    /// <c>null</c> for any other class. An instantiation carries the definition's members with its
+    /// type arguments substituted, filled in by <see cref="TypeTable.Instantiate(ClassType, List{Type})"/>.
+    /// </summary>
+    public ClassType? GenericDefinition { get; init; }
+
+    /// <summary>The type arguments of an instantiation, in the order of its definition's type parameters.</summary>
+    public List<Type> TypeArguments { get; init; } = [];
+
+    /// <summary>Whether the members of this class are declared, so its instantiations can take them over.</summary>
+    public bool MembersDeclared { get; set; }
+
+    /// <summary>The instantiations of this generic class created so far.</summary>
+    public List<ClassType> Instantiations { get; } = [];
+
+    /// <summary>The class itself, or the generic class it instantiates.</summary>
+    public ClassType Definition => GenericDefinition ?? this;
+
+    /// <summary>The type arguments of an instantiation, or the type parameters of a generic definition, as written after its name.</summary>
+    public IReadOnlyList<Type> ShownArguments => GenericDefinition != null ? TypeArguments : TypeParams;
+
     protected override TypeKey GenerateNewKey()
     {
-        return $"class<{Name}>";
+        return GenericDefinition == null
+            ? $"class<{Name}>"
+            : $"class<{Name}<{string.Join(", ", TypeArguments.Select(argument => argument.Key.Value))}>>";
     }
 }
 
@@ -769,9 +811,29 @@ public sealed class InterfaceType(
     public Dictionary<string, Side> FieldSides { get; } = new();
     public Dictionary<string, Side> MethodSides { get; } = new();
 
+    /// <summary>The generic interface this type instantiates; see <see cref="ClassType.GenericDefinition"/>.</summary>
+    public InterfaceType? GenericDefinition { get; init; }
+
+    /// <summary>The type arguments of an instantiation, in the order of its definition's type parameters.</summary>
+    public List<Type> TypeArguments { get; init; } = [];
+
+    /// <summary>Whether the members of this interface are declared, so its instantiations can take them over.</summary>
+    public bool MembersDeclared { get; set; }
+
+    /// <summary>The instantiations of this generic interface created so far.</summary>
+    public List<InterfaceType> Instantiations { get; } = [];
+
+    /// <summary>The interface itself, or the generic interface it instantiates.</summary>
+    public InterfaceType Definition => GenericDefinition ?? this;
+
+    /// <summary>The type arguments of an instantiation, or the type parameters of a generic definition, as written after its name.</summary>
+    public IReadOnlyList<Type> ShownArguments => GenericDefinition != null ? TypeArguments : TypeParams;
+
     protected override TypeKey GenerateNewKey()
     {
-        return $"interface<{Name}>";
+        return GenericDefinition == null
+            ? $"interface<{Name}>"
+            : $"interface<{Name}<{string.Join(", ", TypeArguments.Select(argument => argument.Key.Value))}>>";
     }
 }
 
@@ -854,7 +916,7 @@ public sealed class ParameterizedType(Type definition, List<TypeArg> args) : Typ
 /// Represents a type table that maps type keys to their corresponding types. This is used to keep track of the types in
 /// the IR, and to ensure that the types are unique and do not conflict with each other.
 /// </summary>
-public sealed class TypeTable
+public sealed partial class TypeTable
 {
     /// <summary>
     /// The ID of the primitive nil.
@@ -1142,6 +1204,7 @@ public sealed class TypeTable
     public Type Substitute(Type t, Dictionary<TypID, Type> subst)
     {
         if (subst.Count == 0) return t;
+        if (SubstituteNamed(t, subst) is { } named) return named;
         switch (t)
         {
             case TypeParameterType tp:

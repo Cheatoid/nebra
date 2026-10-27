@@ -1,3 +1,4 @@
+using Nebra.Diagnostics;
 using Nebra.IR;
 
 namespace Nebra.Compiler.Passes;
@@ -54,6 +55,38 @@ public sealed partial class InferTypesPass
         if (pc.Pkg!.Types.GetByID(dst, out var destination) && destination is UnionType) return null;
         if (typeParam.ExtendsBound is { } extendsBound && IsTypeAssignable(pc, dst, extendsBound)) return true;
         return typeParam.ImplementsBounds.Any(bound => IsTypeAssignable(pc, dst, bound));
+    }
+
+    /// <summary>
+    /// The cache key under which the build records that it checks a value against an
+    /// instantiation such as <c>Box&lt;number&gt;</c> at runtime, so <c>new</c> records the type
+    /// arguments of what it creates.
+    /// </summary>
+    public const string GenericTypeChecksKey = "generic_type_checks";
+
+    /// <summary>
+    /// Notes an <c>is</c> or <c>instanceof</c> check against an instantiation. Arguments that are
+    /// type parameters are not known at runtime, so such a check only tests the class and says so.
+    /// </summary>
+    private void NoteGenericTypeCheck(PassContext pc, TypeRef? target, TextSpan span)
+    {
+        if (target == null || !pc.Types.GetByID(target.ResolvedType, out var type)) return;
+
+        var arguments = type switch
+        {
+            ClassType { GenericDefinition: not null } classType => classType.TypeArguments,
+            InterfaceType { GenericDefinition: not null } interfaceType => interfaceType.TypeArguments,
+            _ => null,
+        };
+        if (arguments == null) return;
+
+        if (arguments.Any(ContainsTypeParameter))
+        {
+            pc.Diag.Report(span, DiagnosticCode.WarnGenericInstanceOfErased, TypeName(pc, type.ID));
+            return;
+        }
+
+        pc.Cache[GenericTypeChecksKey] = true;
     }
 
     private sealed class FixedTypeParamScope(HashSet<TypID> fixedTypeParams, List<TypID> added) : IDisposable

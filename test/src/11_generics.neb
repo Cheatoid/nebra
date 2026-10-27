@@ -37,6 +37,44 @@ class Registry<T extends HasName>
     end
 end
 
+interface Source<T>
+    method next(): T?
+end
+
+class Stack<T> implements Source<T>
+    items: T[]
+
+    constructor(items: T[])
+        self.items = items
+    end
+
+    function next(): T?
+        return self.items[#self.items]
+    end
+
+    function map<U>(f: (T) -> U): Stack<U>
+        local mapped: U[] = {}
+        for i, item in ipairs(self.items) do
+            mapped[i] = f(item)
+        end
+        return new Stack(mapped)
+    end
+end
+
+class Numbers extends Stack<number>
+    function sum(): number
+        local mut total = 0
+        for _, item in ipairs(self.items) do
+            total = total + item
+        end
+        return total
+    end
+end
+
+local function firstOf<T>(source: Source<T>): T?
+    return source:next()
+end
+
 local function identity<T>(value: T): T
     return value
 end
@@ -77,4 +115,20 @@ export function run(): nil
     local s, n = pair("x", 9)
     expectEq("pair first", s, "x")
     expectEq("pair second", n, 9)
+
+    local numbers = new Numbers({ 1, 2, 3 })
+    local labels: Stack<string> = numbers:map(function(item: number): string return "n" .. tostring(item) end)
+    expectEq("substituted base members", numbers:sum(), 6)
+    expectEq("substituted generic method", labels:next(), "n3")
+    expectEq("substituted interface", firstOf(numbers), 3)
+
+    local anything: any = numbers
+    expect("is checks the type arguments", anything is Stack<number>)
+    expect("is rejects other type arguments", not (anything is Stack<string>))
+    expect("instanceof checks the type arguments", anything instanceof Stack<number>)
+    expect("is checks interface type arguments", anything is Source<number>)
+    expect("is rejects other interface type arguments", not (anything is Source<string>))
+    expect("a bare generic class matches every instantiation", anything is Stack)
+    local mapped: any = labels
+    expect("is checks the type arguments of a mapped value", mapped is Stack<string>)
 end

@@ -78,6 +78,7 @@ public static class OverloadSignature
             ClassType classType => classType.Name,
             InterfaceType interfaceType => interfaceType.Name,
             EnumType enumType => enumType.Name,
+            TypeParameterType typeParameter => typeParameter.Name,
             TableArrayType array => TypeName(array.ElementType) + "_array",
             TableMapType => "map",
             UnionType union when union.Types.Any(member => member.Kind == TypeKind.PrimitiveNil) =>

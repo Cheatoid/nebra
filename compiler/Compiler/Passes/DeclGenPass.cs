@@ -287,6 +287,7 @@ public sealed class DeclGenPass() : Pass(PassName, PassScope.PerBuild, true)
             sb.Append(fd.MethodName.Name);
         }
 
+        sb.Append(TypeParamList(ctx, fd.TypeParams));
         sb.Append('(');
         EmitParams(sb, ctx, pkg, fd.Parameters);
         sb.Append(')');
@@ -299,6 +300,7 @@ public sealed class DeclGenPass() : Pass(PassName, PassScope.PerBuild, true)
     {
         sb.Append("    function ");
         sb.Append(lfd.Name.Name);
+        sb.Append(TypeParamList(ctx, lfd.TypeParams));
         sb.Append('(');
         EmitParams(sb, ctx, pkg, lfd.Parameters);
         sb.Append(')');
@@ -321,15 +323,21 @@ public sealed class DeclGenPass() : Pass(PassName, PassScope.PerBuild, true)
         if (cd.IsSealed) sb.Append("sealed ");
         sb.Append("class ");
         sb.Append(cd.Name.Name);
+        sb.Append(TypeParamList(ctx, cd.TypeParams));
+        var classType = pkg.Syms.GetByID(cd.Name.Sym, out var classSymbol) && ctx.Types.GetByID(classSymbol.Type, out var declared)
+            ? declared as ClassType
+            : null;
         if (cd.BaseClass != null)
         {
             sb.Append(" extends ");
-            sb.Append(cd.BaseClass.Name);
+            sb.Append(classType?.BaseClass != null ? FormatType(ctx, classType.BaseClass) : cd.BaseClass.Name);
         }
         if (cd.Interfaces.Count > 0)
         {
             sb.Append(" implements ");
-            sb.Append(string.Join(", ", cd.Interfaces.Select(i => i.Name)));
+            sb.Append(classType != null && classType.Interfaces.Count == cd.Interfaces.Count
+                ? string.Join(", ", classType.Interfaces.Select(i => FormatType(ctx, i)))
+                : string.Join(", ", cd.Interfaces.Select(i => i.Name)));
         }
         sb.AppendLine();
 
@@ -369,6 +377,7 @@ public sealed class DeclGenPass() : Pass(PassName, PassScope.PerBuild, true)
             if (method.IsAsync) sb.Append("async ");
             sb.Append("function ");
             sb.Append(method.Name.Name);
+            sb.Append(TypeParamList(ctx, method.TypeParams));
             sb.Append('(');
             EmitParams(sb, ctx, pkg, method.Parameters);
             sb.Append(')');
@@ -397,10 +406,16 @@ public sealed class DeclGenPass() : Pass(PassName, PassScope.PerBuild, true)
     {
         sb.Append("    interface ");
         sb.Append(ifd.Name.Name);
+        sb.Append(TypeParamList(ctx, ifd.TypeParams));
+        var interfaceType = pkg.Syms.GetByID(ifd.Name.Sym, out var interfaceSymbol) && ctx.Types.GetByID(interfaceSymbol.Type, out var declaredInterface)
+            ? declaredInterface as InterfaceType
+            : null;
         if (ifd.BaseInterfaces.Count > 0)
         {
             sb.Append(" extends ");
-            sb.Append(string.Join(", ", ifd.BaseInterfaces.Select(i => i.Name)));
+            sb.Append(interfaceType != null && interfaceType.BaseInterfaces.Count == ifd.BaseInterfaces.Count
+                ? string.Join(", ", interfaceType.BaseInterfaces.Select(i => FormatType(ctx, i)))
+                : string.Join(", ", ifd.BaseInterfaces.Select(i => i.Name)));
         }
         sb.AppendLine();
 
@@ -421,6 +436,7 @@ public sealed class DeclGenPass() : Pass(PassName, PassScope.PerBuild, true)
             if (method.IsAsync) sb.Append("async ");
             sb.Append(method.IsMethod ? "method " : "function ");
             sb.Append(method.Name.Name);
+            sb.Append(TypeParamList(ctx, method.TypeParams));
             sb.Append('(');
             EmitParams(sb, ctx, pkg, method.Parameters);
             sb.Append(')');
@@ -429,6 +445,30 @@ public sealed class DeclGenPass() : Pass(PassName, PassScope.PerBuild, true)
         }
 
         sb.AppendLine("    end");
+    }
+
+    /// <summary>
+    /// The type parameter list of a generic declaration as it is written, bounds included, such as
+    /// <c>&lt;T extends Shape implements Named, U&gt;</c>; empty for a declaration without one.
+    /// </summary>
+    private string TypeParamList(PassContext ctx, List<TypeParamDef> typeParams)
+    {
+        if (typeParams.Count == 0) return "";
+
+        var parameters = typeParams.Select(typeParam =>
+        {
+            var text = typeParam.Name.Name;
+            if (typeParam.ExtendsBound != null && ctx.Types.GetByID(typeParam.ExtendsBound.ResolvedType, out var extendsBound))
+                text += " extends " + FormatType(ctx, extendsBound);
+
+            var implementsBounds = typeParam.ImplementsBounds
+                .Select(bound => ctx.Types.GetByID(bound.ResolvedType, out var type) ? FormatType(ctx, type) : null)
+                .OfType<string>()
+                .ToList();
+            if (implementsBounds.Count > 0) text += " implements " + string.Join(", ", implementsBounds);
+            return text;
+        });
+        return "<" + string.Join(", ", parameters) + ">";
     }
 
     private void EmitParams(StringBuilder sb, PassContext ctx, PackageContext pkg, List<Parameter> parameters)
@@ -528,8 +568,9 @@ public sealed class DeclGenPass() : Pass(PassName, PassScope.PerBuild, true)
             StructType st => $"{{ {string.Join(", ", st.Fields.Select(f => $"{f.Name.Name}: {FormatType(ctx, f.Type)}"))} }}",
             TupleType tuple => $"({string.Join(", ", tuple.Fields.Select(f => FormatType(ctx, f.Type)))})",
             VariadicType variadic => $"...{Type.Grouped(variadic.ElementType, FormatType(ctx, variadic.ElementType))}",
-            ClassType ct => ct.Name,
-            InterfaceType it => it.Name,
+            TypeParameterType typeParameter => typeParameter.Name,
+            ClassType ct => Type.WithTypeArguments(ct.Name, ct.ShownArguments, t => FormatType(ctx, t)),
+            InterfaceType it => Type.WithTypeArguments(it.Name, it.ShownArguments, t => FormatType(ctx, t)),
             EnumType et => et.Name,
             _ => typ.Kind switch
             {

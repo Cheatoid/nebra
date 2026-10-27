@@ -973,11 +973,12 @@ public sealed partial class InferTypesPass() : Pass(PassName, PassScope.PerBuild
         LinkBaseClass(pc, cd, classType, report: true);
         if (cd.BaseClass != null && classType.BaseClass != null)
         {
-            ReportBaseTypeArguments(pc, cd.BaseClass, classType.BaseClass.TypeParams.Count, cd.BaseClassTypeArgs);
-            if (classType.BaseClass.IsSealed)
-                pc.Diag.Report(cd.BaseClass.Span, DiagnosticCode.ErrSealedBase, classType.BaseClass.Name);
-            else if (classType.BaseClass.HasLocalConstructor)
-                pc.Diag.Report(cd.BaseClass.Span, DiagnosticCode.ErrLocalConstructor, classType.BaseClass.Name);
+            var baseDefinition = classType.BaseClass.Definition;
+            ReportBaseTypeArguments(pc, cd.BaseClass, baseDefinition.TypeParams.Count, cd.BaseClassTypeArgs);
+            if (baseDefinition.IsSealed)
+                pc.Diag.Report(cd.BaseClass.Span, DiagnosticCode.ErrSealedBase, baseDefinition.Name);
+            else if (baseDefinition.HasLocalConstructor)
+                pc.Diag.Report(cd.BaseClass.Span, DiagnosticCode.ErrLocalConstructor, baseDefinition.Name);
         }
 
         for (var index = 0; index < cd.Interfaces.Count; index++)
@@ -987,8 +988,9 @@ public sealed partial class InferTypesPass() : Pass(PassName, PassScope.PerBuild
             var ifaceTyp = LookupSymbolType(pc, iface.Sym);
             if (ifaceTyp != TypID.Invalid && pc.Types.GetByID(ifaceTyp, out var it) && it is InterfaceType ifaceType)
             {
-                AddOnce(classType.Interfaces, ifaceType);
-                ReportBaseTypeArguments(pc, iface, ifaceType.TypeParams.Count, index < cd.InterfaceTypeArgs.Count ? cd.InterfaceTypeArgs[index] : []);
+                var interfaceArgs = index < cd.InterfaceTypeArgs.Count ? cd.InterfaceTypeArgs[index] : [];
+                AddOnce(classType.Interfaces, (InterfaceType)ResolveTypeRefsPass.Instantiation(pc.Types, ifaceType, interfaceArgs));
+                ReportBaseTypeArguments(pc, iface, ifaceType.TypeParams.Count, interfaceArgs);
             }
             else if (ifaceTyp != TypID.Invalid)
                 pc.Diag.Report(iface.Span, Diagnostics.DiagnosticCode.ErrImplementsNonInterface, iface.Name);
@@ -1154,6 +1156,7 @@ public sealed partial class InferTypesPass() : Pass(PassName, PassScope.PerBuild
             }
         }
 
+        pc.Types.CompleteMembers(classType);
         return methodBodies;
     }
 
@@ -1200,6 +1203,8 @@ public sealed partial class InferTypesPass() : Pass(PassName, PassScope.PerBuild
         {
             _openTypeParamDepth--;
         }
+
+        pc.Types.CompleteMembers(classType);
     }
 
     /// <summary>
@@ -1313,7 +1318,8 @@ public sealed partial class InferTypesPass() : Pass(PassName, PassScope.PerBuild
             return;
         }
 
-        if (classType.BaseClass?.ID == baseCls.ID) return;
+        var linked = (ClassType)ResolveTypeRefsPass.Instantiation(pc.Types, baseCls, cd.BaseClassTypeArgs);
+        if (classType.BaseClass?.ID == linked.ID) return;
 
         if (ReachesThroughBaseClasses(baseCls, classType))
         {
@@ -1322,7 +1328,7 @@ public sealed partial class InferTypesPass() : Pass(PassName, PassScope.PerBuild
             return;
         }
 
-        classType.BaseClass = baseCls;
+        classType.BaseClass = linked;
     }
 
     /// <summary>
@@ -1851,8 +1857,9 @@ public sealed partial class InferTypesPass() : Pass(PassName, PassScope.PerBuild
             var bt = LookupSymbolType(pc, baseIface.Sym);
             if (bt != TypID.Invalid && pc.Types.GetByID(bt, out var bit) && bit is InterfaceType baseIfaceType)
             {
-                ReportBaseTypeArguments(pc, baseIface, baseIfaceType.TypeParams.Count,
-                    index < id.BaseInterfaceTypeArgs.Count ? id.BaseInterfaceTypeArgs[index] : []);
+                var baseArgs = index < id.BaseInterfaceTypeArgs.Count ? id.BaseInterfaceTypeArgs[index] : [];
+                ReportBaseTypeArguments(pc, baseIface, baseIfaceType.TypeParams.Count, baseArgs);
+                baseIfaceType = (InterfaceType)ResolveTypeRefsPass.Instantiation(pc.Types, baseIfaceType, baseArgs);
                 // Same reasoning as for base classes: a cycle here makes the walks over the
                 // extends graph non-terminating, so it is rejected rather than recorded.
                 if (ReachesThroughBaseInterfaces(baseIfaceType, ifaceType))
@@ -1928,6 +1935,7 @@ public sealed partial class InferTypesPass() : Pass(PassName, PassScope.PerBuild
             }
         }
 
+        pc.Types.CompleteMembers(ifaceType);
         using var interfaceTypeParams = FixTypeParams(id.TypeParams);
         foreach (var (method, returnType) in defaultBodies)
         {
@@ -2550,6 +2558,7 @@ public sealed partial class InferTypesPass() : Pass(PassName, PassScope.PerBuild
                 break;
             case TypeCheckExpr tchk:
                 SynthesizeExpr(pc, tchk.Inner);
+                NoteGenericTypeCheck(pc, tchk.TargetType, tchk.Span);
                 result = tt.PrimBool.ID;
                 break;
             case TypeCastExpr tcast:
@@ -2564,10 +2573,7 @@ public sealed partial class InferTypesPass() : Pass(PassName, PassScope.PerBuild
                 break;
             case InstanceOfExpr iof:
                 SynthesizeExpr(pc, iof.Inner);
-                if (iof.TargetType is GenericTypeRef)
-                {
-                    pc.Diag.Report(iof.Span, DiagnosticCode.WarnGenericInstanceOfErased, iof.ClassName.Name);
-                }
+                if (iof.TargetType is GenericTypeRef) NoteGenericTypeCheck(pc, iof.TargetType, iof.Span);
                 result = tt.PrimBool.ID;
                 break;
             case FunctionDefExpr fde:
@@ -3000,7 +3006,7 @@ public sealed partial class InferTypesPass() : Pass(PassName, PassScope.PerBuild
             return classTypId;
         }
 
-        if (classType.HasLocalConstructor && _currentClass != classType)
+        if (classType.HasLocalConstructor && _currentClass?.Definition != classType.Definition)
             pc.Diag.Report(newExpr.Span, DiagnosticCode.ErrLocalConstructor, classType.Name);
 
         var ctorType = ResolveConstructorType(classType);
@@ -3014,7 +3020,27 @@ public sealed partial class InferTypesPass() : Pass(PassName, PassScope.PerBuild
             CheckConstructorArguments(pc, newExpr.Span, newExpr.ClassName.Name, ctorType, newExpr.Arguments, argTypes);
         }
 
-        return classTypId;
+        return InferredInstantiation(pc, classType, ctorType, argTypes).ID;
+    }
+
+    /// <summary>
+    /// The type <c>new</c> creates: for a generic class, the instantiation its constructor's
+    /// arguments tell, with <c>any</c> for a type parameter they leave open.
+    /// </summary>
+    private ClassType InferredInstantiation(PassContext pc, ClassType classType, FunctionType? constructor, List<TypID> argTypes)
+    {
+        if (classType.TypeParams.Count == 0) return classType;
+
+        var bindings = new Dictionary<TypID, Type>();
+        for (var i = 0; constructor != null && i < argTypes.Count; i++)
+        {
+            var parameter = i < constructor.ParamTypes.Count ? constructor.ParamTypes[i] : constructor.IsVararg ? constructor.VarargType : null;
+            if (parameter != null && pc.Pkg!.Types.GetByID(argTypes[i], out var argument))
+                Bind(pc, parameter, argument, bindings);
+        }
+
+        var arguments = classType.TypeParams.Select(typeParam => bindings.GetValueOrDefault(typeParam.ID) ?? pc.Types.PrimAny).ToList();
+        return pc.Types.Instantiate(classType, arguments);
     }
 
     /// <summary>
@@ -3304,7 +3330,7 @@ public sealed partial class InferTypesPass() : Pass(PassName, PassScope.PerBuild
         var privateOwner = FindPrivateOwner(classType, memberName);
         if (privateOwner != null)
         {
-            if (!ReferenceEquals(_currentClass, privateOwner))
+            if (_currentClass?.Definition != privateOwner.Definition)
                 pc.Diag.Report(span, DiagnosticCode.ErrPrivateAccess, memberName, privateOwner.Name);
             return;
         }
@@ -3348,7 +3374,7 @@ public sealed partial class InferTypesPass() : Pass(PassName, PassScope.PerBuild
     {
         for (var cur = candidate; cur != null; cur = cur.BaseClass)
         {
-            if (cur.ID == target.ID) return true;
+            if (cur.Definition == target.Definition) return true;
         }
 
         return false;
@@ -4041,16 +4067,25 @@ public sealed partial class InferTypesPass() : Pass(PassName, PassScope.PerBuild
     /// <summary>
     /// The name of the Lua function holding the overload <paramref name="picked"/> of the instance
     /// method <paramref name="name"/> called on a <paramref name="receiver"/>, or <c>null</c> when
-    /// the class declaring it keeps the overload under the method's plain name.
+    /// the class declaring it keeps the overload under the method's plain name. On an
+    /// instantiation such as <c>Box&lt;number&gt;</c> the name comes from the generic definition's
+    /// signature, which is the one the class is emitted with.
     /// </summary>
     private static string? InstanceOverloadName(ClassType receiver, string name, FunctionType picked)
     {
-        var suffix = OverloadSignature.Suffix(picked, true);
-        var owner = OverloadSignature.InstanceOverloads(receiver, name)
-            .FirstOrDefault(overload => OverloadSignature.Suffix(overload.Function, true) == suffix).Owner;
-        return owner != null && OverloadSignature.IsSplit(owner, name, false)
-            ? OverloadSignature.VariantName(name, picked, true)
-            : null;
+        for (var current = receiver; current != null; current = current.BaseClass)
+        {
+            if (!current.MethodOverloads.TryGetValue(name, out var overloads)) continue;
+
+            var index = overloads.IndexOf(picked);
+            if (index < 0) continue;
+
+            var owner = current.Definition;
+            if (!OverloadSignature.IsSplit(owner, name, false) || !owner.MethodOverloads.TryGetValue(name, out var declared) || index >= declared.Count) return null;
+            return OverloadSignature.VariantName(name, declared[index], true);
+        }
+
+        return null;
     }
 
     /// <summary>
@@ -4216,6 +4251,42 @@ public sealed partial class InferTypesPass() : Pass(PassName, PassScope.PerBuild
                     Bind(pc, functionParameter, argumentParameter, bindings);
                 Bind(pc, function.ReturnType, argumentFunction.ReturnType, bindings);
                 break;
+            case ClassType { GenericDefinition: { } definition } instance
+                when InstantiationOf(argument, definition) is { } argumentInstance:
+                foreach (var (typeArgument, argumentTypeArgument) in instance.TypeArguments.Zip(argumentInstance))
+                    Bind(pc, typeArgument, argumentTypeArgument, bindings);
+                break;
+            case InterfaceType { GenericDefinition: { } definition } instance
+                when InstantiationOf(argument, definition) is { } argumentInstance:
+                foreach (var (typeArgument, argumentTypeArgument) in instance.TypeArguments.Zip(argumentInstance))
+                    Bind(pc, typeArgument, argumentTypeArgument, bindings);
+                break;
+        }
+    }
+
+    /// <summary>
+    /// The type arguments <paramref name="type"/> gives the generic <paramref name="definition"/>:
+    /// its own when it instantiates it, or those of the base class or implemented interface that
+    /// does. <c>null</c> when it is no instantiation of it.
+    /// </summary>
+    private static List<Type>? InstantiationOf(Type type, Type definition)
+    {
+        switch (type)
+        {
+            case ClassType classType:
+                for (var current = classType; current != null; current = current.BaseClass)
+                {
+                    if (current.GenericDefinition == definition) return current.TypeArguments;
+                }
+
+                return definition is InterfaceType
+                    ? Type.ImplementedInterfaces(classType).FirstOrDefault(iface => iface.GenericDefinition == definition)?.TypeArguments
+                    : null;
+            case InterfaceType interfaceType:
+                return Type.BaseInterfacesOf(interfaceType).Prepend(interfaceType)
+                    .FirstOrDefault(iface => iface.GenericDefinition == definition)?.TypeArguments;
+            default:
+                return null;
         }
     }
 
@@ -4249,6 +4320,8 @@ public sealed partial class InferTypesPass() : Pass(PassName, PassScope.PerBuild
             TupleType tuple => tuple.Fields.Any(field => ContainsTypeParameter(field.Type)),
             VariadicType variadic => ContainsTypeParameter(variadic.ElementType),
             FunctionType function => function.ParamTypes.Any(ContainsTypeParameter) || ContainsTypeParameter(function.ReturnType),
+            ClassType classType => classType.TypeArguments.Any(ContainsTypeParameter),
+            InterfaceType interfaceType => interfaceType.TypeArguments.Any(ContainsTypeParameter),
             _ => false,
         };
     }
@@ -4722,18 +4795,23 @@ public sealed partial class InferTypesPass() : Pass(PassName, PassScope.PerBuild
             // Class extends Class / Class implements Interface / Interface extends Interface.
             if (dstTypeNode is ClassType dstCls && srcTypeNode is ClassType srcCls)
             {
-                var cur = srcCls.BaseClass;
-                while (cur != null)
+                for (var cur = srcCls; cur != null; cur = cur.BaseClass)
                 {
-                    if (cur.ID == dstCls.ID) return true;
-                    cur = cur.BaseClass;
+                    if (cur.Definition == dstCls.Definition) return TypeArgumentsFit(pc, ClassArguments(dstCls), ClassArguments(cur));
                 }
             }
 
             if (dstTypeNode is InterfaceType dstIface)
             {
-                if (srcTypeNode is ClassType srcCls2 && ClassImplementsInterface(srcCls2, dstIface)) return true;
-                if (srcTypeNode is InterfaceType srcIface && InterfaceExtendsInterface(srcIface, dstIface)) return true;
+                var candidates = srcTypeNode switch
+                {
+                    ClassType srcCls2 => Type.ImplementedInterfaces(srcCls2),
+                    InterfaceType srcIface => Type.BaseInterfacesOf(srcIface).Prepend(srcIface),
+                    _ => [],
+                };
+                if (candidates.Any(candidate => candidate.Definition == dstIface.Definition
+                        && TypeArgumentsFit(pc, InterfaceArguments(dstIface), InterfaceArguments(candidate))))
+                    return true;
             }
 
             // Covariant array element compatibility for ergonomics — Lua tables are
@@ -4869,6 +4947,23 @@ public sealed partial class InferTypesPass() : Pass(PassName, PassScope.PerBuild
             if (!IsTypeAssignable(pc, tail.ElementType.ID, src.Fields[i].Type.ID)) return false;
         return true;
     }
+
+    /// <summary>
+    /// The type arguments of a class: an instantiation's own, or a generic definition's type
+    /// parameters, as which it stands for every instantiation of itself.
+    /// </summary>
+    private static List<Type> ClassArguments(ClassType classType) =>
+        classType.GenericDefinition != null ? classType.TypeArguments : [.. classType.TypeParams];
+
+    private static List<Type> InterfaceArguments(InterfaceType interfaceType) =>
+        interfaceType.GenericDefinition != null ? interfaceType.TypeArguments : [.. interfaceType.TypeParams];
+
+    /// <summary>
+    /// Whether the type arguments of one instantiation fit those another expects, argument by
+    /// argument, the way the elements of a list do.
+    /// </summary>
+    private bool TypeArgumentsFit(PassContext pc, List<Type> expected, List<Type> actual) =>
+        expected.Count != actual.Count || expected.Zip(actual).All(pair => IsTypeAssignable(pc, pair.First.ID, pair.Second.ID));
 
     private static bool ClassImplementsInterface(ClassType cls, InterfaceType target)
     {
@@ -5605,8 +5700,8 @@ public sealed partial class InferTypesPass() : Pass(PassName, PassScope.PerBuild
                     : FormatTypeName(ft.ReturnType);
                 return $"({ps}) -> {ret}";
             }
-            case ClassType c: return c.Name;
-            case InterfaceType i: return i.Name;
+            case ClassType c: return Type.WithTypeArguments(c.Name, c.ShownArguments, FormatTypeName);
+            case InterfaceType i: return Type.WithTypeArguments(i.Name, i.ShownArguments, FormatTypeName);
             case EnumType e: return e.Name;
             case TypeParameterType tp: return tp.Name;
             case StructType s: return "{ " + string.Join(", ", s.Fields.Select(f => $"{f.Name.Name}: {FormatTypeName(f.Type)}")) + " }";

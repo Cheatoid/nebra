@@ -377,7 +377,7 @@ public class ResolveTypeRefsPass() : Pass(PassName, PassScope.PerBuild)
                 foreach (var arm in matchStmt.Arms)
                 {
                     if (arm.Pattern.ValueExpr != null) ResolveExprTypes(tt, arm.Pattern.ValueExpr);
-                    if (arm.Pattern.TypeRef != null) ResolveTypeRef(tt, arm.Pattern.TypeRef);
+                    if (arm.Pattern.TypeRef != null) ResolveTestedType(tt, arm.Pattern.TypeRef);
                     if (arm.Guard != null) ResolveExprTypes(tt, arm.Guard);
                     ResolveStmtListTypes(tt, arm.Body);
                 }
@@ -527,6 +527,8 @@ public class ResolveTypeRefsPass() : Pass(PassName, PassScope.PerBuild)
                     foreach (var ib in tp.ImplementsBounds) ResolveTypeRef(tt, ib);
                 }
                 PopulateTypeParamBounds(tt, classDecl.TypeParams);
+                ResolveTypeArgs(tt, classDecl.BaseClassTypeArgs);
+                foreach (var interfaceArgs in classDecl.InterfaceTypeArgs) ResolveTypeArgs(tt, interfaceArgs);
                 foreach (var field in classDecl.Fields)
                 {
                     if (field.TypeAnnotation != null) ResolveTypeRef(tt, field.TypeAnnotation);
@@ -569,6 +571,7 @@ public class ResolveTypeRefsPass() : Pass(PassName, PassScope.PerBuild)
                     foreach (var ib in tp.ImplementsBounds) ResolveTypeRef(tt, ib);
                 }
                 PopulateTypeParamBounds(tt, interfaceDecl.TypeParams);
+                foreach (var baseArgs in interfaceDecl.BaseInterfaceTypeArgs) ResolveTypeArgs(tt, baseArgs);
                 foreach (var field in interfaceDecl.Fields)
                 {
                     ResolveTypeRef(tt, field.TypeAnnotation);
@@ -682,7 +685,7 @@ public class ResolveTypeRefsPass() : Pass(PassName, PassScope.PerBuild)
                 break;
             case TypeCheckExpr typeCheck:
                 ResolveExprTypes(tt, typeCheck.Inner);
-                ResolveTypeRef(tt, typeCheck.TargetType);
+                ResolveTestedType(tt, typeCheck.TargetType);
                 break;
             case TypeCastExpr typeCast:
                 ResolveExprTypes(tt, typeCast.Inner);
@@ -693,6 +696,7 @@ public class ResolveTypeRefsPass() : Pass(PassName, PassScope.PerBuild)
                 break;
             case InstanceOfExpr instOf:
                 ResolveExprTypes(tt, instOf.Inner);
+                if (instOf.TargetType != null) ResolveTestedType(tt, instOf.TargetType);
                 break;
             case TableConstructorExpr tableConstructorExpr:
                 foreach (var field in tableConstructorExpr.Fields)
@@ -720,7 +724,7 @@ public class ResolveTypeRefsPass() : Pass(PassName, PassScope.PerBuild)
                 foreach (var arm in matchExpr.Arms)
                 {
                     if (arm.Pattern.ValueExpr != null) ResolveExprTypes(tt, arm.Pattern.ValueExpr);
-                    if (arm.Pattern.TypeRef != null) ResolveTypeRef(tt, arm.Pattern.TypeRef);
+                    if (arm.Pattern.TypeRef != null) ResolveTestedType(tt, arm.Pattern.TypeRef);
                     if (arm.Guard != null) ResolveExprTypes(tt, arm.Guard);
                     ResolveExprTypes(tt, arm.Value);
                 }
@@ -757,8 +761,63 @@ public class ResolveTypeRefsPass() : Pass(PassName, PassScope.PerBuild)
             InterfaceType interfaceType => interfaceType.TypeParams.Count,
             _ => 0,
         };
-        if (arity > 0)
+        if (arity > 0 && !_resolvingTestedType)
             _ctx.Diag.Report(span, Nebra.Diagnostics.DiagnosticCode.ErrTypeParamArityMismatch, name, arity, 0);
+    }
+
+    /// <summary>
+    /// Set while the type an <c>is</c>, an <c>instanceof</c> or a match pattern tests against is
+    /// resolved. There a generic class named without type arguments asks for the class alone.
+    /// </summary>
+    private bool _resolvingTestedType;
+
+    private void ResolveTestedType(TypeTable tt, TypeRef type)
+    {
+        _resolvingTestedType = true;
+        try
+        {
+            ResolveTypeRef(tt, type);
+        }
+        finally
+        {
+            _resolvingTestedType = false;
+        }
+    }
+
+    private void ResolveTypeArgs(TypeTable tt, List<TypeArgRef> arguments)
+    {
+        foreach (var argRef in arguments)
+        {
+            switch (argRef)
+            {
+                case ConcreteTypeArgRef cta:
+                    ResolveTypeRef(tt, cta.Type);
+                    break;
+                case WildcardTypeArgRef wta:
+                    if (wta.Bound != null) ResolveTypeRef(tt, wta.Bound);
+                    break;
+            }
+        }
+    }
+
+    /// <summary>
+    /// The instantiation <paramref name="arguments"/> make of the generic class or interface
+    /// <paramref name="definition"/>, such as <c>Box&lt;number&gt;</c>. Wildcard arguments and a
+    /// wrong number of them leave the definition itself, which accepts every instantiation.
+    /// </summary>
+    public static Type Instantiation(TypeTable tt, Type definition, List<TypeArgRef> arguments)
+    {
+        var concrete = arguments.OfType<ConcreteTypeArgRef>()
+            .Select(argument => tt.GetByID(argument.Type.ResolvedType, out var type) ? type : null)
+            .ToList();
+        if (concrete.Count != arguments.Count || concrete.Any(type => type == null)) return definition;
+
+        return definition switch
+        {
+            ClassType classType => tt.Instantiate(classType, concrete!),
+            InterfaceType interfaceType => tt.Instantiate(interfaceType, concrete!),
+            _ => definition,
+        };
     }
 
     private Type ResolveTypeRef(TypeTable tt, TypeRef tr)
@@ -840,21 +899,11 @@ public class ResolveTypeRefsPass() : Pass(PassName, PassScope.PerBuild)
                     gtr.Name.Name, expectedArity, gtr.Arguments.Count);
             }
 
-            foreach (var argRef in gtr.Arguments)
-            {
-                switch (argRef)
-                {
-                    case ConcreteTypeArgRef cta:
-                        ResolveTypeRef(tt, cta.Type);
-                        break;
-                    case WildcardTypeArgRef wta:
-                        if (wta.Bound != null) ResolveTypeRef(tt, wta.Bound);
-                        break;
-                }
-            }
+            ResolveTypeArgs(tt, gtr.Arguments);
 
-            tr.ResolvedType = gDefType.ID;
-            return gDefType;
+            var instance = Instantiation(tt, gDefType, gtr.Arguments);
+            tr.ResolvedType = instance.ID;
+            return instance;
         }
 
         if (tr is NullableTypeRef nt)

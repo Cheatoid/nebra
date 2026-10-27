@@ -1009,6 +1009,20 @@ public sealed partial class CodegenPass() : Pass(PassName, PassScope.PerBuild, t
 
     private void EmitNewExpr(PassContext ctx, PackageContext pkg, LuaGenerator gen, NewExpr ne)
     {
+        var record = ctx.Cache.ContainsKey(InferTypesPass.GenericTypeChecksKey) ? TypeArgumentRecord(ctx, ne.Type) : null;
+        if (record == null)
+        {
+            EmitConstruction(ctx, pkg, gen, ne);
+            return;
+        }
+
+        gen.Write(gen.GetGenericRecordHelper() + "(");
+        EmitConstruction(ctx, pkg, gen, ne);
+        gen.Write(", " + record + ")");
+    }
+
+    private void EmitConstruction(PassContext ctx, PackageContext pkg, LuaGenerator gen, NewExpr ne)
+    {
         var className = ResolveName(ctx, pkg, ne.ClassName);
 
         var template = LookupCtorTemplate(ctx, pkg, ne.ClassName);
@@ -1961,6 +1975,20 @@ public sealed partial class CodegenPass() : Pass(PassName, PassScope.PerBuild, t
             case FunctionType:
                 EmitTypeOfCheck(ctx, pkg, gen, tchk.Inner, "function");
                 break;
+            case ClassType { GenericDefinition: not null } instance when RuntimeArguments(instance.TypeArguments) is { } arguments:
+            {
+                gen.Write(gen.GetGenericClassCheckHelper() + "(");
+                EmitExpr(ctx, pkg, gen, tchk.Inner);
+                gen.Write($", {PatternTypeName(ctx, pkg, tchk.TargetType, instance.Name)}, \"{instance.Name}\", {arguments})");
+                break;
+            }
+            case InterfaceType { GenericDefinition: not null } instance when RuntimeArguments(instance.TypeArguments) is { } arguments:
+            {
+                gen.Write(gen.GetGenericInterfaceCheckHelper() + "(");
+                EmitExpr(ctx, pkg, gen, tchk.Inner);
+                gen.Write($", \"{instance.Name}\", {arguments})");
+                break;
+            }
             case ClassType ct:
             {
                 gen.Write(gen.GetInstanceOfHelper());
@@ -2051,6 +2079,15 @@ public sealed partial class CodegenPass() : Pass(PassName, PassScope.PerBuild, t
 
     private void EmitInstanceOf(PassContext ctx, PackageContext pkg, LuaGenerator gen, InstanceOfExpr iof)
     {
+        if (iof.TargetType != null && ctx.Types.GetByID(iof.TargetType.ResolvedType, out var target)
+            && target is ClassType { GenericDefinition: not null } instance && RuntimeArguments(instance.TypeArguments) is { } arguments)
+        {
+            gen.Write(gen.GetGenericClassCheckHelper() + "(");
+            EmitExpr(ctx, pkg, gen, iof.Inner);
+            gen.Write($", {ResolveName(ctx, pkg, iof.ClassName)}, \"{instance.Name}\", {arguments})");
+            return;
+        }
+
         var helper = gen.GetInstanceOfHelper();
         gen.Write(helper);
         gen.Write("(");

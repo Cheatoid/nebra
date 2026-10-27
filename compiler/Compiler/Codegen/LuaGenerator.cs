@@ -483,6 +483,54 @@ public sealed class LuaGenerator(Config config)
     /// Emits the helper backing an `is` test against an interface. Interfaces have no runtime
     /// value, so the check looks up the name in the `__interfaces` set the class carries.
     /// </summary>
+    /// <summary>
+    /// A helper recording the type arguments of a generic object in a table shared by every module
+    /// and keyed weakly by the object, so the object itself carries nothing extra.
+    /// </summary>
+    public string GetGenericRecordHelper()
+    {
+        return RequireHelper("typed", name =>
+            $"local {name}_registry = _G.__nebra_generic_types or setmetatable({{}}, {{ __mode = \"k\" }}) " +
+            $"_G.__nebra_generic_types = {name}_registry " +
+            $"local function {name}(v, record) {name}_registry[v] = record return v end");
+    }
+
+    /// <summary>
+    /// A helper telling whether the type arguments recorded for a value under a generic class or
+    /// interface's name match the expected ones. A value nothing was recorded for, such as one
+    /// created in Lua, matches, as does a recorded <c>any</c>.
+    /// </summary>
+    public string GetGenericArgumentsHelper()
+    {
+        return RequireHelper("type_args", name =>
+            $"local function {name}(v, key, args) " +
+            $"local types = _G.__nebra_generic_types " +
+            $"local record = types and types[v] " +
+            $"local stored = record and record[key] " +
+            $"if stored == nil then return true end " +
+            $"for i = 1, #args do if stored[i] ~= args[i] and stored[i] ~= \"any\" then return false end end " +
+            $"return true " +
+            $"end");
+    }
+
+    /// <summary>A helper checking that a value is an instance of a class instantiated with the given type arguments.</summary>
+    public string GetGenericClassCheckHelper()
+    {
+        var instanceOf = GetInstanceOfHelper();
+        var arguments = GetGenericArgumentsHelper();
+        return RequireHelper("is_instance", name =>
+            $"local function {name}(v, cls, key, args) return {instanceOf}(v, cls) and {arguments}(v, key, args) end");
+    }
+
+    /// <summary>A helper checking that a value implements an interface instantiated with the given type arguments.</summary>
+    public string GetGenericInterfaceCheckHelper()
+    {
+        var implements = GetImplementsHelper();
+        var arguments = GetGenericArgumentsHelper();
+        return RequireHelper("implements_args", name =>
+            $"local function {name}(v, key, args) return {implements}(v, key) and {arguments}(v, key, args) end");
+    }
+
     public string GetImplementsHelper()
     {
         return RequireHelper("implements", name =>

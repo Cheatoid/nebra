@@ -748,8 +748,8 @@ public sealed class NebraProject(Func<ServerSettings>? settings = null)
         switch (typ)
         {
             case EnumType et: return et.Name;
-            case ClassType ct: return ct.Name;
-            case InterfaceType it: return it.Name;
+            case ClassType ct: return IR.Type.WithTypeArguments(ct.Name, ct.ShownArguments, t => FormatType(types, t));
+            case InterfaceType it: return IR.Type.WithTypeArguments(it.Name, it.ShownArguments, t => FormatType(types, t));
             case FunctionType ft: return FormatFunctionType(types, ft);
             case UnionType ut: return string.Join(" | ", ut.Types.Select(t => IR.Type.Grouped(t, FormatType(types, t))));
             case TableArrayType ta: return IR.Type.Grouped(ta.ElementType, FormatType(types, ta.ElementType)) + "[]";

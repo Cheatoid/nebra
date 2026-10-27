@@ -552,7 +552,7 @@ public enum DiagnosticCode
 
     [Level(DiagnosticLevel.Warning)]
     [Category(DiagnosticCategory.Type)]
-    [Format("Generic type arguments on 'instanceof' are erased at runtime; only the raw type '{0}' is checked")]
+    [Format("'{0}' has type arguments that are type parameters, which are not known at runtime; only its class is checked")]
     WarnGenericInstanceOfErased = 0x4025,
 
     [Level(DiagnosticLevel.Error)]

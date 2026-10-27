@@ -343,8 +343,8 @@ public static class DocSiteBuilder
             UnionType union => string.Join(" | ", union.Types.Select(u => IR.Type.Grouped(u, FormatType(pkg, u)))),
             StructType st => $"{{ {string.Join(", ", st.Fields.Select(f => $"{f.Name.Name}: {FormatType(pkg, f.Type)}"))} }}",
             TupleType tu => $"({string.Join(", ", tu.Fields.Select(f => FormatType(pkg, f.Type)))})",
-            ClassType c => c.Name,
-            InterfaceType i => i.Name,
+            ClassType c => IR.Type.WithTypeArguments(c.Name, c.ShownArguments, t => FormatType(pkg, t)),
+            InterfaceType i => IR.Type.WithTypeArguments(i.Name, i.ShownArguments, t => FormatType(pkg, t)),
             EnumType e => e.Name,
             TypeParameterType tp => tp.Name,
             _ => t.Kind switch
