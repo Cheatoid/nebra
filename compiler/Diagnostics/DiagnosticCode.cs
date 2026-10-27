@@ -154,6 +154,12 @@ public enum DiagnosticCode
     ErrIndistinguishableOverload = 0x1010,
 
     [Level(DiagnosticLevel.Error)]
+    [Category(DiagnosticCategory.Semantic)]
+    [Format("'{0}' already has a constructor; a class has exactly one")]
+    [Help("give parameters default values or make them optional to support several ways of constructing it")]
+    ErrDuplicateConstructor = 0x1011,
+
+    [Level(DiagnosticLevel.Error)]
     [Category(DiagnosticCategory.Syntax)]
     [Format("Alternative boolean operator '{0}' is disabled in the configuration. Enable [code] alt_boolean_operators = true to use it, or use '{1}' instead.")]
     ErrAltBooleanOperatorsDisabled = 0x0006,

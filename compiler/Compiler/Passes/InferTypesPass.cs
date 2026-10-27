@@ -15,6 +15,12 @@ public sealed partial class InferTypesPass() : Pass(PassName, PassScope.PerBuild
     private int _asyncDepth;
 
     /// <summary>
+    /// The <c>super(...)</c> calls written as statements of the constructor being resolved, the
+    /// only place one may appear; <see cref="CheckSuperCall"/> checks where among them it stands.
+    /// </summary>
+    private HashSet<SuperCallExpr> _constructorSuperCalls = [];
+
+    /// <summary>
     /// Tracks class/interface decl nodes we've already resolved so the
     /// pre-phase pass and the regular per-file walk don't duplicate work
     /// (and don't double-report diagnostics on method bodies).
@@ -1138,7 +1144,13 @@ public sealed partial class InferTypesPass() : Pass(PassName, PassScope.PerBuild
             foreach (var defer in DeferStmt.In(cd.Constructor.Body))
                 pc.Diag.Report(defer.Span, DiagnosticCode.ErrDeferInConstructor);
             CheckSuperCall(pc, cd, classType);
+            var outerConstructorSuperCalls = _constructorSuperCalls;
+            _constructorSuperCalls = cd.Constructor.Body
+                .Select(stmt => stmt is ExprStmt { Expression: SuperCallExpr superCall } ? superCall : null)
+                .OfType<SuperCallExpr>()
+                .ToHashSet();
             ResolveFunctionBody(pc, cd.Constructor.Body, cd.Constructor.ReturnStmt);
+            _constructorSuperCalls = outerConstructorSuperCalls;
         }
 
         foreach (var (method, returnType) in methodBodies)
@@ -1281,17 +1293,26 @@ public sealed partial class InferTypesPass() : Pass(PassName, PassScope.PerBuild
     {
         var parameters = new List<Tuple<string, Type>>();
         var defaults = new List<int>();
+        var isVararg = false;
+        Type? varargType = null;
         for (var i = 0; i < ctor.Parameters.Count; i++)
         {
             var parameter = ctor.Parameters[i];
             var type = ResolveParamType(pc, parameter);
             if (parameter.Name.Sym != SymID.Invalid) pc.Pkg!.Syms.SetType(parameter.Name.Sym, type.ID);
+            if (parameter.IsVararg)
+            {
+                isVararg = true;
+                varargType = type.Kind == TypeKind.PrimitiveAny ? null : type;
+                continue;
+            }
+
             parameters.Add(new Tuple<string, Type>(parameter.Name.Name, type));
             if (parameter.DefaultValue != null) defaults.Add(i);
         }
 
-        return (FunctionType)GetType(pc, pc.Types.FuncOf(parameters, classType,
-            defaultParams: defaults.Count > 0 ? defaults : null));
+        return (FunctionType)GetType(pc, pc.Types.FuncOf(parameters, classType, isVararg, varargType,
+            defaults.Count > 0 ? defaults : null));
     }
 
     /// <summary>
@@ -1326,7 +1347,9 @@ public sealed partial class InferTypesPass() : Pass(PassName, PassScope.PerBuild
             return;
         }
 
-        var expected = minParams == paramCount ? paramCount.ToString() : $"{minParams}..{paramCount}";
+        var expected = ctorType.IsVararg ? $"at least {minParams}"
+            : minParams == paramCount ? paramCount.ToString()
+            : $"{minParams}..{paramCount}";
         pc.Diag.Report(span, DiagnosticCode.ErrConstructorParamMismatch, className, expected, argCount.ToString());
     }
 
@@ -2326,18 +2349,23 @@ public sealed partial class InferTypesPass() : Pass(PassName, PassScope.PerBuild
         var inferred = new TypID[varCount];
         for (var i = 0; i < varCount; i++) inferred[i] = tt.PrimAny.ID;
 
+        if (IsNextOverTable(pc, gf, iterTypes, out var iteratedTable))
+        {
+            iterTypes = [iteratedTable];
+        }
+
         if (iterTypes.Count >= 1 && tt.GetByID(iterTypes[0], out var firstIterType))
         {
             switch (firstIterType)
             {
                 case FunctionType ft:
-                    if (varCount >= 1 && ft.ParamTypes.Count >= 1)
-                        inferred[0] = ft.ParamTypes[0].ID;
-                    if (varCount >= 2 && ft.ParamTypes.Count >= 2)
-                        inferred[1] = ft.ParamTypes[1].ID;
-                    for (var i = 2; i < varCount && i < ft.ParamTypes.Count; i++)
-                        inferred[i] = ft.ParamTypes[i].ID;
+                {
+                    var produced = ft.ReturnType is TupleType tuple ? tuple.Fields.Select(field => field.Type).ToList() : [ft.ReturnType];
+                    for (var i = 0; i < varCount && i < produced.Count; i++)
+                        inferred[i] = produced[i].ID;
+                    if (varCount >= 1) inferred[0] = StripNil(pc, inferred[0]);
                     break;
+                }
                 case TableArrayType arr:
                     if (varCount >= 1) inferred[0] = tt.PrimNumber.ID;
                     if (varCount >= 2) inferred[1] = arr.ElementType.ID;
@@ -2357,6 +2385,22 @@ public sealed partial class InferTypesPass() : Pass(PassName, PassScope.PerBuild
         {
             pc.Pkg!.Syms.SetType(gf.VarNames[i].Sym, inferred[i]);
         }
+    }
+
+    /// <summary>
+    /// Whether the loop is written <c>for k, v in next, t</c> over a table whose type is known,
+    /// which iterates exactly like <c>pairs(t)</c>, so its variables take the table's key and value
+    /// types rather than the declared <c>any</c> of <c>next</c>.
+    /// </summary>
+    private bool IsNextOverTable(PassContext pc, GenericForStmt gf, List<TypID> iterTypes, out TypID table)
+    {
+        table = TypID.Invalid;
+        if (gf.Iterators is not [NameExpr { Name.Name: "next" } next, _, ..] || iterTypes.Count < 2) return false;
+        if (!pc.Pkg!.Syms.GetByID(next.Name.Sym, out var symbol) || !symbol.Flags.HasFlag(SymbolFlags.External)) return false;
+        if (!pc.Types.GetByID(StripNil(pc, iterTypes[1]), out var iterated) || iterated is not (TableArrayType or TableMapType)) return false;
+
+        table = iterated.ID;
+        return true;
     }
 
     private TypID SynthesizeExpr(PassContext pc, Expr expr)
@@ -2467,6 +2511,8 @@ public sealed partial class InferTypesPass() : Pass(PassName, PassScope.PerBuild
                 result = InferNewExpr(pc, newExpr);
                 break;
             case SuperCallExpr superCall:
+                if (!_constructorSuperCalls.Contains(superCall))
+                    pc.Diag.Report(superCall.Span, DiagnosticCode.ErrSuperOutsideConstructor);
                 CheckSuperArguments(pc, superCall, superCall.Arguments.Select(arg => SynthesizeExpr(pc, arg)).ToList());
                 result = tt.PrimAny.ID;
                 break;
@@ -4571,6 +4617,13 @@ public sealed partial class InferTypesPass() : Pass(PassName, PassScope.PerBuild
             if (dstTypeNode is TableArrayType dstArr && srcTypeNode is TableArrayType srcArr)
             {
                 if (IsTypeAssignable(pc, dstArr.ElementType.ID, srcArr.ElementType.ID)) return true;
+            }
+
+            // A table keyed by numbers, such as `{ [1] = a, [2] = b }`, is an array to Lua.
+            if (dstTypeNode is TableArrayType dstList && srcTypeNode is TableMapType { KeyType.Kind: TypeKind.PrimitiveNumber } srcNumbered
+                && IsTypeAssignable(pc, dstList.ElementType.ID, srcNumbered.ValueType.ID))
+            {
+                return true;
             }
 
             if (dstTypeNode is TableMapType dstEntries && srcTypeNode is TableMapType srcEntries

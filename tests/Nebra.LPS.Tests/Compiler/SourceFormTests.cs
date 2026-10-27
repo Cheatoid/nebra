@@ -195,6 +195,47 @@ public sealed class SourceFormTests
     }
 
     [Fact]
+    public void SuperCanOnlyBeCalledAsAStatementOfADerivedConstructor()
+    {
+        var build = Build("interface I\n    method M(): any\n        return super()\n    end\nend\n\nclass A implements I\n    constructor()\n    end\nend\n\nclass B extends A\n    constructor()\n        super()\n    end\n\n    override function M(): any\n        local i = super()\n        return i\n    end\nend\n\nprint(new B())\n");
+
+        Assert.Equal(2, build.Errors.Count(error => error.Code == DiagnosticCode.ErrSuperOutsideConstructor));
+        Assert.Equal(2, build.Errors.Count);
+    }
+
+    [Fact]
+    public void ASecondConstructorIsAnError()
+    {
+        var build = Build("class Animal\n    constructor()\n    end\n\n    constructor(name: string)\n    end\nend\n\nprint(Animal)\n");
+
+        Assert.Equal(DiagnosticCode.ErrDuplicateConstructor, Assert.Single(build.Errors).Code);
+        Assert.Empty(Build("declare class Widget\n    constructor(path: string)\n    constructor(native: any)\nend\n\nprint(Widget)\n").Errors);
+    }
+
+    [Fact]
+    public void AVarargsConstructorTakesAnyNumberOfArguments()
+    {
+        var build = Build("class A\nend\n\nclass B extends A\n    constructor(first: string, ...: number)\n    end\nend\n\nprint(new B(\"a\"), new B(\"a\", 1, 2))\n");
+
+        Assert.Empty(build.Errors);
+        Assert.Contains("function B.new(first, ...)", build.Lua("src/main.neb"));
+        Assert.Equal(DiagnosticCode.ErrConstructorParamMismatch, Assert.Single(Build("class B\n    constructor(first: string, ...)\n    end\nend\n\nprint(new B())\n").Errors).Code);
+    }
+
+    [Fact]
+    public void LoopVariablesTakeTheTypesTheIteratorProduces()
+    {
+        Assert.Empty(Build("local function sum(...values: number): number\n    local mut total: number = 0\n    for _, v in next, values do\n        total = total + v\n    end\n    return total\nend\n\nlocal function upTo(limit: number, current: number): number?\n    if current >= limit then return nil end\n    return current + 1\nend\n\nlocal mut steps: number = 0\nfor i in upTo, 3, 0 do\n    steps = steps + i\nend\nprint(sum(1, 2), steps)\n").Errors);
+    }
+
+    [Fact]
+    public void ATableKeyedByNumbersFitsAnArray()
+    {
+        Assert.Empty(Build("local function foo(n: number?): nil\n    local values: number?[] = { [1] = n }\n    values[1] = nil\n    local fixed: number[] = { [1] = 5, [2] = 6 }\n    print(values, fixed)\nend\n\nfoo(1)\n").Errors);
+        Assert.Equal(DiagnosticCode.ErrTypeMismatch, Assert.Single(Build("local wrong: number[] = { [1] = \"x\" }\nprint(wrong)\n").Errors).Code);
+    }
+
+    [Fact]
     public void MethodCallsFollowNewAndContinueOnTheNextLine()
     {
         var build = Build("class Builder\n    function column(name: string): Builder\n        return self\n    end\n\n    function build(): nil\n    end\nend\n\nnew Builder()\n    :column(\"a\")\n    :column(\"b\")\n    :build()\nprint(new Builder():column(\"c\"))\n");

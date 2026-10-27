@@ -35,6 +35,17 @@ internal partial class IRVisitor
     /// contextual keyword, so the grammar accepts any identifier in its place and anything else
     /// is reported here.
     /// </summary>
+    /// <summary>
+    /// Reports a constructor declared after <paramref name="existing"/>, the one the class already
+    /// has. Only one survives into the class, so the earlier would otherwise vanish silently.
+    /// Declared classes are left alone: a native class may describe several signatures.
+    /// </summary>
+    private void ReportDuplicateConstructor(ClassConstructorNode? existing, NameRef className, ParserRuleContext constructor)
+    {
+        if (existing == null) return;
+        diag.Report(SpanFromCtx(constructor), Diagnostics.DiagnosticCode.ErrDuplicateConstructor, className.Name);
+    }
+
     private bool IsOperatorKeyword(NebraParser.OperatorKeywordContext keyword)
     {
         if (keyword.NAME().GetText() == "operator") return true;
@@ -642,6 +653,7 @@ internal partial class IRVisitor
                 case NebraParser.ClassConstructorMemberContext ctor:
                 {
                     var (parameters, _, body, ret) = VisitFuncBodyContent(ctor.funcBody());
+                    ReportDuplicateConstructor(constructor, name, ctor);
                     constructor = new ClassConstructorNode(parameters, body, ret, SpanFromCtx(ctor));
                     constructor.Annotations = VisitAnnotationListContent(ctor.annotationList());
                     break;
