@@ -1,0 +1,89 @@
+name: Feature request
+description: Suggest a new language feature, compiler option or tooling improvement.
+title: "[Feature]: "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for suggesting an improvement.
+
+        **One feature per issue, please.** Explain the problem you want to solve first. A request that only shows how another language does something is hard to evaluate without knowing what it would solve in Nebra.
+
+        If Nebra does something you think is wrong, open a bug report instead.
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Language (syntax or semantics)
+        - Type system
+        - Generated Lua (output or performance)
+        - Standard library declarations
+        - Package manager
+        - Language server or editor extension
+        - Annotations
+        - Command line
+        - Documentation
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What can't you do today, or what is cumbersome? Describe a real situation where you ran into it.
+      placeholder: |
+        Matching on an enum repeats its name in every arm, which makes long match blocks hard to read.
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: How it could look in Nebra. Show a short example of the code you would like to write.
+      render: lua
+      placeholder: |
+        local result = match color
+            case .red then "red"
+            case .green then "green"
+            case _ then "other"
+        end
+    validations:
+      required: true
+
+  - type: textarea
+    id: output
+    attributes:
+      label: Generated Lua
+      description: Optional. What the example should compile to, if you have an idea.
+      render: lua
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Current workaround and alternatives
+      description: How you solve it today, and other approaches you considered.
+      placeholder: |
+        Writing `case Color.red then` in every arm.
+    validations:
+      required: true
+
+  - type: textarea
+    id: prior-art
+    attributes:
+      label: Prior art
+      description: Optional. Languages or tools that solve this, with a link if possible.
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checks
+      options:
+        - label: This issue suggests a single feature.
+          required: true
+        - label: I searched the existing issues and the documentation and this is not available or requested yet.
+          required: true

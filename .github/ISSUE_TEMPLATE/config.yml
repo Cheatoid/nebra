@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Questions and help
+    url: https://github.com/nebra-lang/nebra/discussions
+    about: Ask how to do something in Nebra or why it behaves a certain way.
+  - name: Documentation
+    url: https://nebra-lang.github.io/
+    about: The language reference, guides and examples.
+  - name: Package registry
+    url: https://github.com/nebra-lang/pm-registry
+    about: Requests and problems with publishing packages.

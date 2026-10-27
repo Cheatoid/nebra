@@ -1,0 +1,126 @@
+name: Bug report
+description: Something in Nebra behaves differently than it should.
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report a bug.
+
+        **One problem per issue, please.** If you found several problems, open one issue for each of them. Reports that combine unrelated problems are split up and closed.
+
+        Questions such as "how do I declare X" or "why does Nebra do Y" belong in [Discussions](https://github.com/nebra-lang/nebra/discussions), and ideas for new language features belong in a feature request.
+
+  - type: input
+    id: version
+    attributes:
+      label: Nebra version
+      description: The output of `nebra version`.
+      placeholder: "0.5.13"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      description: Where does the problem show up?
+      options:
+        - Type checking (an error is missing or wrong)
+        - Generated Lua (the output is wrong or fails at runtime)
+        - Compiler crash
+        - Package manager (install, add, publish, registry)
+        - Language server or editor extension
+        - Annotations
+        - Command line
+        - Other
+    validations:
+      required: true
+
+  - type: dropdown
+    id: target
+    attributes:
+      label: Lua target
+      description: The `target` in your `nebra.toml`, if it matters for the problem.
+      options:
+        - Not relevant
+        - "5.1"
+        - "5.2"
+        - "5.3"
+        - "5.4"
+        - LuaJIT
+    validations:
+      required: true
+
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: One or two sentences describing the problem.
+      placeholder: A second constructor in a class is silently dropped.
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Minimal reproduction
+      description: |
+        The smallest Nebra code that shows the problem. Leave out everything that is not needed to trigger it.
+        If settings in `nebra.toml` matter, add them below the code.
+      render: lua
+      placeholder: |
+        class Animal
+            constructor()
+                print("default")
+            end
+
+            constructor(name: string)
+                print(name)
+            end
+        end
+
+        new Animal()
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behaviour
+      description: What should happen instead? If you expect a compile error, say which one.
+      placeholder: The compiler reports that a class can only have one constructor.
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behaviour
+      description: |
+        What happens now. Paste the compiler's error, the relevant part of the generated Lua or the runtime error.
+        Text is easier to work with than screenshots.
+      render: text
+      placeholder: |
+        Build SUCCESS. The generated Animal.new only contains the second constructor.
+    validations:
+      required: true
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional context
+      description: Anything else that helps, such as the operating system for package manager or editor problems.
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checks
+      options:
+        - label: This issue describes a single problem.
+          required: true
+        - label: I searched the existing issues and this problem is not reported yet.
+          required: true
+        - label: The problem still occurs with the latest Nebra release (`nebra upgrade`).
+          required: true
