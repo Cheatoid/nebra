@@ -6,7 +6,18 @@ namespace Nebra.LPS.Tests.Compiler;
 
 public sealed class ConstructorInheritanceTests
 {
+    /// <summary>
+    /// The errors of compiling <paramref name="source"/> other than a definition used before it
+    /// runs: several cases declare the derived class above its base on purpose, to show the
+    /// constructor rules do not depend on the order; that the order itself is reported is tested
+    /// separately.
+    /// </summary>
     private static List<DiagnosticCode> Errors(string source)
+    {
+        return AllErrors(source).Where(code => code != DiagnosticCode.ErrUsedBeforeDefinition).ToList();
+    }
+
+    private static List<DiagnosticCode> AllErrors(string source)
     {
         var root = Directory.CreateTempSubdirectory("nebra-constructors").FullName;
         var compiler = new NebraCompiler { Config = new Config { ProjectRoot = root, Source = "src" } };
@@ -16,6 +27,12 @@ public sealed class ConstructorInheritanceTests
             .Where(diagnostic => diagnostic.Level == DiagnosticLevel.Error)
             .Select(diagnostic => diagnostic.Code)
             .ToList();
+    }
+
+    [Fact]
+    public void ADerivedClassAboveItsBaseIsReported()
+    {
+        Assert.Equal([DiagnosticCode.ErrUsedBeforeDefinition], AllErrors("class Iso extends Format\nend\n\n" + Base));
     }
 
     private const string Base = "class Format\n    constructor(pattern: string)\n        print(pattern)\n    end\nend\n";

@@ -134,6 +134,64 @@ public sealed partial class InferTypesPass
             pc.Diag.Report(name.Span, DiagnosticCode.ErrAccessorParameters, $"the setter '{name.Name}' takes exactly one parameter, the assigned value");
     }
 
+    /// <summary>
+    /// Reports, under <c>strict_nil</c>, the instance fields of a class written in Nebra whose type
+    /// does not allow nil but that nothing initializes: no default value, and no assignment on
+    /// every path of the constructor. Such a field reads nil until something sets it.
+    /// </summary>
+    private void ReportUninitializedFields(PassContext pc, ClassDecl cd, ClassType classType)
+    {
+        if (!pc.Config.Rules.StrictNil || cd.IsDeclare) return;
+
+        var assigned = cd.Constructor != null ? AssignedFields(cd.Constructor.Body) : [];
+        foreach (var field in cd.Fields.Where(field => !field.IsStatic && field.DefaultValue == null))
+        {
+            if (assigned.Contains(field.Name.Name)) continue;
+            if (!classType.InstanceFields.TryGetValue(field.Name.Name, out var declared) || !RequiresValue(pc, declared.Type)) continue;
+
+            pc.Diag.Report(field.Name.Span, DiagnosticCode.ErrUninitializedField, field.Name.Name, cd.Name.Name, TypeName(pc, declared.Type.ID));
+        }
+    }
+
+    /// <summary>Whether a field of <paramref name="type"/> must hold a value, which nil is not.</summary>
+    private bool RequiresValue(PassContext pc, IR.Type type) =>
+        type.Kind is not (TypeKind.PrimitiveAny or TypeKind.PrimitiveNil or TypeKind.TypeParameter) && !IsNullable(pc, type.ID);
+
+    /// <summary>
+    /// The fields <c>self.field = ...</c> assigns on every path through <paramref name="statements"/>:
+    /// directly, in a <c>do</c> block, or in every branch of an <c>if</c> that has an <c>else</c>.
+    /// </summary>
+    private static HashSet<string> AssignedFields(List<Stmt> statements)
+    {
+        var assigned = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var statement in statements)
+        {
+            switch (statement)
+            {
+                case AssignStmt assignment:
+                    foreach (var target in assignment.Targets)
+                    {
+                        if (target is DotAccessExpr { Object: NameExpr { Name.Name: "self" } } field)
+                            assigned.Add(field.FieldName.Name);
+                    }
+                    break;
+                case DoBlockStmt block:
+                    assigned.UnionWith(AssignedFields(block.Body));
+                    break;
+                case IfStmt { ElseBody: { } elseBody } branch:
+                {
+                    var everyBranch = AssignedFields(branch.Body);
+                    foreach (var elseIf in branch.ElseIfs) everyBranch.IntersectWith(AssignedFields(elseIf.Body));
+                    everyBranch.IntersectWith(AssignedFields(elseBody));
+                    assigned.UnionWith(everyBranch);
+                    break;
+                }
+            }
+        }
+
+        return assigned;
+    }
+
     private static void ReportReservedMemberName(PassContext pc, NameRef name)
     {
         if (ReservedMemberReason(name.Name) is { } reason)

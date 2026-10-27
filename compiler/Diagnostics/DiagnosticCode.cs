@@ -466,6 +466,18 @@ public enum DiagnosticCode
     [Help("create instances through a static function of '{0}', such as a factory")]
     ErrLocalConstructor = 0x4039,
 
+    [Level(DiagnosticLevel.Error)]
+    [Category(DiagnosticCategory.Semantic)]
+    [Format("{0}")]
+    [Help("move the use below the definition, or into a function that runs later")]
+    ErrUsedBeforeDefinition = 0x403A,
+
+    [Level(DiagnosticLevel.Error)]
+    [Category(DiagnosticCategory.Semantic)]
+    [Format("the field '{0}' of '{1}' is never initialized, so it starts as nil although its type '{2}' does not allow nil")]
+    [Help("give it a default value, assign it in every path of the constructor, or make its type nullable with '?'")]
+    ErrUninitializedField = 0x403B,
+
     [Level(DiagnosticLevel.Warning)]
     [Category(DiagnosticCategory.Semantic)]
     [Format("Method '{0}' shadows a method in parent class '{1}'; use 'override' to indicate this is intentional")]

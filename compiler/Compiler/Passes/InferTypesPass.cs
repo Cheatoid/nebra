@@ -1188,6 +1188,8 @@ public sealed partial class InferTypesPass() : Pass(PassName, PassScope.PerBuild
         foreach (var accessor in cd.Accessors)
             ResolveFunctionBody(pc, accessor.Body, accessor.ReturnStmt);
 
+        ReportUninitializedFields(pc, cd, classType);
+
         _openTypeParamDepth++;
         try
         {

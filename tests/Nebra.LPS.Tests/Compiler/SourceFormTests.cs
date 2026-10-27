@@ -343,6 +343,26 @@ public sealed class SourceFormTests
     }
 
     [Fact]
+    public void ATopLevelUseBeforeItsDefinitionRunsIsReported()
+    {
+        var build = Build("print(1.hour)\n\nlocal function makeFoo(): Foo\n    return new Foo()\nend\n\nlocal function indirect(): Foo\n    return makeFoo()\nend\n\nlocal early = indirect()\nlocal later = function(): Foo\n    return new Foo()\nend\n\nextend number\n    get hour(): number\n        return self * 3600\n    end\nend\n\nclass Foo\n    static shared: Foo = new Foo()\nend\n\nprint(1.hour, new Foo(), makeFoo(), later(), early)\n");
+
+        Assert.Equal(2, build.Errors.Count(error => error.Code == DiagnosticCode.ErrUsedBeforeDefinition));
+        Assert.Equal(2, build.Errors.Count);
+    }
+
+    [Fact]
+    public void UnderStrictNilAFieldThatIsNeverInitializedIsReported()
+    {
+        var source = "class Animal\n    local name: string\n    nick: string?\n    legs: number = 4\n    kind: string\n    color: string\n\n    constructor(fast: boolean)\n        self.kind = \"cat\"\n        if fast then\n            self.color = \"red\"\n        else\n            self.color = \"blue\"\n        end\n    end\n\n    get Name(): string\n        return self.name\n    end\nend\n\nclass Bare\n    id: number\nend\n\nprint(new Animal(true).Name, Bare)\n";
+
+        var strict = ProjectBuild.Run(config => config.Rules.StrictNil = true, ("src/main.neb", source));
+        Assert.Equal(2, strict.Errors.Count(error => error.Code == DiagnosticCode.ErrUninitializedField));
+        Assert.Equal(2, strict.Errors.Count);
+        Assert.Empty(Build(source).Errors);
+    }
+
+    [Fact]
     public void MethodCallsFollowNewAndContinueOnTheNextLine()
     {
         var build = Build("class Builder\n    function column(name: string): Builder\n        return self\n    end\n\n    function build(): nil\n    end\nend\n\nnew Builder()\n    :column(\"a\")\n    :column(\"b\")\n    :build()\nprint(new Builder():column(\"c\"))\n");
