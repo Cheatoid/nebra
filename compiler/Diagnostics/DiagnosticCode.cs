@@ -444,6 +444,17 @@ public enum DiagnosticCode
     [Format("cannot assign to {0}: a class and its methods cannot be replaced")]
     ErrAssignToClass = 0x4035,
 
+    [Level(DiagnosticLevel.Error)]
+    [Category(DiagnosticCategory.Semantic)]
+    [Format("{0}")]
+    ErrAccessorParameters = 0x4036,
+
+    [Level(DiagnosticLevel.Error)]
+    [Category(DiagnosticCategory.Semantic)]
+    [Format("'{0}' has a setter but no getter, so it can only be assigned")]
+    [Help("declare 'get {0}()' to read it")]
+    ErrWriteOnlyProperty = 0x4037,
+
     [Level(DiagnosticLevel.Warning)]
     [Category(DiagnosticCategory.Semantic)]
     [Format("Method '{0}' shadows a method in parent class '{1}'; use 'override' to indicate this is intentional")]

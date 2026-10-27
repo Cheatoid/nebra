@@ -20,6 +20,9 @@ public sealed partial class InferTypesPass() : Pass(PassName, PassScope.PerBuild
     /// </summary>
     private HashSet<SuperCallExpr> _constructorSuperCalls = [];
 
+    /// <summary>The target of the assignment being typed, which may be a property with only a setter.</summary>
+    private Expr? _assignmentTarget;
+
     /// <summary>The interface whose default each class took for a method it does not declare itself.</summary>
     private readonly Dictionary<(ClassType, string), InterfaceType> _defaultSources = [];
 
@@ -812,14 +815,16 @@ public sealed partial class InferTypesPass() : Pass(PassName, PassScope.PerBuild
             case FunctionDecl fd:
                 ReportClassMemberReplacement(pc, fd);
                 if (fd.IsAsync) _asyncDepth++;
-                ResolveFunctionLike(pc, fd.Parameters, fd.ReturnType, fd.Body, fd.ReturnStmt,
-                    fd.NamePath.Count == 1 && fd.MethodName == null ? fd.NamePath[0] : null, fd.IsAsync);
+                using (FixTypeParams(fd.TypeParams))
+                    ResolveFunctionLike(pc, fd.Parameters, fd.ReturnType, fd.Body, fd.ReturnStmt,
+                        fd.NamePath.Count == 1 && fd.MethodName == null ? fd.NamePath[0] : null, fd.IsAsync);
                 if (fd.IsAsync) _asyncDepth--;
                 if (fd.NamePath.Count == 1 && fd.MethodName == null) ReportIndistinguishableFunction(pc, fd.NamePath[0]);
                 break;
             case LocalFunctionDecl lfd:
                 if (lfd.IsAsync) _asyncDepth++;
-                ResolveFunctionLike(pc, lfd.Parameters, lfd.ReturnType, lfd.Body, lfd.ReturnStmt, lfd.Name, lfd.IsAsync);
+                using (FixTypeParams(lfd.TypeParams))
+                    ResolveFunctionLike(pc, lfd.Parameters, lfd.ReturnType, lfd.Body, lfd.ReturnStmt, lfd.Name, lfd.IsAsync);
                 if (lfd.IsAsync) _asyncDepth--;
                 ReportIndistinguishableFunction(pc, lfd.Name);
                 break;
@@ -957,6 +962,7 @@ public sealed partial class InferTypesPass() : Pass(PassName, PassScope.PerBuild
     /// </summary>
     private List<(ClassMethodNode Method, Type ReturnType)> ResolveClassBody(PassContext pc, ClassDecl cd, ClassType classType)
     {
+        using var classTypeParams = FixTypeParams(cd.TypeParams);
         foreach (var (id, sym) in pc.Pkg!.Syms.ByID)
             if (sym.Name == "self" && sym.DeclaringNode == cd.ID && sym.Type == TypID.Invalid)
                 pc.Pkg.Syms.SetType(id, classType.ID);
@@ -965,13 +971,19 @@ public sealed partial class InferTypesPass() : Pass(PassName, PassScope.PerBuild
         if (ctorTemplate != null) classType.CtorTemplate = ctorTemplate;
 
         LinkBaseClass(pc, cd, classType, report: true);
+        if (cd.BaseClass != null && classType.BaseClass != null)
+            ReportBaseTypeArguments(pc, cd.BaseClass, classType.BaseClass.TypeParams.Count, cd.BaseClassTypeArgs);
 
-        foreach (var iface in cd.Interfaces)
+        for (var index = 0; index < cd.Interfaces.Count; index++)
         {
+            var iface = cd.Interfaces[index];
             if (iface.Sym == SymID.Invalid) continue;
             var ifaceTyp = LookupSymbolType(pc, iface.Sym);
             if (ifaceTyp != TypID.Invalid && pc.Types.GetByID(ifaceTyp, out var it) && it is InterfaceType ifaceType)
+            {
                 AddOnce(classType.Interfaces, ifaceType);
+                ReportBaseTypeArguments(pc, iface, ifaceType.TypeParams.Count, index < cd.InterfaceTypeArgs.Count ? cd.InterfaceTypeArgs[index] : []);
+            }
             else if (ifaceTyp != TypID.Invalid)
                 pc.Diag.Report(iface.Span, Diagnostics.DiagnosticCode.ErrImplementsNonInterface, iface.Name);
         }
@@ -1102,6 +1114,7 @@ public sealed partial class InferTypesPass() : Pass(PassName, PassScope.PerBuild
 
         foreach (var accessor in cd.Accessors)
         {
+            ReportAccessorParameters(pc, accessor.Kind, accessor.Name, accessor.Parameters);
             var accParams = new List<Tuple<string, Type>>();
             foreach (var p in accessor.Parameters)
             {
@@ -1145,6 +1158,7 @@ public sealed partial class InferTypesPass() : Pass(PassName, PassScope.PerBuild
     private void ResolveClassBodies(PassContext pc, ClassDecl cd, ClassType classType,
         List<(ClassMethodNode Method, Type ReturnType)> methodBodies)
     {
+        using var classTypeParams = FixTypeParams(cd.TypeParams);
         if (cd.Constructor != null)
         {
             foreach (var defer in DeferStmt.In(cd.Constructor.Body))
@@ -1160,13 +1174,24 @@ public sealed partial class InferTypesPass() : Pass(PassName, PassScope.PerBuild
         }
 
         foreach (var (method, returnType) in methodBodies)
-            ResolveMethodBody(pc, method.Body, method.ReturnStmt, method.IsAsync, returnType, method.ReturnType?.Span ?? method.Name.Span);
+        {
+            using (FixTypeParams(method.TypeParams))
+                ResolveMethodBody(pc, method.Body, method.ReturnStmt, method.IsAsync, returnType, method.ReturnType?.Span ?? method.Name.Span);
+        }
 
         foreach (var accessor in cd.Accessors)
             ResolveFunctionBody(pc, accessor.Body, accessor.ReturnStmt);
 
-        CheckInterfaceImplementation(pc, cd, classType);
-        CheckAbstractImplementation(pc, cd, classType);
+        _openTypeParamDepth++;
+        try
+        {
+            CheckInterfaceImplementation(pc, cd, classType);
+            CheckAbstractImplementation(pc, cd, classType);
+        }
+        finally
+        {
+            _openTypeParamDepth--;
+        }
     }
 
     /// <summary>
@@ -1811,12 +1836,15 @@ public sealed partial class InferTypesPass() : Pass(PassName, PassScope.PerBuild
         if (!pc.Pkg!.Syms.GetByID(id.Name.Sym, out var ifaceSym)) return;
         if (!pc.Types.GetByID(ifaceSym.Type, out var rawType) || rawType is not InterfaceType ifaceType) return;
 
-        foreach (var baseIface in id.BaseInterfaces)
+        for (var index = 0; index < id.BaseInterfaces.Count; index++)
         {
+            var baseIface = id.BaseInterfaces[index];
             if (baseIface.Sym == SymID.Invalid) continue;
             var bt = LookupSymbolType(pc, baseIface.Sym);
             if (bt != TypID.Invalid && pc.Types.GetByID(bt, out var bit) && bit is InterfaceType baseIfaceType)
             {
+                ReportBaseTypeArguments(pc, baseIface, baseIfaceType.TypeParams.Count,
+                    index < id.BaseInterfaceTypeArgs.Count ? id.BaseInterfaceTypeArgs[index] : []);
                 // Same reasoning as for base classes: a cycle here makes the walks over the
                 // extends graph non-terminating, so it is rejected rather than recorded.
                 if (ReachesThroughBaseInterfaces(baseIfaceType, ifaceType))
@@ -1892,8 +1920,12 @@ public sealed partial class InferTypesPass() : Pass(PassName, PassScope.PerBuild
             }
         }
 
+        using var interfaceTypeParams = FixTypeParams(id.TypeParams);
         foreach (var (method, returnType) in defaultBodies)
-            ResolveMethodBody(pc, method.Body!, method.ReturnStmt, method.IsAsync, returnType, method.ReturnType?.Span ?? method.Name.Span);
+        {
+            using (FixTypeParams(method.TypeParams))
+                ResolveMethodBody(pc, method.Body!, method.ReturnStmt, method.IsAsync, returnType, method.ReturnType?.Span ?? method.Name.Span);
+        }
     }
 
     /// <summary>
@@ -1947,6 +1979,7 @@ public sealed partial class InferTypesPass() : Pass(PassName, PassScope.PerBuild
             if (ed.IsDeclare) continue;
 
             if (method.IsAsync) _asyncDepth++;
+            using var extensionTypeParams = FixTypeParams(method.TypeParams);
             ResolveFunctionBody(pc, method.Body, method.ReturnStmt);
 
             var collected = CollectReturnTypes(pc, method.Body);
@@ -2208,7 +2241,9 @@ public sealed partial class InferTypesPass() : Pass(PassName, PassScope.PerBuild
             ReportClassReplacement(pc, target);
             if (target is IndexAccessExpr indexTarget && TryNewIndexOperator(pc, indexTarget, assigned)) continue;
 
+            _assignmentTarget = target;
             var targetType = SynthesizeExpr(pc, target);
+            _assignmentTarget = null;
             if (i < valueTypes.Count && targetType != TypID.Invalid && targetType != pc.Types.PrimAny.ID)
             {
                 var valueType = i < stmt.Values.Count && IsEmptyTable(stmt.Values[i]) && IsTableShape(pc, targetType)
@@ -3558,6 +3593,19 @@ public sealed partial class InferTypesPass() : Pass(PassName, PassScope.PerBuild
 
     private int ScoreOverload(PassContext pc, FunctionType ft, List<TypID> argTypes)
     {
+        _openTypeParamDepth++;
+        try
+        {
+            return ScoreOverloadAgainst(pc, ft, argTypes);
+        }
+        finally
+        {
+            _openTypeParamDepth--;
+        }
+    }
+
+    private int ScoreOverloadAgainst(PassContext pc, FunctionType ft, List<TypID> argTypes)
+    {
         var paramCount = ft.ParamTypes.Count;
         var argCount = argTypes.Count;
         var minParams = ft.MinParamCount;
@@ -3795,6 +3843,8 @@ public sealed partial class InferTypesPass() : Pass(PassName, PassScope.PerBuild
         {
             if (current.Setters.TryGetValue(name, out var setter))
             {
+                if (!ReferenceEquals(dot, _assignmentTarget))
+                    pc.Diag.Report(dot.FieldName.Span, DiagnosticCode.ErrWriteOnlyProperty, name);
                 return setter.ParamTypes.Count > 1 ? setter.ParamTypes[^1].ID : pc.Types.PrimAny.ID;
             }
         }
@@ -4213,6 +4263,19 @@ public sealed partial class InferTypesPass() : Pass(PassName, PassScope.PerBuild
 
     private void CheckCallArguments(PassContext pc, TextSpan span, FunctionType fnType, List<TypID> argTypes)
     {
+        _openTypeParamDepth++;
+        try
+        {
+            CheckCallArgumentsAgainst(pc, span, fnType, argTypes);
+        }
+        finally
+        {
+            _openTypeParamDepth--;
+        }
+    }
+
+    private void CheckCallArgumentsAgainst(PassContext pc, TextSpan span, FunctionType fnType, List<TypID> argTypes)
+    {
         var paramCount = fnType.ParamTypes.Count;
         var argCount = argTypes.Count;
         var minParams = fnType.MinParamCount;
@@ -4589,12 +4652,18 @@ public sealed partial class InferTypesPass() : Pass(PassName, PassScope.PerBuild
 
         if (pc.Pkg!.Types.GetByID(dst, out var dstTpCheck) && dstTpCheck is TypeParameterType dstTp)
         {
-            if (dstTp.ExtendsBound is { } eb && !IsTypeAssignable(pc, eb, src)) return false;
-            return dstTp.ImplementsBounds.All(bound => IsTypeAssignable(pc, bound, src));
+            if (!IsFixed(dstTp))
+            {
+                if (dstTp.ExtendsBound is { } eb && !IsTypeAssignable(pc, eb, src)) return false;
+                return dstTp.ImplementsBounds.All(bound => IsTypeAssignable(pc, bound, src));
+            }
+
+            if (AssignableToFixedTypeParam(pc, src) is { } fitsTypeParam) return fitsTypeParam;
         }
-        if (pc.Pkg.Types.GetByID(src, out var srcTpCheck) && srcTpCheck is TypeParameterType)
+        if (pc.Pkg.Types.GetByID(src, out var srcTpCheck) && srcTpCheck is TypeParameterType srcTp)
         {
-            return true;
+            if (!IsFixed(srcTp)) return true;
+            if (AssignableFromFixedTypeParam(pc, srcTp, dst) is { } typeParamFits) return typeParamFits;
         }
 
         if (!pc.Config.Rules.StrictNil)

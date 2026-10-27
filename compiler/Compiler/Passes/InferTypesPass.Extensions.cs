@@ -55,6 +55,7 @@ public sealed partial class InferTypesPass
                     target.ExtensionMethodNodes[member.Name.Name] = member;
                     break;
                 case ExtensionMemberKind.Getter:
+                    ReportAccessorParameters(pc, AccessorKind.Getter, member.Name, member.Parameters);
                     if (!IsNewExtension(pc, target, member, target.ExtensionGetters.ContainsKey(member.Name.Name))) break;
                     target.ExtensionGetters[member.Name.Name] = member;
                     break;

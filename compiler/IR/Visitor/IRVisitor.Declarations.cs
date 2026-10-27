@@ -792,14 +792,17 @@ internal partial class IRVisitor
         };
     }
 
-    private ExtensionMethodNode ExtensionGetter(NebraParser.AnnotationListContext annotations,
+    private ExtensionMethodNode? ExtensionGetter(NebraParser.AnnotationListContext annotations,
         Antlr4.Runtime.Tree.ITerminalNode kind, Antlr4.Runtime.Tree.ITerminalNode name,
         (List<Parameter> Parameters, TypeRef? ReturnType, List<Stmt> Body, ReturnStmt? Return) getter,
         NebraParser.TypeParamListContext? typeParams, ParserRuleContext context)
     {
         RejectTypeParams(typeParams, "a getter");
         if (ResolveAccessorKind(kind.GetText(), kind) == AccessorKind.Setter)
+        {
             diag.Report(SpanFromTerm(kind), Diagnostics.DiagnosticCode.ErrExtensionSetter, name.GetText());
+            return null;
+        }
 
         return new ExtensionMethodNode(NameRefFromTerm(name), getter.Parameters, getter.ReturnType, getter.Body,
             getter.Return, false, SpanFromCtx(context))

@@ -283,6 +283,34 @@ public sealed class SourceFormTests
     }
 
     [Fact]
+    public void AGenericTypeNeedsItsTypeArguments()
+    {
+        var build = Build("interface I<T>\n    method M(): T?\nend\n\ninterface J<T> extends I\nend\n\nclass Box<T>\n    value: T? = nil\nend\n\nclass B extends Box\nend\n\nclass Good extends Box<number> implements I<string>\n    function M(): string?\n        return nil\n    end\nend\n\nlocal plain: I = new Good()\nlocal typed: I<string> = new Good()\nprint(plain, typed)\n");
+
+        Assert.Equal(3, build.Errors.Count(error => error.Code == DiagnosticCode.ErrTypeParamArityMismatch));
+        Assert.Equal(3, build.Errors.Count);
+    }
+
+    [Fact]
+    public void ATypeParameterOnlyAcceptsItselfInsideTheGenericBody()
+    {
+        var build = Build("class Person<T>\n    local age: T = 0\nend\n\nclass Box<T>\n    value: T\n\n    constructor(value: T)\n        self.value = value\n    end\n\n    function get(): T\n        return self.value\n    end\n\n    function wrong(): T\n        return \"x\"\n    end\n\n    function map<U>(f: (T) -> U): Box<U>\n        return new Box(f(self.value))\n    end\nend\n\nlocal function wrap<T>(value: T, depth: number): T\n    if depth > 0 then return wrap(value, depth - 1) end\n    return value\nend\n\nlocal function add<T>(a: T, b: T): T\n    print(a + b)\n    return a\nend\n\nprint(new Box(3):get(), wrap(\"x\", 2), add(1, 2))\n");
+
+        Assert.Equal(4, build.Errors.Count(error => error.Code == DiagnosticCode.ErrTypeMismatch));
+        Assert.Equal(4, build.Errors.Count);
+    }
+
+    [Fact]
+    public void AccessorsTakeTheParametersTheyAreCalledWith()
+    {
+        var build = Build("class Person\n    local stored: number = 0\n\n    set age()\n        self.stored = 1\n    end\n\n    set level(value: number)\n        self.stored = value\n    end\n\n    get name(prefix: string): string\n        return prefix\n    end\nend\n\nlocal person = new Person()\nperson.level = 25\nprint(person.level)\n");
+
+        Assert.Equal(2, build.Errors.Count(error => error.Code == DiagnosticCode.ErrAccessorParameters));
+        Assert.Single(build.Errors, error => error.Code == DiagnosticCode.ErrWriteOnlyProperty);
+        Assert.Equal(3, build.Errors.Count);
+    }
+
+    [Fact]
     public void MethodCallsFollowNewAndContinueOnTheNextLine()
     {
         var build = Build("class Builder\n    function column(name: string): Builder\n        return self\n    end\n\n    function build(): nil\n    end\nend\n\nnew Builder()\n    :column(\"a\")\n    :column(\"b\")\n    :build()\nprint(new Builder():column(\"c\"))\n");

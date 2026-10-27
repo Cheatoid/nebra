@@ -743,6 +743,22 @@ public class ResolveTypeRefsPass() : Pass(PassName, PassScope.PerBuild)
         return false;
     }
 
+    /// <summary>
+    /// Reports a generic class or interface named without its type arguments, such as <c>Box</c>
+    /// for <c>Box&lt;T&gt;</c>: what its type parameters stand for would be left open.
+    /// </summary>
+    private void ReportMissingTypeArguments(Nebra.Diagnostics.TextSpan span, string name, Type? type)
+    {
+        var arity = type switch
+        {
+            ClassType classType => classType.TypeParams.Count,
+            InterfaceType interfaceType => interfaceType.TypeParams.Count,
+            _ => 0,
+        };
+        if (arity > 0)
+            _ctx.Diag.Report(span, Nebra.Diagnostics.DiagnosticCode.ErrTypeParamArityMismatch, name, arity, 0);
+    }
+
     private Type ResolveTypeRef(TypeTable tt, TypeRef tr)
     {
         // Error recovery leaves holes where a type was expected (`local t: = {`), so a reference
@@ -775,6 +791,7 @@ public class ResolveTypeRefsPass() : Pass(PassName, PassScope.PerBuild)
                 tt.GetByID(sym.Type, out var resolved);
                 nrt.Name.Sym = symId;
                 tr.ResolvedType = sym.Type;
+                ReportMissingTypeArguments(tr.Span, nrt.Name.Name, resolved);
                 return resolved;
             }
 

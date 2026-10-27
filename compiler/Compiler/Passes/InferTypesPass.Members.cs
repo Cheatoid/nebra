@@ -112,6 +112,28 @@ public sealed partial class InferTypesPass
         return false;
     }
 
+    /// <summary>
+    /// Reports a generic base class or interface named in <c>extends</c> or <c>implements</c> with
+    /// another number of type arguments than it declares type parameters, none included.
+    /// </summary>
+    private static void ReportBaseTypeArguments(PassContext pc, NameRef baseName, int arity, List<TypeArgRef> arguments)
+    {
+        if (arity == 0 || arguments.Count == arity) return;
+        pc.Diag.Report(baseName.Span, DiagnosticCode.ErrTypeParamArityMismatch, baseName.Name, arity, arguments.Count);
+    }
+
+    /// <summary>
+    /// Reports an accessor with parameters it cannot be called with: a getter is read without any,
+    /// and a setter receives exactly the assigned value.
+    /// </summary>
+    private static void ReportAccessorParameters(PassContext pc, AccessorKind kind, NameRef name, List<Parameter> parameters)
+    {
+        if (kind == AccessorKind.Getter && parameters.Count != 0)
+            pc.Diag.Report(name.Span, DiagnosticCode.ErrAccessorParameters, $"the getter '{name.Name}' takes no parameters");
+        else if (kind == AccessorKind.Setter && (parameters.Count != 1 || parameters[0].IsVararg))
+            pc.Diag.Report(name.Span, DiagnosticCode.ErrAccessorParameters, $"the setter '{name.Name}' takes exactly one parameter, the assigned value");
+    }
+
     private static void ReportReservedMemberName(PassContext pc, NameRef name)
     {
         if (ReservedMemberReason(name.Name) is { } reason)
