@@ -294,16 +294,21 @@ enumMember
 // -----------------------------------------------------------------------------
 
 classDecl
-    : annotationList ABSTRACT? CLASS NAME typeParamList? (EXTENDS classRef)? (IMPLEMENTS classRef (COMMA classRef)*)?
+    : annotationList ABSTRACT? classModifier? CLASS NAME typeParamList? (EXTENDS classRef)? (IMPLEMENTS classRef (COMMA classRef)*)?
       classMember*
       END
+    ;
+
+// A modifier written before `class`. Only `sealed` is one; it stays a plain name elsewhere.
+classModifier
+    : NAME
     ;
 
 classMember
     : annotationList (LOCAL | PROTECTED)? STATIC? NAME typeAnnotation? (ASSIGN expr)?     # ClassFieldMember
     | annotationList (LOCAL | PROTECTED)? STATIC? OVERRIDE? ASYNC? FUNCTION memberName funcBody # ClassMethodMember
     | annotationList PROTECTED? ABSTRACT ASYNC? FUNCTION memberName funcSignature         # ClassAbstractMethodMember
-    | annotationList CONSTRUCTOR funcBody                                                  # ClassConstructorMember
+    | annotationList LOCAL? CONSTRUCTOR funcBody                                           # ClassConstructorMember
     | annotationList operatorKeyword operatorSymbol funcBody                               # ClassOperatorMember
     | annotationList OVERRIDE? NAME NAME funcBody                                          # ClassAccessorMember
     ;
@@ -469,7 +474,7 @@ declareBody
     | NAME typeAnnotation                                        # DeclareVariable
     | MODULE str declareModuleBlock END                           # DeclareModule
     | ENUM NAME declareEnumMember+ END                           # DeclareEnum
-    | ABSTRACT? CLASS NAME typeParamList? (EXTENDS classRef)? (IMPLEMENTS classRef (COMMA classRef)*)?
+    | ABSTRACT? classModifier? CLASS NAME typeParamList? (EXTENDS classRef)? (IMPLEMENTS classRef (COMMA classRef)*)?
       declareClassMember*
       END                                                        # DeclareClass
     | INTERFACE NAME typeParamList? (EXTENDS classRef (COMMA classRef)*)?
@@ -480,7 +485,7 @@ declareBody
 declareClassMember
     : annotationList (LOCAL | PROTECTED)? STATIC? NAME typeAnnotation?                              # DeclareClassFieldMember
     | annotationList (LOCAL | PROTECTED)? STATIC? OVERRIDE? ABSTRACT? ASYNC? FUNCTION memberName funcSignature  # DeclareClassMethodMember
-    | annotationList CONSTRUCTOR funcSignature                                                       # DeclareClassConstructorMember
+    | annotationList LOCAL? CONSTRUCTOR funcSignature                                                # DeclareClassConstructorMember
     | annotationList operatorKeyword operatorSymbol funcSignature                                    # DeclareClassOperatorMember
     | annotationList NAME NAME funcSignature                                                         # DeclareClassAccessorMember
     ;
@@ -528,7 +533,7 @@ declareModuleMember
     : annotationList ASYNC? FUNCTION funcName funcSignature      # ModuleDeclareFunction
     | annotationList NAME typeAnnotation                         # ModuleDeclareVariable
     | annotationList ENUM NAME declareEnumMember+ END            # ModuleDeclareEnum
-    | annotationList ABSTRACT? CLASS NAME typeParamList? (EXTENDS classRef)? (IMPLEMENTS classRef (COMMA classRef)*)?
+    | annotationList ABSTRACT? classModifier? CLASS NAME typeParamList? (EXTENDS classRef)? (IMPLEMENTS classRef (COMMA classRef)*)?
       declareClassMember*
       END                                                        # ModuleDeclareClass
     | annotationList INTERFACE NAME typeParamList? (EXTENDS classRef (COMMA classRef)*)?

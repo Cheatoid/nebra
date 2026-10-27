@@ -490,6 +490,12 @@ public interface INebraVisitor<Result> : IParseTreeVisitor<Result> {
 	/// <return>The visitor result.</return>
 	Result VisitClassDecl([NotNull] NebraParser.ClassDeclContext context);
 	/// <summary>
+	/// Visit a parse tree produced by <see cref="NebraParser.classModifier"/>.
+	/// </summary>
+	/// <param name="context">The parse tree.</param>
+	/// <return>The visitor result.</return>
+	Result VisitClassModifier([NotNull] NebraParser.ClassModifierContext context);
+	/// <summary>
 	/// Visit a parse tree produced by the <c>ClassFieldMember</c>
 	/// labeled alternative in <see cref="NebraParser.classMember"/>.
 	/// </summary>

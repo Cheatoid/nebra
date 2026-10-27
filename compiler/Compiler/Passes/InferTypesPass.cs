@@ -972,7 +972,13 @@ public sealed partial class InferTypesPass() : Pass(PassName, PassScope.PerBuild
 
         LinkBaseClass(pc, cd, classType, report: true);
         if (cd.BaseClass != null && classType.BaseClass != null)
+        {
             ReportBaseTypeArguments(pc, cd.BaseClass, classType.BaseClass.TypeParams.Count, cd.BaseClassTypeArgs);
+            if (classType.BaseClass.IsSealed)
+                pc.Diag.Report(cd.BaseClass.Span, DiagnosticCode.ErrSealedBase, classType.BaseClass.Name);
+            else if (classType.BaseClass.HasLocalConstructor)
+                pc.Diag.Report(cd.BaseClass.Span, DiagnosticCode.ErrLocalConstructor, classType.BaseClass.Name);
+        }
 
         for (var index = 0; index < cd.Interfaces.Count; index++)
         {
@@ -2991,6 +2997,9 @@ public sealed partial class InferTypesPass() : Pass(PassName, PassScope.PerBuild
             pc.Diag.Report(newExpr.Span, DiagnosticCode.ErrInstantiateAbstract, newExpr.ClassName.Name);
             return classTypId;
         }
+
+        if (classType.HasLocalConstructor && _currentClass != classType)
+            pc.Diag.Report(newExpr.Span, DiagnosticCode.ErrLocalConstructor, classType.Name);
 
         var ctorType = ResolveConstructorType(classType);
         if (ctorType == null)

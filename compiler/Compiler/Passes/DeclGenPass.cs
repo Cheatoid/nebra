@@ -318,6 +318,7 @@ public sealed class DeclGenPass() : Pass(PassName, PassScope.PerBuild, true)
     {
         sb.Append("    ");
         if (cd.IsAbstract) sb.Append("abstract ");
+        if (cd.IsSealed) sb.Append("sealed ");
         sb.Append("class ");
         sb.Append(cd.Name.Name);
         if (cd.BaseClass != null)
@@ -351,7 +352,7 @@ public sealed class DeclGenPass() : Pass(PassName, PassScope.PerBuild, true)
         if (cd.Constructor != null)
         {
             EmitDoc(sb, "        ", cd.Constructor.Doc);
-            sb.Append("        constructor(");
+            sb.Append(cd.Constructor.IsLocal ? "        local constructor(" : "        constructor(");
             EmitParams(sb, ctx, pkg, cd.Constructor.Parameters);
             sb.AppendLine(")");
         }

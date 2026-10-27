@@ -6,6 +6,64 @@ namespace Nebra.Compiler.Passes;
 public sealed partial class CodegenPass
 {
     /// <summary>
+    /// Whether a subclass without a constructor of its own has arguments to hand on to
+    /// <paramref name="baseClass"/>'s: the nearest constructor up the chain takes any, or the
+    /// chain reaches a class declared for code compiled elsewhere, whose constructor is unknown.
+    /// </summary>
+    private static bool InheritsConstructorArguments(ClassType? baseClass)
+    {
+        for (var current = baseClass; current != null; current = current.BaseClass)
+        {
+            if (!current.IsCompiledFromSource) return true;
+            if (current.ConstructorType is { } constructor) return constructor.ParamTypes.Count > 0 || constructor.IsVararg;
+        }
+
+        return baseClass == null;
+    }
+
+    /// <summary>
+    /// Whether a derived class's constructor does nothing but create the base instance: no
+    /// field defaults of its own, and a constructor, if any, without a body or <c>super</c> call.
+    /// </summary>
+    private static bool OnlyWrapsBaseConstructor(ClassDecl cd)
+    {
+        if (cd.Fields.Any(field => !field.IsStatic && field.DefaultValue != null)) return false;
+        return cd.Constructor == null || (cd.Constructor.Body.Count == 0 && cd.Constructor.ReturnStmt == null && cd.Constructor.Parameters.Count == 0);
+    }
+
+    /// <summary>
+    /// The metamethods a class may carry on its table, which Lua looks up on the metatable alone,
+    /// so a subclass copies them from its base class.
+    /// </summary>
+    private static readonly string[] CopiedMetamethods =
+    [
+        "__add", "__sub", "__mul", "__div", "__mod", "__pow", "__unm", "__concat", "__len", "__eq", "__lt", "__le",
+        "__idiv", "__band", "__bor", "__bxor", "__bnot", "__shl", "__shr", "__call", "__tostring", "__close", "__pairs",
+    ];
+
+    /// <summary>
+    /// The metamethods a subclass of <paramref name="baseClass"/> copies from it. When the whole
+    /// chain is compiled from source, those are exactly the ones it declares, often none; a class
+    /// declared for code compiled elsewhere may carry any of them.
+    /// </summary>
+    private static List<string> InheritedMetamethods(ClassType? baseClass)
+    {
+        var declared = new SortedSet<string>(StringComparer.Ordinal);
+        for (var current = baseClass; current != null; current = current.BaseClass)
+        {
+            if (!current.IsCompiledFromSource) return [.. CopiedMetamethods];
+
+            foreach (var name in current.Methods.Keys)
+            {
+                if (name == "__op_call") declared.Add("__call");
+                else if (CopiedMetamethods.Contains(name)) declared.Add(name);
+            }
+        }
+
+        return baseClass == null ? [.. CopiedMetamethods] : [.. declared];
+    }
+
+    /// <summary>
     /// Whether <paramref name="classType"/> or a class it extends declares the operator
     /// <paramref name="name"/>, such as <c>__op_index</c> for <c>operator []</c>. Lua does not
     /// inherit metamethods, so every class below the one declaring it generates its own.

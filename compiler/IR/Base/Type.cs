@@ -643,6 +643,12 @@ public sealed class ClassType(
     /// for code compiled elsewhere, so codegen decides how its methods are emitted.
     /// </summary>
     public bool IsCompiledFromSource { get; set; }
+
+    /// <summary>Declared <c>sealed</c>: no class may extend it.</summary>
+    public bool IsSealed { get; set; }
+
+    /// <summary>Its constructor is <c>local</c>: instances are created only inside the class itself.</summary>
+    public bool HasLocalConstructor { get; set; }
     public Dictionary<string, StructType.Field> InstanceFields { get; } = new();
     public Dictionary<string, FunctionType> Methods { get; } = new();
     /// <summary>

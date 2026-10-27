@@ -809,6 +809,16 @@ public interface INebraListener : IParseTreeListener {
 	/// <param name="context">The parse tree.</param>
 	void ExitClassDecl([NotNull] NebraParser.ClassDeclContext context);
 	/// <summary>
+	/// Enter a parse tree produced by <see cref="NebraParser.classModifier"/>.
+	/// </summary>
+	/// <param name="context">The parse tree.</param>
+	void EnterClassModifier([NotNull] NebraParser.ClassModifierContext context);
+	/// <summary>
+	/// Exit a parse tree produced by <see cref="NebraParser.classModifier"/>.
+	/// </summary>
+	/// <param name="context">The parse tree.</param>
+	void ExitClassModifier([NotNull] NebraParser.ClassModifierContext context);
+	/// <summary>
 	/// Enter a parse tree produced by the <c>ClassFieldMember</c>
 	/// labeled alternative in <see cref="NebraParser.classMember"/>.
 	/// </summary>

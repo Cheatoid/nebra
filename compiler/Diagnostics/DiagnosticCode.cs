@@ -455,6 +455,17 @@ public enum DiagnosticCode
     [Help("declare 'get {0}()' to read it")]
     ErrWriteOnlyProperty = 0x4037,
 
+    [Level(DiagnosticLevel.Error)]
+    [Category(DiagnosticCategory.Semantic)]
+    [Format("'{0}' is sealed and cannot be extended")]
+    ErrSealedBase = 0x4038,
+
+    [Level(DiagnosticLevel.Error)]
+    [Category(DiagnosticCategory.Semantic)]
+    [Format("the constructor of '{0}' is local, so only '{0}' itself can create instances")]
+    [Help("create instances through a static function of '{0}', such as a factory")]
+    ErrLocalConstructor = 0x4039,
+
     [Level(DiagnosticLevel.Warning)]
     [Category(DiagnosticCategory.Semantic)]
     [Format("Method '{0}' shadows a method in parent class '{1}'; use 'override' to indicate this is intentional")]

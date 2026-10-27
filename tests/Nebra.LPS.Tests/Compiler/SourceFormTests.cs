@@ -311,6 +311,38 @@ public sealed class SourceFormTests
     }
 
     [Fact]
+    public void ASubclassCopiesTheMetamethodsItsBaseDeclares()
+    {
+        var build = Build("class Plain\nend\n\nclass PlainChild extends Plain\nend\n\nclass Money\n    function __tostring(): string\n        return \"money\"\n    end\n\n    operator +(other: Money): Money\n        return self\n    end\nend\n\nclass Euro extends Money\nend\n\nprint(new PlainChild(), tostring(new Euro()))\n");
+
+        Assert.Empty(build.Errors);
+        var lua = build.Lua("src/main.neb");
+        Assert.Contains("ipairs({\"__add\",\"__tostring\"})", lua);
+        Assert.DoesNotContain("rawget(Plain, __k)", lua);
+    }
+
+    [Fact]
+    public void ADerivedConstructorThatOnlyCreatesTheBaseIsOneLine()
+    {
+        var build = Build("class A\nend\n\nclass B extends A\nend\n\nclass Named\n    name: string\n\n    constructor(name: string)\n        self.name = name\n    end\nend\n\nclass Dog extends Named\nend\n\nprint(new B(), new Dog(\"rex\"))\n");
+
+        Assert.Empty(build.Errors);
+        var lua = build.Lua("src/main.neb");
+        Assert.Contains("function B.new()\n\treturn setmetatable(A.new(), B)", lua);
+        Assert.Contains("function Dog.new(...)\n\treturn setmetatable(Named.new(...), Dog)", lua);
+    }
+
+    [Fact]
+    public void ALocalConstructorAndASealedClassLimitWhoCreatesAndExtends()
+    {
+        var build = Build("class Factory\n    static shared: Factory = new Factory()\n\n    local constructor()\n    end\n\n    static function create(): Factory\n        return new Factory()\n    end\nend\n\nabstract class A\nend\n\nsealed class B extends A\nend\n\nclass C extends B\nend\n\nclass D extends Factory\nend\n\nlocal sealed = new Factory()\nprint(sealed, Factory.create())\n");
+
+        Assert.Equal(2, build.Errors.Count(error => error.Code == DiagnosticCode.ErrLocalConstructor));
+        Assert.Single(build.Errors, error => error.Code == DiagnosticCode.ErrSealedBase);
+        Assert.Equal(3, build.Errors.Count);
+    }
+
+    [Fact]
     public void MethodCallsFollowNewAndContinueOnTheNextLine()
     {
         var build = Build("class Builder\n    function column(name: string): Builder\n        return self\n    end\n\n    function build(): nil\n    end\nend\n\nnew Builder()\n    :column(\"a\")\n    :column(\"b\")\n    :build()\nprint(new Builder():column(\"c\"))\n");

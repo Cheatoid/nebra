@@ -952,6 +952,18 @@ public partial class NebraBaseListener : INebraListener {
 	/// <param name="context">The parse tree.</param>
 	public virtual void ExitClassDecl([NotNull] NebraParser.ClassDeclContext context) { }
 	/// <summary>
+	/// Enter a parse tree produced by <see cref="NebraParser.classModifier"/>.
+	/// <para>The default implementation does nothing.</para>
+	/// </summary>
+	/// <param name="context">The parse tree.</param>
+	public virtual void EnterClassModifier([NotNull] NebraParser.ClassModifierContext context) { }
+	/// <summary>
+	/// Exit a parse tree produced by <see cref="NebraParser.classModifier"/>.
+	/// <para>The default implementation does nothing.</para>
+	/// </summary>
+	/// <param name="context">The parse tree.</param>
+	public virtual void ExitClassModifier([NotNull] NebraParser.ClassModifierContext context) { }
+	/// <summary>
 	/// Enter a parse tree produced by the <c>ClassFieldMember</c>
 	/// labeled alternative in <see cref="NebraParser.classMember"/>.
 	/// <para>The default implementation does nothing.</para>

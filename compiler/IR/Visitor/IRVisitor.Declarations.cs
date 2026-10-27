@@ -56,6 +56,20 @@ internal partial class IRVisitor
         diag.Report(SpanFromCtx(typeParams), Diagnostics.DiagnosticCode.ErrTypeParamsNotAllowed, what);
     }
 
+    /// <summary>
+    /// Whether a class carries the <c>sealed</c> modifier. Any other word before <c>class</c> is
+    /// reported, since <c>sealed</c> is the only modifier there.
+    /// </summary>
+    private bool IsSealedModifier(NebraParser.ClassModifierContext? modifier)
+    {
+        if (modifier == null) return false;
+        if (modifier.NAME().GetText() == "sealed") return true;
+
+        diag.Report(SpanFromTerm(modifier.NAME()), Diagnostics.DiagnosticCode.ErrUnexpectedToken,
+            $"unexpected `{modifier.NAME().GetText()}`; the only modifier before `class` is `sealed`");
+        return false;
+    }
+
     private bool IsOperatorKeyword(NebraParser.OperatorKeywordContext keyword)
     {
         if (keyword.NAME().GetText() == "operator") return true;
@@ -311,7 +325,7 @@ internal partial class IRVisitor
                 {
                     var (parameters, _) = VisitFuncSignatureContent(ctor.funcSignature());
                     RejectTypeParams(ctor.funcSignature().typeParamList(), "a constructor");
-                    constructor = new ClassConstructorNode(parameters, [], null, SpanFromCtx(ctor));
+                    constructor = new ClassConstructorNode(parameters, [], null, SpanFromCtx(ctor)) { IsLocal = ctor.LOCAL() != null };
                     constructor.Annotations = VisitAnnotationListContent(ctor.annotationList());
                     break;
                 }
@@ -355,6 +369,7 @@ internal partial class IRVisitor
         var isClassAbstract = context.ABSTRACT() != null;
         var decl = new ClassDecl(NewNodeID, SpanFromCtx(context), name, baseClass, interfaces, fields, methods, constructor, accessors, isDeclare: true, isAbstract: isClassAbstract);
         decl.TypeParams = typeParams;
+        decl.IsSealed = IsSealedModifier(context.classModifier());
         decl.BaseClassTypeArgs = baseClassTypeArgs;
         decl.InterfaceTypeArgs = interfaceTypeArgs;
         return decl;
@@ -462,7 +477,7 @@ internal partial class IRVisitor
                 {
                     var (parameters, _) = VisitFuncSignatureContent(ctor.funcSignature());
                     RejectTypeParams(ctor.funcSignature().typeParamList(), "a constructor");
-                    constructor = new ClassConstructorNode(parameters, [], null, SpanFromCtx(ctor));
+                    constructor = new ClassConstructorNode(parameters, [], null, SpanFromCtx(ctor)) { IsLocal = ctor.LOCAL() != null };
                     constructor.Annotations = VisitAnnotationListContent(ctor.annotationList());
                     break;
                 }
@@ -506,6 +521,7 @@ internal partial class IRVisitor
         var isClassAbstract = context.ABSTRACT() != null;
         var declMod = new ClassDecl(NewNodeID, SpanFromCtx(context), name, baseClass, interfaces, fields, methods, constructor, accessors, isDeclare: true, isAbstract: isClassAbstract);
         declMod.TypeParams = typeParams;
+        declMod.IsSealed = IsSealedModifier(context.classModifier());
         declMod.BaseClassTypeArgs = baseClassTypeArgs;
         declMod.InterfaceTypeArgs = interfaceTypeArgs;
         declMod.Annotations = VisitAnnotationListContent(context.annotationList());
@@ -671,7 +687,7 @@ internal partial class IRVisitor
                     var (parameters, _, body, ret) = VisitFuncBodyContent(ctor.funcBody());
                     RejectTypeParams(ctor.funcBody().typeParamList(), "a constructor");
                     ReportDuplicateConstructor(constructor, name, ctor);
-                    constructor = new ClassConstructorNode(parameters, body, ret, SpanFromCtx(ctor));
+                    constructor = new ClassConstructorNode(parameters, body, ret, SpanFromCtx(ctor)) { IsLocal = ctor.LOCAL() != null };
                     constructor.Annotations = VisitAnnotationListContent(ctor.annotationList());
                     break;
                 }
@@ -716,6 +732,7 @@ internal partial class IRVisitor
         var isClassAbstract = context.ABSTRACT() != null;
         var regularDecl = new ClassDecl(NewNodeID, SpanFromCtx(context), name, baseClass, interfaces, fields, methods, constructor, accessors, isAbstract: isClassAbstract);
         regularDecl.TypeParams = typeParams;
+        regularDecl.IsSealed = IsSealedModifier(context.classModifier());
         regularDecl.BaseClassTypeArgs = baseClassTypeArgs;
         regularDecl.InterfaceTypeArgs = interfaceTypeArgs;
         regularDecl.Annotations = VisitAnnotationListContent(context.annotationList());

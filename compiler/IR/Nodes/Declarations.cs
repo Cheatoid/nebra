@@ -129,6 +129,9 @@ public sealed class ClassDecl(
     public List<ClassAccessorNode> Accessors { get; } = accessors;
     public bool IsDeclare { get; } = isDeclare;
     public bool IsAbstract { get; } = isAbstract;
+
+    /// <summary>Written <c>sealed class</c>: no class may extend it.</summary>
+    public bool IsSealed { get; set; }
     public List<TypeParamDef> TypeParams { get; set; } = [];
     /// <summary>Type arguments passed to the base class, if any (e.g. <c>extends Foo&lt;number&gt;</c>).</summary>
     public List<TypeArgRef> BaseClassTypeArgs { get; set; } = [];

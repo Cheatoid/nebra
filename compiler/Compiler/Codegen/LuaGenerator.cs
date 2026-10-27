@@ -449,7 +449,7 @@ public sealed class LuaGenerator(Config config)
             $"rawset(t, k, v) " +
             $"end " +
             $"}} " +
-            $"local __ops = {{\"__add\",\"__sub\",\"__mul\",\"__div\",\"__mod\",\"__pow\",\"__unm\",\"__concat\",\"__len\",\"__eq\",\"__lt\",\"__le\",\"__idiv\",\"__band\",\"__bor\",\"__bxor\",\"__bnot\",\"__shl\",\"__shr\",\"__call\"}} " +
+            $"local __ops = {{\"__add\",\"__sub\",\"__mul\",\"__div\",\"__mod\",\"__pow\",\"__unm\",\"__concat\",\"__len\",\"__eq\",\"__lt\",\"__le\",\"__idiv\",\"__band\",\"__bor\",\"__bxor\",\"__bnot\",\"__shl\",\"__shr\",\"__call\",\"__tostring\",\"__close\",\"__pairs\"}} " +
             $"for i = 1, #__ops do " +
             $"local k = __ops[i] " +
             $"if rawget(cls, k) then mt[k] = cls[k] " +

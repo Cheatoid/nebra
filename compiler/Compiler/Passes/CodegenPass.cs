@@ -606,7 +606,7 @@ public sealed partial class CodegenPass() : Pass(PassName, PassScope.PerBuild, t
                 gen.Write(ResolveName(ctx, pkg, cd.Constructor.Parameters[i].Name));
             }
         }
-        else if (hasBase)
+        else if (hasBase && InheritsConstructorArguments(operatorClass?.BaseClass))
         {
             gen.Write("...");
         }
@@ -623,6 +623,13 @@ public sealed partial class CodegenPass() : Pass(PassName, PassScope.PerBuild, t
         {
             EmitCollapsedConstructor(ctx, pkg, gen, className, inits);
         }
+        else if (hasBase && OnlyWrapsBaseConstructor(cd))
+        {
+            var forwarded = cd.Constructor == null && InheritsConstructorArguments(operatorClass?.BaseClass) ? "..." : "";
+            var metatable = ClassNeedsProxy(ctx, pkg, cd) ? $"{gen.GetClassProxyHelper()}({className}, {baseName})" : className;
+            gen.WriteLine($"return setmetatable({baseName}.new({forwarded}), {metatable})");
+            gen.WriteSemicolon();
+        }
         else
         {
             var hasSuperCall = hasBase && cd.Constructor != null && HasSuperCall(cd.Constructor.Body);
@@ -632,7 +639,7 @@ public sealed partial class CodegenPass() : Pass(PassName, PassScope.PerBuild, t
                 {
                     gen.Write("local self = ");
                     gen.Write(baseName!);
-                    gen.Write(cd.Constructor == null ? ".new(...)" : ".new()");
+                    gen.Write(cd.Constructor == null && InheritsConstructorArguments(operatorClass?.BaseClass) ? ".new(...)" : ".new()");
                     gen.NewLine();
                     gen.WriteSemicolon();
                     gen.Write("setmetatable(self, ");
@@ -790,23 +797,24 @@ public sealed partial class CodegenPass() : Pass(PassName, PassScope.PerBuild, t
             gen.WriteSemicolon();
         }
 
-        // Inherit operator metamethods from base class.
-        // Lua's metamethod lookup uses rawget on the metatable, so __index chaining
-        // does not propagate operator overloads from parent to child automatically.
         if (hasBase)
         {
-            gen.Write("for _, __k in ipairs({\"__add\",\"__sub\",\"__mul\",\"__div\",\"__mod\",\"__pow\",\"__unm\",\"__concat\",\"__len\",\"__eq\",\"__lt\",\"__le\",\"__idiv\",\"__band\",\"__bor\",\"__bxor\",\"__bnot\",\"__shl\",\"__shr\"}) do ");
-            gen.Write("if rawget(");
-            gen.Write(baseName!);
-            gen.Write(", __k) and not rawget(");
-            gen.Write(className);
-            gen.Write(", __k) then ");
-            gen.Write(className);
-            gen.Write("[__k] = ");
-            gen.Write(baseName!);
-            gen.Write("[__k] end end");
-            gen.NewLine();
-            gen.WriteSemicolon();
+            var inherited = InheritedMetamethods(operatorClass?.BaseClass);
+            if (inherited.Count > 0)
+            {
+                gen.Write("for _, __k in ipairs({" + string.Join(",", inherited.Select(name => $"\"{name}\"")) + "}) do ");
+                gen.Write("if rawget(");
+                gen.Write(baseName!);
+                gen.Write(", __k) and not rawget(");
+                gen.Write(className);
+                gen.Write(", __k) then ");
+                gen.Write(className);
+                gen.Write("[__k] = ");
+                gen.Write(baseName!);
+                gen.Write("[__k] end end");
+                gen.NewLine();
+                gen.WriteSemicolon();
+            }
         }
     }
 

@@ -154,6 +154,9 @@ public sealed class ClassConstructorNode(
     public TextSpan Span { get; } = span;
     public List<Annotation> Annotations { get; set; } = [];
     public Nebra.Doc.DocComment? Doc { get; set; }
+
+    /// <summary>Written <c>local constructor</c>: instances are created only inside the class itself.</summary>
+    public bool IsLocal { get; init; }
 }
 
 public enum AccessorKind { Getter, Setter }
