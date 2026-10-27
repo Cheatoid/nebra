@@ -44,6 +44,9 @@ public sealed partial class InferTypesPass
             member.IsExported = ed.IsExported || module != null;
             member.IsGlobal = ed.IsDeclare && module == null && pc.File is { IsDeclarationFile: true };
 
+            if (member.Kind != ExtensionMemberKind.Operator && target is not TableMapType && HasOwnMember(target, member.Name.Name))
+                pc.Diag.Report(member.Name.Span, DiagnosticCode.WarnShadowedExtension, member.Name.Name, TypeName(pc, target.ID));
+
             switch (member.Kind)
             {
                 case ExtensionMemberKind.Method:
@@ -73,6 +76,8 @@ public sealed partial class InferTypesPass
     private void RegisterExtensionOperator(PassContext pc, Type target, ExtensionMethodNode member)
     {
         var metamethod = member.Name.Name;
+        if (!member.IsGlobal && member.DeclaringModule == null)
+            ReportOperatorReturns(pc, metamethod, member.ReturnType, member.Signature!.ReturnType);
         var operand = member.Signature!.ParamTypes.Count > 1 ? member.Signature.ParamTypes[1] : null;
         var symbol = OperatorSymbols.GetValueOrDefault(metamethod, metamethod);
         if (ReplacesBuiltInOperator(target, metamethod, operand))

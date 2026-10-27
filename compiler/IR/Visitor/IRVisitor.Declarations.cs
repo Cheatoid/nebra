@@ -46,6 +46,16 @@ internal partial class IRVisitor
         diag.Report(SpanFromCtx(constructor), Diagnostics.DiagnosticCode.ErrDuplicateConstructor, className.Name);
     }
 
+    /// <summary>
+    /// Reports a type parameter list on <paramref name="what"/>, a member that is never called
+    /// with type arguments, so its type parameters could not be filled in.
+    /// </summary>
+    private void RejectTypeParams(NebraParser.TypeParamListContext? typeParams, string what)
+    {
+        if (typeParams == null) return;
+        diag.Report(SpanFromCtx(typeParams), Diagnostics.DiagnosticCode.ErrTypeParamsNotAllowed, what);
+    }
+
     private bool IsOperatorKeyword(NebraParser.OperatorKeywordContext keyword)
     {
         if (keyword.NAME().GetText() == "operator") return true;
@@ -300,6 +310,7 @@ internal partial class IRVisitor
                 case NebraParser.DeclareClassConstructorMemberContext ctor:
                 {
                     var (parameters, _) = VisitFuncSignatureContent(ctor.funcSignature());
+                    RejectTypeParams(ctor.funcSignature().typeParamList(), "a constructor");
                     constructor = new ClassConstructorNode(parameters, [], null, SpanFromCtx(ctor));
                     constructor.Annotations = VisitAnnotationListContent(ctor.annotationList());
                     break;
@@ -308,6 +319,7 @@ internal partial class IRVisitor
                 {
                     var (parameters, returnType) = VisitFuncSignatureContent(opMember.funcSignature());
                     if (!IsOperatorKeyword(opMember.operatorKeyword())) break;
+                    RejectTypeParams(opMember.funcSignature().typeParamList(), "an operator");
                     var symText = opMember.operatorSymbol().GetText();
                     var metaName = OperatorSymbolToMetamethod(symText, parameters.Count, out var diagMsg);
                     if (metaName == null)
@@ -331,6 +343,7 @@ internal partial class IRVisitor
                     var propName = NameRefFromTerm(accessor.NAME(1));
                     var kind = ResolveAccessorKind(kindName, accessor.NAME(0));
                     var (parameters, returnType) = VisitFuncSignatureContent(accessor.funcSignature());
+                    RejectTypeParams(accessor.funcSignature().typeParamList(), "a getter or setter");
                     var anode = new ClassAccessorNode(kind, propName, parameters, returnType, [], null, false, SpanFromCtx(accessor));
                     anode.Annotations = VisitAnnotationListContent(accessor.annotationList());
                     accessors.Add(anode);
@@ -448,6 +461,7 @@ internal partial class IRVisitor
                 case NebraParser.DeclareClassConstructorMemberContext ctor:
                 {
                     var (parameters, _) = VisitFuncSignatureContent(ctor.funcSignature());
+                    RejectTypeParams(ctor.funcSignature().typeParamList(), "a constructor");
                     constructor = new ClassConstructorNode(parameters, [], null, SpanFromCtx(ctor));
                     constructor.Annotations = VisitAnnotationListContent(ctor.annotationList());
                     break;
@@ -456,6 +470,7 @@ internal partial class IRVisitor
                 {
                     var (parameters, returnType) = VisitFuncSignatureContent(opMember.funcSignature());
                     if (!IsOperatorKeyword(opMember.operatorKeyword())) break;
+                    RejectTypeParams(opMember.funcSignature().typeParamList(), "an operator");
                     var symText = opMember.operatorSymbol().GetText();
                     var metaName = OperatorSymbolToMetamethod(symText, parameters.Count, out var diagMsg);
                     if (metaName == null)
@@ -479,6 +494,7 @@ internal partial class IRVisitor
                     var propName = NameRefFromTerm(accessor.NAME(1));
                     var kind = ResolveAccessorKind(kindName, accessor.NAME(0));
                     var (parameters, returnType) = VisitFuncSignatureContent(accessor.funcSignature());
+                    RejectTypeParams(accessor.funcSignature().typeParamList(), "a getter or setter");
                     var anode = new ClassAccessorNode(kind, propName, parameters, returnType, [], null, false, SpanFromCtx(accessor));
                     anode.Annotations = VisitAnnotationListContent(accessor.annotationList());
                     accessors.Add(anode);
@@ -653,6 +669,7 @@ internal partial class IRVisitor
                 case NebraParser.ClassConstructorMemberContext ctor:
                 {
                     var (parameters, _, body, ret) = VisitFuncBodyContent(ctor.funcBody());
+                    RejectTypeParams(ctor.funcBody().typeParamList(), "a constructor");
                     ReportDuplicateConstructor(constructor, name, ctor);
                     constructor = new ClassConstructorNode(parameters, body, ret, SpanFromCtx(ctor));
                     constructor.Annotations = VisitAnnotationListContent(ctor.annotationList());
@@ -665,6 +682,7 @@ internal partial class IRVisitor
                     var propName = NameRefFromTerm(accessor.NAME(1));
                     var kind = ResolveAccessorKind(kindName, accessor.NAME(0));
                     var (parameters, returnType, body, ret) = VisitFuncBodyContent(accessor.funcBody());
+                    RejectTypeParams(accessor.funcBody().typeParamList(), "a getter or setter");
                     var accNode = new ClassAccessorNode(kind, propName, parameters, returnType, body, ret, isOverride, SpanFromCtx(accessor));
                     accNode.Annotations = VisitAnnotationListContent(accessor.annotationList());
                     accessors.Add(accNode);
@@ -674,6 +692,7 @@ internal partial class IRVisitor
                 {
                     var (parameters, returnType, body, ret) = VisitFuncBodyContent(opMember.funcBody());
                     if (!IsOperatorKeyword(opMember.operatorKeyword())) break;
+                    RejectTypeParams(opMember.funcBody().typeParamList(), "an operator");
                     var symText = opMember.operatorSymbol().GetText();
                     var metaName = OperatorSymbolToMetamethod(symText, parameters.Count, out var diagMsg);
                     if (metaName == null)
@@ -716,9 +735,9 @@ internal partial class IRVisitor
                 NebraParser.ExtendFunctionMemberContext function => ExtensionFunction(function.annotationList(),
                     function.ASYNC() != null, function.NAME(), VisitFuncBodyContent(function.funcBody()), function.funcBody().typeParamList(), function),
                 NebraParser.ExtendGetterMemberContext getter => ExtensionGetter(getter.annotationList(),
-                    getter.NAME(0), getter.NAME(1), VisitFuncBodyContent(getter.funcBody()), getter),
+                    getter.NAME(0), getter.NAME(1), VisitFuncBodyContent(getter.funcBody()), getter.funcBody().typeParamList(), getter),
                 NebraParser.ExtendOperatorMemberContext op => ExtensionOperator(op.annotationList(),
-                    op.operatorKeyword(), op.operatorSymbol(), VisitFuncBodyContent(op.funcBody()), op),
+                    op.operatorKeyword(), op.operatorSymbol(), VisitFuncBodyContent(op.funcBody()), op.funcBody().typeParamList(), op),
                 _ => null,
             };
             if (node != null) members.Add(node);
@@ -741,9 +760,9 @@ internal partial class IRVisitor
                 NebraParser.DeclareExtendFunctionMemberContext function => ExtensionFunction(function.annotationList(),
                     function.ASYNC() != null, function.NAME(), Signature(function.funcSignature()), function.funcSignature().typeParamList(), function),
                 NebraParser.DeclareExtendGetterMemberContext getter => ExtensionGetter(getter.annotationList(),
-                    getter.NAME(0), getter.NAME(1), Signature(getter.funcSignature()), getter),
+                    getter.NAME(0), getter.NAME(1), Signature(getter.funcSignature()), getter.funcSignature().typeParamList(), getter),
                 NebraParser.DeclareExtendOperatorMemberContext op => ExtensionOperator(op.annotationList(),
-                    op.operatorKeyword(), op.operatorSymbol(), Signature(op.funcSignature()), op),
+                    op.operatorKeyword(), op.operatorSymbol(), Signature(op.funcSignature()), op.funcSignature().typeParamList(), op),
                 _ => null,
             };
             if (node != null) members.Add(node);
@@ -775,8 +794,10 @@ internal partial class IRVisitor
 
     private ExtensionMethodNode ExtensionGetter(NebraParser.AnnotationListContext annotations,
         Antlr4.Runtime.Tree.ITerminalNode kind, Antlr4.Runtime.Tree.ITerminalNode name,
-        (List<Parameter> Parameters, TypeRef? ReturnType, List<Stmt> Body, ReturnStmt? Return) getter, ParserRuleContext context)
+        (List<Parameter> Parameters, TypeRef? ReturnType, List<Stmt> Body, ReturnStmt? Return) getter,
+        NebraParser.TypeParamListContext? typeParams, ParserRuleContext context)
     {
+        RejectTypeParams(typeParams, "a getter");
         if (ResolveAccessorKind(kind.GetText(), kind) == AccessorKind.Setter)
             diag.Report(SpanFromTerm(kind), Diagnostics.DiagnosticCode.ErrExtensionSetter, name.GetText());
 
@@ -790,9 +811,11 @@ internal partial class IRVisitor
 
     private ExtensionMethodNode? ExtensionOperator(NebraParser.AnnotationListContext annotations,
         NebraParser.OperatorKeywordContext keyword, NebraParser.OperatorSymbolContext symbol,
-        (List<Parameter> Parameters, TypeRef? ReturnType, List<Stmt> Body, ReturnStmt? Return) op, ParserRuleContext context)
+        (List<Parameter> Parameters, TypeRef? ReturnType, List<Stmt> Body, ReturnStmt? Return) op,
+        NebraParser.TypeParamListContext? typeParams, ParserRuleContext context)
     {
         if (!IsOperatorKeyword(keyword)) return null;
+        RejectTypeParams(typeParams, "an operator");
 
         var metamethod = OperatorSymbolToMetamethod(symbol.GetText(), op.Parameters.Count, out var message);
         if (metamethod == null)

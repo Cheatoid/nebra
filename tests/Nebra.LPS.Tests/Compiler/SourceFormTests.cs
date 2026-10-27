@@ -236,6 +236,53 @@ public sealed class SourceFormTests
     }
 
     [Fact]
+    public void MembersCannotTakeNamesNebraReserves()
+    {
+        var build = Build("interface I\n    method __add(other: any): any\nend\n\nclass A\n    __name: string = \"x\"\n\n    function __index(key: string): any\n        return nil\n    end\n\n    function __nebra_hidden(): nil\n    end\n\n    function __tostring(): string\n        return \"A\"\n    end\n\n    operator +(other: A): A\n        return self\n    end\nend\n\nprint(tostring(new A()))\n");
+
+        Assert.Equal(4, build.Errors.Count(error => error.Code == DiagnosticCode.ErrReservedMemberName));
+        Assert.Equal(4, build.Errors.Count);
+    }
+
+    [Fact]
+    public void OperatorsConstructorsAndAccessorsTakeNoTypeParametersAndOperatorsReturnOneValue()
+    {
+        var build = Build("class B\n    value: number = 0\n\n    constructor<U>()\n    end\n\n    operator +<V>(other: B): B\n        return self\n    end\n\n    operator *(other: B): (number, string)\n        return 1, \"x\"\n    end\n\n    operator ()(n: number): (number, string)\n        return n, \"ok\"\n    end\n\n    set size<W>(value: number)\n        self.value = value\n    end\nend\n\nprint(B)\n");
+
+        Assert.Equal(3, build.Errors.Count(error => error.Code == DiagnosticCode.ErrTypeParamsNotAllowed));
+        Assert.Equal(DiagnosticCode.ErrOperatorMultipleReturns, Assert.Single(build.Errors, error => error.Code != DiagnosticCode.ErrTypeParamsNotAllowed).Code);
+    }
+
+    [Fact]
+    public void UnrelatedDefaultBodiesForOneMethodMustBeOverridden()
+    {
+        var interfaces = "interface A\n    method save(): string\n        return \"A\"\n    end\nend\n\ninterface B\n    method save(): string\n        return \"B\"\n    end\nend\n\ninterface Child extends A\n    method save(): string\n        return \"Child\"\n    end\nend\n\ninterface Needs\n    method save(): string\nend\n\n";
+
+        Assert.Equal(DiagnosticCode.ErrAmbiguousDefaultMethod, Assert.Single(Build(interfaces + "class Doc implements A, B\nend\n\nprint(Doc)\n").Errors).Code);
+        var build = Build(interfaces + "class Specific implements A, Child\nend\n\nclass Satisfied implements A, Needs\nend\n\nclass Own implements A, B\n    function save(): string\n        return \"own\"\n    end\nend\n\nprint(Specific, Satisfied, Own)\n");
+        Assert.Empty(build.Errors);
+        Assert.Contains("return \"Child\"", build.Lua("src/main.neb"));
+    }
+
+    [Fact]
+    public void AnExtensionShadowedByARealMemberIsReported()
+    {
+        var build = Build("class M\n    function save(): nil\n    end\nend\n\nextend M\n    function save(): nil\n    end\n\n    function fresh(): nil\n    end\nend\n\nprint(M)\n");
+
+        Assert.Empty(build.Errors);
+        Assert.Single(build.Compiler.Diagnostics.Diagnostics, diagnostic => diagnostic.Code == DiagnosticCode.WarnShadowedExtension);
+    }
+
+    [Fact]
+    public void AClassAndItsFunctionsCannotBeReplaced()
+    {
+        var build = Build("class A\n    static count: number = 0\n\n    function M(): nil\n    end\nend\n\nA.count = 5\nfunction A.new() end\nfunction A:M() end\nfunction A.extra() end\nA = {} as A\n\ndeclare class Native\n    function GetName(): string\nend\n\nfunction Native:GetName(): string\n    return \"hooked\"\nend\n");
+
+        Assert.Equal(3, build.Errors.Count(error => error.Code == DiagnosticCode.ErrAssignToClass));
+        Assert.Equal(3, build.Errors.Count);
+    }
+
+    [Fact]
     public void MethodCallsFollowNewAndContinueOnTheNextLine()
     {
         var build = Build("class Builder\n    function column(name: string): Builder\n        return self\n    end\n\n    function build(): nil\n    end\nend\n\nnew Builder()\n    :column(\"a\")\n    :column(\"b\")\n    :build()\nprint(new Builder():column(\"c\"))\n");

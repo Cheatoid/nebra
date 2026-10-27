@@ -20,6 +20,9 @@ public sealed partial class InferTypesPass() : Pass(PassName, PassScope.PerBuild
     /// </summary>
     private HashSet<SuperCallExpr> _constructorSuperCalls = [];
 
+    /// <summary>The interface whose default each class took for a method it does not declare itself.</summary>
+    private readonly Dictionary<(ClassType, string), InterfaceType> _defaultSources = [];
+
     /// <summary>
     /// Tracks class/interface decl nodes we've already resolved so the
     /// pre-phase pass and the regular per-file walk don't duplicate work
@@ -807,6 +810,7 @@ public sealed partial class InferTypesPass() : Pass(PassName, PassScope.PerBuild
         switch (decl)
         {
             case FunctionDecl fd:
+                ReportClassMemberReplacement(pc, fd);
                 if (fd.IsAsync) _asyncDepth++;
                 ResolveFunctionLike(pc, fd.Parameters, fd.ReturnType, fd.Body, fd.ReturnStmt,
                     fd.NamePath.Count == 1 && fd.MethodName == null ? fd.NamePath[0] : null, fd.IsAsync);
@@ -973,6 +977,7 @@ public sealed partial class InferTypesPass() : Pass(PassName, PassScope.PerBuild
         }
 
         CheckDuplicateMembers(pc, cd);
+        ReportReservedMemberNames(pc, cd);
 
         foreach (var field in cd.Fields)
         {
@@ -1040,6 +1045,7 @@ public sealed partial class InferTypesPass() : Pass(PassName, PassScope.PerBuild
                 retType = inheritedRet;
             else
                 retType = pc.Types.PrimNil;
+            if (method.IsOperator && !cd.IsDeclare) ReportOperatorReturns(pc, method.Name.Name, method.ReturnType, retType);
             var funcTypId = pc.Types.FuncOf(methodParams, retType, isVararg, varargType, defaultIndices.Count > 0 ? defaultIndices : null, method.IsAsync,
                 predicate: BuildPredicate(pc, method.ReturnType, method.Parameters));
             var ft = (FunctionType)GetType(pc, funcTypId);
@@ -1492,7 +1498,8 @@ public sealed partial class InferTypesPass() : Pass(PassName, PassScope.PerBuild
             foreach (var (name, ft) in ifaceType.Methods)
             {
                 var implemented = ResolveClassChainMethod(classType, name);
-                if (implemented != null)
+                var takenFromDefault = _defaultSources.ContainsKey((classType, name));
+                if (implemented != null && (!takenFromDefault || !ifaceType.DefaultMethods.Contains(name)))
                 {
                     CheckImplementedMethodSignature(pc, cd, ifaceType, name, ft, implemented);
                     continue;
@@ -1527,7 +1534,7 @@ public sealed partial class InferTypesPass() : Pass(PassName, PassScope.PerBuild
             {
                 foreach (var name in baseIface.DefaultMethods)
                 {
-                    if (classType.Methods.ContainsKey(name)) continue;
+                    if (classType.Methods.ContainsKey(name) && !_defaultSources.ContainsKey((classType, name))) continue;
                     if (!baseIface.Methods.TryGetValue(name, out var bft)) continue;
 
                     InjectDefault(pc, classType, baseIface, name, bft);
@@ -1543,13 +1550,48 @@ public sealed partial class InferTypesPass() : Pass(PassName, PassScope.PerBuild
     /// </summary>
     private void InjectDefault(PassContext pc, ClassType classType, InterfaceType iface, string name, FunctionType ft)
     {
+        if (_defaultSources.TryGetValue((classType, name), out var chosen))
+        {
+            ChooseBetweenDefaults(pc, classType, chosen, iface, name, ft);
+            return;
+        }
+
         if (classType.Methods.ContainsKey(name)) return;
         if (classType.BaseClass != null && ParentHasMethod(classType.BaseClass, name)) return;
 
         classType.Methods[name] = WithSelfParam(pc, classType, ft);
+        _defaultSources[(classType, name)] = iface;
 
         if (iface.DefaultMethodNodes.TryGetValue(name, out var node))
             classType.DefaultsToEmit[name] = node;
+    }
+
+    /// <summary>
+    /// Settles a default <paramref name="name"/> that <paramref name="candidate"/> offers after
+    /// <paramref name="chosen"/> already supplied one. An interface extending the other is the more
+    /// specific and wins, the same body reached twice is no conflict, and two unrelated bodies are
+    /// reported, since nothing says which one the class runs.
+    /// </summary>
+    private void ChooseBetweenDefaults(PassContext pc, ClassType classType, InterfaceType chosen, InterfaceType candidate,
+        string name, FunctionType ft)
+    {
+        if (chosen == candidate || InterfaceExtendsInterface(chosen, candidate)) return;
+
+        var chosenBody = chosen.DefaultMethodNodes.GetValueOrDefault(name);
+        var candidateBody = candidate.DefaultMethodNodes.GetValueOrDefault(name);
+        if (chosenBody == candidateBody) return;
+
+        if (InterfaceExtendsInterface(candidate, chosen))
+        {
+            classType.Methods[name] = WithSelfParam(pc, classType, ft);
+            _defaultSources[(classType, name)] = candidate;
+            if (candidateBody != null) classType.DefaultsToEmit[name] = candidateBody;
+            return;
+        }
+
+        if (classType.IsCompiledFromSource && classType.DeclaredAt is { } declaration)
+            pc.Diag.Report(declaration.Span, Diagnostics.DiagnosticCode.ErrAmbiguousDefaultMethod,
+                classType.Name, name, chosen.Name, candidate.Name);
     }
 
     /// <summary>
@@ -1764,6 +1806,7 @@ public sealed partial class InferTypesPass() : Pass(PassName, PassScope.PerBuild
     private void ResolveInterfaceDecl(PassContext pc, InterfaceDecl id)
     {
         if (!_resolvedInterfaceDecls.Add(id.ID)) return;
+        ReportReservedMemberNames(pc, id);
         if (id.Name.Sym == SymID.Invalid) return;
         if (!pc.Pkg!.Syms.GetByID(id.Name.Sym, out var ifaceSym)) return;
         if (!pc.Types.GetByID(ifaceSym.Type, out var rawType) || rawType is not InterfaceType ifaceType) return;
@@ -2162,6 +2205,7 @@ public sealed partial class InferTypesPass() : Pass(PassName, PassScope.PerBuild
             if (narrowedPath != null && !KeepsNarrowing(pc, narrowedPath, assigned)) _narrowed.Remove(narrowedPath);
 
             CheckAssignableTarget(pc, target);
+            ReportClassReplacement(pc, target);
             if (target is IndexAccessExpr indexTarget && TryNewIndexOperator(pc, indexTarget, assigned)) continue;
 
             var targetType = SynthesizeExpr(pc, target);

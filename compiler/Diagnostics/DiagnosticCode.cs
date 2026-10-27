@@ -412,6 +412,38 @@ public enum DiagnosticCode
     [Help("private members, declared `local`, are reached only from the methods of the class declaring them; use `protected` to share one with subclasses")]
     ErrPrivateAccess = 0x402F,
 
+    [Level(DiagnosticLevel.Error)]
+    [Category(DiagnosticCategory.Semantic)]
+    [Format("'{0}' gets a default '{1}' from both '{2}' and '{3}'")]
+    [Help("override the method in the class to choose or combine the defaults")]
+    ErrAmbiguousDefaultMethod = 0x4030,
+
+    [Level(DiagnosticLevel.Error)]
+    [Category(DiagnosticCategory.Semantic)]
+    [Format("'{0}' cannot be used as a member name: {1}")]
+    ErrReservedMemberName = 0x4031,
+
+    [Level(DiagnosticLevel.Error)]
+    [Category(DiagnosticCategory.Semantic)]
+    [Format("{0} cannot declare type parameters")]
+    ErrTypeParamsNotAllowed = 0x4032,
+
+    [Level(DiagnosticLevel.Error)]
+    [Category(DiagnosticCategory.Semantic)]
+    [Format("'operator {0}' declares {1} return values, but Lua passes on only the first value an operator returns")]
+    ErrOperatorMultipleReturns = 0x4033,
+
+    [Level(DiagnosticLevel.Warning)]
+    [Category(DiagnosticCategory.Semantic)]
+    [Format("the extension '{0}' of '{1}' is never used: '{1}' has a member '{0}' of its own, which always wins")]
+    [Help("rename the extension")]
+    WarnShadowedExtension = 0x4034,
+
+    [Level(DiagnosticLevel.Error)]
+    [Category(DiagnosticCategory.Semantic)]
+    [Format("cannot assign to {0}: a class and its methods cannot be replaced")]
+    ErrAssignToClass = 0x4035,
+
     [Level(DiagnosticLevel.Warning)]
     [Category(DiagnosticCategory.Semantic)]
     [Format("Method '{0}' shadows a method in parent class '{1}'; use 'override' to indicate this is intentional")]
