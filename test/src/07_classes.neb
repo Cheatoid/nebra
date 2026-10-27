@@ -174,7 +174,7 @@ abstract class Labelled
 end
 
 class Product extends Labelled
-    function name(): string
+    override function name(): string
         return "lamp"
     end
 end

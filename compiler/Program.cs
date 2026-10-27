@@ -133,10 +133,9 @@ internal static class Program
             compiler.AddSource(file);
 
         var success = compiler.Compile();
+        await PrintDiagnosticsAsync(compiler);
         if (!success)
         {
-            foreach (var diag in compiler.Diagnostics.Diagnostics)
-                await Console.Error.WriteLineAsync(Nebra.Diagnostics.DiagnosticRenderer.Render(diag) + "\n");
             await Console.Error.WriteLineAsync("Build FAILED.");
             return 1;
         }
@@ -180,10 +179,10 @@ internal static class Program
         foreach (var file in declarationFiles)
             compiler.AddSource(file);
 
-        if (!compiler.Compile())
+        var checkedTypes = compiler.Compile();
+        await PrintDiagnosticsAsync(compiler);
+        if (!checkedTypes)
         {
-            foreach (var diag in compiler.Diagnostics.Diagnostics)
-                await Console.Error.WriteLineAsync(Nebra.Diagnostics.DiagnosticRenderer.Render(diag) + "\n");
             await Console.Error.WriteLineAsync("Check FAILED.");
             return 1;
         }
@@ -382,6 +381,15 @@ internal static class Program
         }
     }
 
+    /// <summary>
+    /// Prints every diagnostic of a compilation, warnings of a successful one included.
+    /// </summary>
+    private static async Task PrintDiagnosticsAsync(NebraCompiler compiler)
+    {
+        foreach (var diag in compiler.Diagnostics.Diagnostics)
+            await Console.Error.WriteLineAsync(Nebra.Diagnostics.DiagnosticRenderer.Render(diag) + "\n");
+    }
+
     private static async Task<int> RunBuildFilesAsync(string[] fileArgs)
     {
         Config? config = null;
@@ -422,10 +430,9 @@ internal static class Program
             compiler.AddSource(file);
 
         var success = compiler.Compile();
+        await PrintDiagnosticsAsync(compiler);
         if (!success)
         {
-            foreach (var diag in compiler.Diagnostics.Diagnostics)
-                await Console.Error.WriteLineAsync(Nebra.Diagnostics.DiagnosticRenderer.Render(diag) + "\n");
             await Console.Error.WriteLineAsync("Build FAILED.");
             return 1;
         }
@@ -648,10 +655,9 @@ internal static class Program
             compiler.AddSource(file);
 
         var success = compiler.Compile();
+        await PrintDiagnosticsAsync(compiler);
         if (!success)
         {
-            foreach (var diag in compiler.Diagnostics.Diagnostics)
-                await Console.Error.WriteLineAsync(Nebra.Diagnostics.DiagnosticRenderer.Render(diag) + "\n");
             await Console.Error.WriteLineAsync("Build FAILED.");
             return 1;
         }
@@ -994,10 +1000,9 @@ internal static class Program
         foreach (var file in allNebraFiles) compiler.AddSource(file);
 
         var success = compiler.Compile();
+        await PrintDiagnosticsAsync(compiler);
         if (!success)
         {
-            foreach (var diag in compiler.Diagnostics.Diagnostics)
-                await Console.Error.WriteLineAsync(Nebra.Diagnostics.DiagnosticRenderer.Render(diag) + "\n");
             await Console.Error.WriteLineAsync("nebra test: compilation FAILED.");
             return 1;
         }
@@ -1411,10 +1416,10 @@ internal static class Program
         Console.WriteLine($"[1/5] Compiling {sourceFiles.Length} Nebra file(s)…");
         var compiler = new NebraCompiler { Config = config };
         foreach (var f in sourceFiles) compiler.AddSource(f);
-        if (!compiler.Compile())
+        var compiled = compiler.Compile();
+        await PrintDiagnosticsAsync(compiler);
+        if (!compiled)
         {
-            foreach (var d in compiler.Diagnostics.Diagnostics)
-                await Console.Error.WriteLineAsync(Nebra.Diagnostics.DiagnosticRenderer.Render(d) + "\n");
             return 1;
         }
 
