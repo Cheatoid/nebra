@@ -1845,7 +1845,7 @@ public sealed partial class CodegenPass() : Pass(PassName, PassScope.PerBuild, t
                 break;
             case ParenExpr paren:
                 gen.Write("(");
-                EmitExpr(ctx, pkg, gen, paren.Inner);
+                if (!TryEmitFolded(gen, paren.Inner)) EmitExpr(ctx, pkg, gen, paren.Inner);
                 gen.Write(")");
                 break;
             case BinaryExpr bin:
@@ -2337,6 +2337,8 @@ public sealed partial class CodegenPass() : Pass(PassName, PassScope.PerBuild, t
             return;
         }
 
+        if (TryEmitFolded(gen, bin)) return;
+
         if (bin.Op == BinaryOp.NilCoalesce)
         {
             EmitNilCoalesce(ctx, pkg, gen, bin);
@@ -2431,6 +2433,8 @@ public sealed partial class CodegenPass() : Pass(PassName, PassScope.PerBuild, t
             EmitExtensionCall(ctx, pkg, gen, un.Extension, un.Operand, []);
             return;
         }
+
+        if (TryEmitFolded(gen, un)) return;
 
         if (un.Op == UnaryOp.BitwiseNot && gen.Features.BitwiseStyle == BitwiseStyle.BitLib)
         {

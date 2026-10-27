@@ -135,7 +135,7 @@ public sealed class SourceFormTests
         var lua = build.Lua("src/main.neb");
         Assert.Contains("for i = 1, 3 do", lua);
         Assert.Contains("local all = __nebra_range(1, 3)", lua);
-        Assert.Contains("1 .. \"x\"", lua);
+        Assert.Contains("print(all, \"1x\")", lua);
     }
 
     [Fact]
@@ -360,6 +360,18 @@ public sealed class SourceFormTests
         Assert.Equal(2, strict.Errors.Count(error => error.Code == DiagnosticCode.ErrUninitializedField));
         Assert.Equal(2, strict.Errors.Count);
         Assert.Empty(Build(source).Errors);
+    }
+
+    [Fact]
+    public void LiteralExpressionsAreFoldedTheWayLuaComputesThem()
+    {
+        var build = ProjectBuild.Run(config => config.Target = Nebra.Configuration.LuaVersion.Lua54, ("src/main.neb",
+            "local x = 7\nprint((1 + 2.0) * -0x3, 7 // 2, 7 / 2, -7 % 3, \"a\" .. \"b\" .. 1, #\"hello\", 1 + 2 + x)\nprint(1 / 0, 0x10 | 0x01, (1 + 2), not nil, 1e300 * 1e10)\n"));
+
+        Assert.Empty(build.Errors);
+        var lua = build.Lua("src/main.neb");
+        Assert.Contains("print((-9.0), 3, 3.5, 2, \"ab1\", 5, 3 + x)", lua);
+        Assert.Contains("print(1 / 0, 17, (3), true, 1e300 * 1e10)", lua);
     }
 
     [Fact]
