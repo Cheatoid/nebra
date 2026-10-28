@@ -235,6 +235,7 @@ public sealed class ValidateGenericConstraintsPass() : Pass(PassName, PassScope.
         switch (tr)
         {
             case GenericTypeRef gtr:
+                ValidateUtilityType(ctx, pkg, gtr);
                 ValidateGenericInstantiation(ctx, pkg, gtr);
                 foreach (var arg in gtr.Arguments)
                 {
@@ -370,6 +371,33 @@ public sealed class ValidateGenericConstraintsPass() : Pass(PassName, PassScope.
         foreach (var b in iface.BaseInterfaces)
             if (InterfaceExtends(b, target, visited)) return true;
         return false;
+    }
+
+    /// <summary>
+    /// Reports a utility type of a type without fields, such as <c>Partial&lt;number&gt;</c>, and a
+    /// <c>Pick</c> or <c>Omit</c> naming a field its type does not have.
+    /// </summary>
+    private static void ValidateUtilityType(PassContext ctx, PackageContext pkg, GenericTypeRef reference)
+    {
+        if (!pkg.Types.GetByID(reference.ResolvedType, out var resolved) || resolved is not UtilityType utility) return;
+
+        var target = utility.Target;
+        if (target is TypeParameterType or KeyOfType or IndexedAccessType or UtilityType || target.Kind == TypeKind.PrimitiveAny) return;
+        if (IR.Type.FieldNamesOf(target) is not { } names)
+        {
+            ctx.Diag.Report(reference.Span, DiagnosticCode.ErrUtilityNonShape, reference.Name.Name, TypeName(pkg, target.ID));
+            return;
+        }
+
+        if (utility.Keys == null || reference.Arguments.Count < 2) return;
+        var keys = utility.Keys is UnionType union ? union.Types : [utility.Keys];
+        foreach (var key in keys)
+        {
+            if (key is not LiteralType { Value.StringValue: { } name } literal || names.Contains(name)) continue;
+
+            ctx.Diag.Report(reference.Arguments[1].Span, DiagnosticCode.ErrNoSuchKey, TypeName(pkg, target.ID), literal.Value.Text,
+                string.Join(", ", names.Select(field => LiteralValue.Of(field).Text)));
+        }
     }
 
     /// <summary>Reports a <c>keyof</c> of a type that has no fields to name, such as <c>keyof number</c>.</summary>

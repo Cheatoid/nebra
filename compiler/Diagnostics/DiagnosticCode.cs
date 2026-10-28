@@ -525,6 +525,11 @@ public enum DiagnosticCode
     [Help("Lua {0} cannot yield across the pcall a try block runs in; await before or after the try")]
     ErrAwaitInTryOnLua51 = 0x4043,
 
+    [Level(DiagnosticLevel.Error)]
+    [Category(DiagnosticCategory.Type)]
+    [Format("'{0}' needs a struct, class or interface type, but got '{1}'")]
+    ErrUtilityNonShape = 0x4044,
+
     [Level(DiagnosticLevel.Warning)]
     [Category(DiagnosticCategory.Semantic)]
     [Format("Method '{0}' shadows a method in parent class '{1}'; use 'override' to indicate this is intentional")]

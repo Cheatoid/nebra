@@ -22,6 +22,7 @@ public sealed partial class InferTypesPass
         return type switch
         {
             KeyOfType keyOf => EvaluateKeyOf(pc, keyOf),
+            UtilityType utility => EvaluateUtility(pc, utility),
             IndexedAccessType indexed => EvaluateIndexedAccess(pc, indexed),
             UnionType union when union.Types.Any(member => member is KeyOfType or IndexedAccessType) => EvaluateUnion(pc, union),
             _ => type,
@@ -52,6 +53,41 @@ public sealed partial class InferTypesPass
             1 => literals[0],
             _ => GetType(pc, pc.Types.UnionOf(literals)),
         };
+    }
+
+    /// <summary>
+    /// The struct type a utility type stands for once its target is known: the fields of the
+    /// target, all of them made optional or required, or those its keys pick or omit. A type
+    /// parameter bounded by a class stands for the fields of that class.
+    /// </summary>
+    private Type EvaluateUtility(PassContext pc, UtilityType utility)
+    {
+        var target = Evaluate(pc, utility.Target);
+        if (target is TypeParameterType { ExtendsBound: { } bound } && pc.Pkg!.Types.GetByID(bound, out var boundType))
+            target = Evaluate(pc, boundType);
+        var names = Type.FieldNamesOf(target);
+        if (names == null) return ContainsTypeParameter(target) ? utility : pc.Types.PrimAny;
+
+        IEnumerable<string> selected = names;
+        if (utility.Keys != null)
+        {
+            var keys = LiteralKeys(Evaluate(pc, utility.Keys));
+            if (keys == null) return ContainsTypeParameter(utility.Keys) ? utility : pc.Types.PrimAny;
+            selected = utility.Utility == UtilityKind.Pick ? names.Where(keys.Contains) : names.Where(name => !keys.Contains(name));
+        }
+
+        var fields = selected.Select(name =>
+        {
+            var type = Type.FieldTypeOf(target, name)!.ID;
+            var adjusted = utility.Utility switch
+            {
+                UtilityKind.Partial => MakeNullable(pc, type),
+                UtilityKind.Required => StripNil(pc, type),
+                _ => type,
+            };
+            return new StructType.Field(new NameRef(name, Diagnostics.TextSpan.Empty), GetType(pc, adjusted));
+        });
+        return GetType(pc, pc.Types.StructOf(fields.ToList()));
     }
 
     private Type EvaluateIndexedAccess(PassContext pc, IndexedAccessType indexed)
@@ -216,7 +252,9 @@ public sealed partial class InferTypesPass
     /// </summary>
     private TypID ExpectedForMessage(PassContext pc, TypID expected)
     {
-        if (!pc.Pkg!.Types.GetByID(expected, out var type) || type is not TypeParameterType { ExtendsBound: { } bound }) return Evaluate(pc, expected);
+        if (!pc.Pkg!.Types.GetByID(expected, out var type)) return expected;
+        if (type is UtilityType) return expected;
+        if (type is not TypeParameterType { ExtendsBound: { } bound }) return Evaluate(pc, expected);
         return WantsLiteral(pc, bound) ? Evaluate(pc, bound) : expected;
     }
 
@@ -293,7 +331,7 @@ public sealed partial class InferTypesPass
     {
         return type switch
         {
-            KeyOfType or IndexedAccessType => ContainsTypeParameter(type),
+            KeyOfType or IndexedAccessType or UtilityType => ContainsTypeParameter(type),
             UnionType union => union.Types.Any(IsDependent),
             FunctionType function => function.ParamTypes.Any(IsDependent) || IsDependent(function.ReturnType),
             _ => false,

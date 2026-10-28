@@ -348,7 +348,7 @@ public static class DocSiteBuilder
             InterfaceType i => IR.Type.WithTypeArguments(i.Name, i.ShownArguments, t => FormatType(pkg, t)),
             EnumType e => e.Name,
             TypeParameterType tp => tp.Name,
-            LiteralType or KeyOfType or IndexedAccessType => IR.Type.FormatComputed(t, type => FormatType(pkg, type))!,
+            LiteralType or KeyOfType or IndexedAccessType or UtilityType => IR.Type.FormatComputed(t, type => FormatType(pkg, type))!,
             _ => t.Kind switch
             {
                 TypeKind.PrimitiveString => "string",

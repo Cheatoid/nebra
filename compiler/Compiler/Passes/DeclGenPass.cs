@@ -569,7 +569,7 @@ public sealed class DeclGenPass() : Pass(PassName, PassScope.PerBuild, true)
             TupleType tuple => $"({string.Join(", ", tuple.Fields.Select(f => FormatType(ctx, f.Type)))})",
             VariadicType variadic => $"...{Type.Grouped(variadic.ElementType, FormatType(ctx, variadic.ElementType))}",
             TypeParameterType typeParameter => typeParameter.Name,
-            LiteralType or KeyOfType or IndexedAccessType => Type.FormatComputed(typ, type => FormatType(ctx, type))!,
+            LiteralType or KeyOfType or IndexedAccessType or UtilityType => Type.FormatComputed(typ, type => FormatType(ctx, type))!,
             ClassType ct => Type.WithTypeArguments(ct.Name, ct.ShownArguments, t => FormatType(ctx, t)),
             InterfaceType it => Type.WithTypeArguments(it.Name, it.ShownArguments, t => FormatType(ctx, t)),
             EnumType et => et.Name,

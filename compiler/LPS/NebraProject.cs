@@ -759,7 +759,7 @@ public sealed class NebraProject(Func<ServerSettings>? settings = null)
             case StructType st: return "{ " + string.Join(", ", st.Fields.Select(f =>
                 $"{IR.Type.FieldLabel(f.Name.Name)}: {FormatType(types, f.Type)}")) + " }";
             case TypeParameterType typeParameter: return typeParameter.Name;
-            case LiteralType or KeyOfType or IndexedAccessType: return IR.Type.FormatComputed(typ, t => FormatType(types, t))!;
+            case LiteralType or KeyOfType or IndexedAccessType or UtilityType: return IR.Type.FormatComputed(typ, t => FormatType(types, t))!;
             case VariadicType variadic: return "..." + IR.Type.Grouped(variadic.ElementType, FormatType(types, variadic.ElementType));
             default: return PrettifyTypeKey(typ.Key);
         }

@@ -229,10 +229,22 @@ public sealed partial class InferTypesPass() : Pass(PassName, PassScope.PerBuild
         var synthesized = value is TableConstructorExpr table
             ? SynthesizeTableFor(pc, table, Evaluate(pc, expected))
             : SynthesizeExpr(pc, value);
-        return IsEmptyTable(value) && IsTableShape(pc, expected) ? expected : synthesized;
+        return IsEmptyTable(value) && TakesEmptyTable(pc, expected) ? expected : synthesized;
     }
 
     private static bool IsEmptyTable(Expr value) => value is TableConstructorExpr { Fields.Count: 0 };
+
+    /// <summary>
+    /// Whether an empty table literal can be a value of <paramref name="expected"/>: a list or map
+    /// type, or a struct type, such as <c>Partial&lt;User&gt;</c>, whose fields may all be left out.
+    /// </summary>
+    private bool TakesEmptyTable(PassContext pc, TypID expected)
+    {
+        if (IsTableShape(pc, expected)) return true;
+        return pc.Pkg!.Types.GetByID(Evaluate(pc, StripNil(pc, expected)), out var shape)
+               && shape is StructType structType
+               && structType.Fields.All(field => field.IsMeta || IsNullable(pc, field.Type.ID));
+    }
 
     /// <summary>Whether <paramref name="type"/> is a list or map type, or a union holding one.</summary>
     private static bool IsTableShape(PassContext pc, TypID type)
@@ -2301,7 +2313,7 @@ public sealed partial class InferTypesPass() : Pass(PassName, PassScope.PerBuild
                 valueTypes[i] = literalValue;
             if (i < valueTypes.Count && targetType != TypID.Invalid && targetType != pc.Types.PrimAny.ID)
             {
-                var valueType = i < stmt.Values.Count && IsEmptyTable(stmt.Values[i]) && IsTableShape(pc, targetType)
+                var valueType = i < stmt.Values.Count && IsEmptyTable(stmt.Values[i]) && TakesEmptyTable(pc, targetType)
                     ? targetType
                     : FirstValue(pc, valueTypes[i]);
                 if (!IsTypeAssignable(pc, targetType, valueType) && !DeletesMapEntry(pc, target, valueType))
@@ -3246,8 +3258,8 @@ public sealed partial class InferTypesPass() : Pass(PassName, PassScope.PerBuild
                 var field = st.Fields.FirstOrDefault(f => f.Name.Name == dot.FieldName.Name);
                 if (field == null)
                 {
-                    pc.Diag.Report(dot.FieldName.Span, DiagnosticCode.ErrTypeNotIndexable,
-                        $"{baseType.Key} has no field '{dot.FieldName.Name}'");
+                    pc.Diag.Report(dot.FieldName.Span, DiagnosticCode.ErrNoSuchKey, TypeName(pc, baseTyp), $"'{dot.FieldName.Name}'",
+                        string.Join(", ", st.Fields.Where(candidate => !candidate.IsMeta).Select(candidate => $"'{candidate.Name.Name}'")));
                     return pc.Types.PrimAny.ID;
                 }
 
@@ -4378,6 +4390,7 @@ public sealed partial class InferTypesPass() : Pass(PassName, PassScope.PerBuild
             ClassType classType => classType.TypeArguments.Any(ContainsTypeParameter),
             InterfaceType interfaceType => interfaceType.TypeArguments.Any(ContainsTypeParameter),
             KeyOfType keyOf => ContainsTypeParameter(keyOf.Target),
+            UtilityType utility => ContainsTypeParameter(utility.Target) || utility.Keys != null && ContainsTypeParameter(utility.Keys),
             IndexedAccessType indexed => ContainsTypeParameter(indexed.Target) || ContainsTypeParameter(indexed.Index),
             _ => false,
         };
@@ -4397,7 +4410,7 @@ public sealed partial class InferTypesPass() : Pass(PassName, PassScope.PerBuild
             if (position >= argTypes.Count || position >= fnType.ParamTypes.Count) break;
 
             var paramType = fnType.ParamTypes[position].ID;
-            if (IsEmptyTable(arguments[i]) && IsTableShape(pc, paramType))
+            if (IsEmptyTable(arguments[i]) && TakesEmptyTable(pc, paramType))
                 argTypes[position] = paramType;
         }
 
@@ -5785,7 +5798,7 @@ public sealed partial class InferTypesPass() : Pass(PassName, PassScope.PerBuild
             case InterfaceType i: return Type.WithTypeArguments(i.Name, i.ShownArguments, FormatTypeName);
             case EnumType e: return e.Name;
             case TypeParameterType tp: return tp.Name;
-            case LiteralType or KeyOfType or IndexedAccessType: return Type.FormatComputed(t, FormatTypeName)!;
+            case LiteralType or KeyOfType or IndexedAccessType or UtilityType: return Type.FormatComputed(t, FormatTypeName)!;
             case StructType s: return "{ " + string.Join(", ", s.Fields.Select(f => $"{Type.FieldLabel(f.Name.Name)}: {FormatTypeName(f.Type)}")) + " }";
             case ParameterizedType pt: return $"{FormatTypeName(pt.Definition)}<{string.Join(", ", pt.Args.Select(a => a.ToString()))}>";
             default:

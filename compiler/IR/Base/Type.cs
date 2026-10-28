@@ -43,6 +43,7 @@ public enum TypeKind
     Literal,
     KeyOf,
     IndexedAccess,
+    Utility,
     /// <summary>
     /// A type written by its name, as a type reference carries it before the name is resolved:
     /// it may still turn out to be a class, an interface, an enum or an alias.
@@ -146,6 +147,9 @@ public class Type(TypeKind kind)
             LiteralType literal => literal.Value.Text,
             KeyOfType keyOf => "keyof " + GroupedComputed(keyOf.Target, format(keyOf.Target)),
             IndexedAccessType indexed => GroupedComputed(indexed.Target, format(indexed.Target)) + "[" + format(indexed.Index) + "]",
+            UtilityType utility => utility.Keys == null
+                ? $"{utility.Utility}<{format(utility.Target)}>"
+                : $"{utility.Utility}<{format(utility.Target)}, {format(utility.Keys)}>",
             _ => null,
         };
     }
@@ -1031,6 +1035,41 @@ public sealed class IndexedAccessType(Type target, Type index) : Type(TypeKind.I
     protected override TypeKey GenerateNewKey() => $"index<{Target.Key},{Index.Key}>";
 }
 
+/// <summary>The utility types computed from the fields of a struct, class or interface.</summary>
+public enum UtilityKind
+{
+    /// <summary><c>Partial&lt;T&gt;</c>: every field, made optional.</summary>
+    Partial,
+
+    /// <summary><c>Required&lt;T&gt;</c>: every field, without <c>nil</c>.</summary>
+    Required,
+
+    /// <summary><c>Pick&lt;T, K&gt;</c>: the fields <c>K</c> names.</summary>
+    Pick,
+
+    /// <summary><c>Omit&lt;T, K&gt;</c>: every field but those <c>K</c> names.</summary>
+    Omit,
+}
+
+/// <summary>
+/// A utility type such as <c>Partial&lt;User&gt;</c> or <c>Pick&lt;User, "name"&gt;</c>: a struct
+/// type made from the fields of <see cref="Target"/>. Kept as it is written until
+/// <see cref="Target"/> and <see cref="Keys"/> are known, as for a type parameter.
+/// </summary>
+public sealed class UtilityType(UtilityKind utility, Type target, Type? keys) : Type(TypeKind.Utility)
+{
+    public UtilityKind Utility { get; } = utility;
+
+    public Type Target { get; } = target;
+
+    /// <summary>The field names of <c>Pick</c> and <c>Omit</c>, a string literal type or a union of them.</summary>
+    public Type? Keys { get; } = keys;
+
+    protected override TypeKey GenerateNewKey() => Keys == null
+        ? $"utility<{Utility},{Target.Key}>"
+        : $"utility<{Utility},{Target.Key},{Keys.Key}>";
+}
+
 /// <summary>
 /// Represents a type table that maps type keys to their corresponding types. This is used to keep track of the types in
 /// the IR, and to ensure that the types are unique and do not conflict with each other.
@@ -1379,6 +1418,13 @@ public sealed partial class TypeTable
             {
                 var target = Substitute(keyOf.Target, subst);
                 return ReferenceEquals(target, keyOf.Target) ? t : DeclareType(new KeyOfType(target));
+            }
+            case UtilityType utility:
+            {
+                var target = Substitute(utility.Target, subst);
+                var keys = utility.Keys == null ? null : Substitute(utility.Keys, subst);
+                return ReferenceEquals(target, utility.Target) && ReferenceEquals(keys, utility.Keys)
+                    ? t : DeclareType(new UtilityType(utility.Utility, target, keys));
             }
             case IndexedAccessType indexed:
             {

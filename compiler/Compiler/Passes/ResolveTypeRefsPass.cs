@@ -788,6 +788,33 @@ public class ResolveTypeRefsPass() : Pass(PassName, PassScope.PerBuild)
         }
     }
 
+    /// <summary>The utility types a generic type reference names when no declaration in scope takes the name, with their number of type arguments.</summary>
+    private static readonly Dictionary<string, (UtilityKind Kind, int Arity)> UtilityTypes = new(StringComparer.Ordinal)
+    {
+        ["Partial"] = (UtilityKind.Partial, 1),
+        ["Required"] = (UtilityKind.Required, 1),
+        ["Pick"] = (UtilityKind.Pick, 2),
+        ["Omit"] = (UtilityKind.Omit, 2),
+    };
+
+    /// <summary>Resolves a utility type such as <c>Partial&lt;User&gt;</c> or <c>Pick&lt;User, "name"&gt;</c>.</summary>
+    private Type ResolveUtilityType(TypeTable tt, GenericTypeRef reference, UtilityKind kind, int arity)
+    {
+        if (reference.Arguments.Count != arity)
+            _ctx.Diag.Report(reference.Span, Nebra.Diagnostics.DiagnosticCode.ErrTypeParamArityMismatch, reference.Name.Name, arity, reference.Arguments.Count);
+
+        ResolveTypeArgs(tt, reference.Arguments);
+        var arguments = reference.Arguments
+            .Select(argument => argument is ConcreteTypeArgRef concrete && tt.GetByID(concrete.Type.ResolvedType, out var resolved) ? resolved : tt.PrimAny)
+            .ToList();
+        var target = arguments.Count > 0 ? arguments[0] : tt.PrimAny;
+        var keys = arity > 1 ? arguments.Count > 1 ? arguments[1] : tt.PrimAny : null;
+
+        var result = tt.DeclareType(new UtilityType(kind, target, keys));
+        reference.ResolvedType = result.ID;
+        return result;
+    }
+
     private void ResolveTypeArgs(TypeTable tt, List<TypeArgRef> arguments)
     {
         foreach (var argRef in arguments)
@@ -868,6 +895,10 @@ public class ResolveTypeRefsPass() : Pass(PassName, PassScope.PerBuild)
         if (tr is GenericTypeRef gtr)
         {
             if (!LookupTypeName(lookupScope, gtr.Name.Name, out var gSym)
+                && UtilityTypes.TryGetValue(gtr.Name.Name, out var utility))
+                return ResolveUtilityType(tt, gtr, utility.Kind, utility.Arity);
+
+            if (!LookupTypeName(lookupScope, gtr.Name.Name, out gSym)
                 || !_pkg.Syms.GetByID(gSym, out var gsym)
                 || gsym.Type == TypID.Invalid
                 || !tt.GetByID(gsym.Type, out var gDefType))
