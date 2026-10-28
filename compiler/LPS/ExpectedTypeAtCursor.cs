@@ -33,6 +33,7 @@ public static partial class ExpectedTypeAtCursor
     public static NebraType? Find(AnalysisResult result, int line, int col, IReadOnlyList<Symbol> visible)
     {
         var prefix = LinePrefix(result.SourceText, line, col);
+        if (TableEntryAt(result.SourceText, line, col) is { } entry) return EntryType(result, entry, visible);
 
         if (Regex.IsMatch(prefix, @"\bcase$")) return MatchedType(result, line, col) ?? MatchedTypeFromSource(result, line, visible);
         if (Regex.IsMatch(prefix, @"\breturn$")) return DeclaredReturnType(result, line, col);
@@ -44,12 +45,12 @@ public static partial class ExpectedTypeAtCursor
         {
             if (AnnotatedLocal().Match(prefix) is { Success: true } local)
                 return AnnotatedType(result, line, local.Groups["type"].Value.Trim(), visible);
-            if (!InsideTable(prefix) && AssignmentTarget().Match(prefix) is { Success: true } assignment)
+            if (AssignmentTarget().Match(prefix) is { Success: true } assignment)
                 return TypeOfOperand(result, line, assignment.Groups["target"], visible);
             return null;
         }
 
-        return ParameterType(result, line, col);
+        return ParameterType(result, line, col) ?? ParameterTypeFromSource(result, line, col, visible);
     }
 
     /// <summary>
@@ -99,29 +100,104 @@ public static partial class ExpectedTypeAtCursor
         return text[..end].TrimEnd();
     }
 
-    /// <summary>Whether the innermost bracket left open before the cursor is a table's <c>{</c>, where <c>name =</c> names a field.</summary>
-    private static bool InsideTable(string prefix)
+    /// <summary>
+    /// An entry of a table literal the cursor writes the value of: the 1-based position of the
+    /// table's <c>{</c>, and the name of the field for <c>name =</c> or <c>["name"] =</c>, or
+    /// <c>null</c> for a positional entry. <c>null</c> when the innermost bracket left open
+    /// before the cursor is not a table's.
+    /// </summary>
+    private sealed record TableEntry(int BraceLine, int BraceCol, string? Field);
+
+    private static TableEntry? TableEntryAt(string source, int line, int col)
+    {
+        var lineStarts = new List<int> { 0 };
+        for (var i = 0; i < source.Length; i++)
+        {
+            if (source[i] == '\n') lineStarts.Add(i + 1);
+        }
+
+        if (line < 1 || line > lineStarts.Count) return null;
+        var cursor = Math.Min(lineStarts[line - 1] + col - 1, source.Length);
+        while (cursor > 0 && (char.IsLetterOrDigit(source[cursor - 1]) || source[cursor - 1] == '_')) cursor--;
+
+        var brace = OpenBracket(source, cursor);
+        if (brace < 0 || source[brace] != '{') return null;
+
+        var entry = LastEntry(source[(brace + 1)..cursor]).Trim();
+        string? field = null;
+        if (entry.Length > 0)
+        {
+            var named = Regex.Match(entry, @"^(?:(?<name>[A-Za-z_][A-Za-z0-9_]*)|\[\s*[""'](?<key>[^""']*)[""']\s*\])\s*=$");
+            if (!named.Success) return null;
+            field = named.Groups["name"].Success ? named.Groups["name"].Value : named.Groups["key"].Value;
+        }
+
+        var braceLine = lineStarts.FindLastIndex(start => start <= brace) + 1;
+        return new TableEntry(braceLine, brace - lineStarts[braceLine - 1] + 1, field);
+    }
+
+    /// <summary>The offset of the innermost bracket left open before <paramref name="end"/>, or -1.</summary>
+    private static int OpenBracket(string source, int end)
     {
         var depth = 0;
-        for (var i = prefix.Length - 1; i >= 0; i--)
+        for (var i = end - 1; i >= 0; i--)
         {
-            switch (prefix[i])
+            switch (source[i])
             {
                 case ')' or ']' or '}':
                     depth++;
                     break;
-                case '(' or '[':
-                    if (depth == 0) return false;
-                    depth--;
-                    break;
-                case '{':
-                    if (depth == 0) return true;
+                case '(' or '[' or '{':
+                    if (depth == 0) return i;
                     depth--;
                     break;
             }
         }
 
-        return false;
+        return -1;
+    }
+
+    /// <summary>The text of the last entry in <paramref name="entries"/>, after the last <c>,</c> or <c>;</c> outside brackets.</summary>
+    private static string LastEntry(string entries)
+    {
+        var depth = 0;
+        var start = 0;
+        for (var i = 0; i < entries.Length; i++)
+        {
+            switch (entries[i])
+            {
+                case '(' or '[' or '{':
+                    depth++;
+                    break;
+                case ')' or ']' or '}':
+                    depth--;
+                    break;
+                case ',' or ';' when depth == 0:
+                    start = i + 1;
+                    break;
+            }
+        }
+
+        return entries[start..];
+    }
+
+    /// <summary>
+    /// The type of a table entry: the field of the struct, class or interface the table is written
+    /// for, the value type of a map, or the element type of a list for a positional entry.
+    /// </summary>
+    private static NebraType? EntryType(AnalysisResult result, TableEntry entry, IReadOnlyList<Symbol> visible)
+    {
+        var table = Find(result, entry.BraceLine, entry.BraceCol, visible);
+        var shapes = table is UnionType union ? union.Types.Where(member => member.Kind != TypeKind.PrimitiveNil).ToList() : table != null ? [table] : [];
+        if (shapes.Count != 1) return null;
+
+        return (shapes[0], entry.Field) switch
+        {
+            (TableArrayType list, null) => list.ElementType,
+            (TableMapType map, not null) => map.ValueType,
+            (var shape, { } field) => NebraType.FieldTypeOf(shape, field),
+            _ => null,
+        };
     }
 
     private static NebraType? MatchedType(AnalysisResult result, int line, int col)
@@ -223,6 +299,59 @@ public static partial class ExpectedTypeAtCursor
 
         if (index < function.ParamTypes.Count) return function.ParamTypes[index];
         return function.IsVararg ? function.VarargType : null;
+    }
+
+    /// <summary>
+    /// The parameter type of a call read from the source, for a call too unfinished to appear in
+    /// the analysed program: the name before the open <c>(</c>, a function in scope or a method
+    /// or function of a value in scope.
+    /// </summary>
+    private static NebraType? ParameterTypeFromSource(AnalysisResult result, int line, int col, IReadOnlyList<Symbol> visible)
+    {
+        var prefix = LinePrefix(result.SourceText, line, col);
+        var open = OpenBracket(prefix, prefix.Length);
+        if (open < 0 || prefix[open] != '(') return null;
+
+        var callee = Regex.Match(prefix[..open], @"(?<receiver>[A-Za-z_][A-Za-z0-9_]*)\s*(?:(?<separator>[.:])\s*(?<member>[A-Za-z_][A-Za-z0-9_]*))?\s*$");
+        if (!callee.Success) return null;
+
+        var receiver = visible.FirstOrDefault(symbol => symbol.Name == callee.Groups["receiver"].Value);
+        if (receiver == null || !result.Types.GetByID(receiver.Type, out var receiverType)) return null;
+
+        var isMethod = callee.Groups["separator"].Value == ":";
+        var function = callee.Groups["member"].Success
+            ? MemberFunction(receiverType, callee.Groups["member"].Value, isMethod)
+            : receiverType as FunctionType;
+        if (function == null) return null;
+
+        var position = new OmniSharp.Extensions.LanguageServer.Protocol.Models.Position(line - 1, col - 1);
+        var index = SignatureHelpHandler.CountActiveParam(result.SourceText, position);
+        if (isMethod && function.ParamNames.Count > 0 && function.ParamNames[0] == "self") index++;
+
+        if (index < function.ParamTypes.Count) return function.ParamTypes[index];
+        return function.IsVararg ? function.VarargType : null;
+    }
+
+    private static FunctionType? MemberFunction(NebraType receiver, string name, bool isMethod)
+    {
+        if (receiver is ClassType classType)
+        {
+            foreach (var current in ClassChain(classType))
+            {
+                var methods = isMethod ? current.Methods : current.StaticMethods;
+                if (methods.TryGetValue(name, out var method)) return method;
+            }
+        }
+
+        if (receiver is InterfaceType interfaceType)
+        {
+            var method = NebraType.BaseInterfacesOf(interfaceType).Prepend(interfaceType)
+                .Select(candidate => candidate.Methods.GetValueOrDefault(name))
+                .FirstOrDefault(found => found != null);
+            if (method != null) return method;
+        }
+
+        return NebraType.FieldTypeOf(receiver, name) as FunctionType;
     }
 
     private static NebraType? TypeOf(AnalysisResult result, TypID type)

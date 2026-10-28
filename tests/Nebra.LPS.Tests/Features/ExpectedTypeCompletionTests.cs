@@ -20,6 +20,7 @@ public sealed class ExpectedTypeCompletionTests
     [InlineData("local color: Color = {|cursor|}")]
     [InlineData("local mut color: Color = Color.RED\ncolor = {|cursor|}")]
     [InlineData("paint({|cursor|})")]
+    [InlineData("paint({|cursor|}")]
     [InlineData("local function other(): Color\n    return {|cursor|}\nend\n")]
     [InlineData("print(favorite == {|cursor|})")]
     public async Task AnExpectedEnumOffersItsMembersFirst(string source)
@@ -39,6 +40,31 @@ public sealed class ExpectedTypeCompletionTests
         var items = await RankedAsync(source);
 
         Assert.Equal("RED", items[0].Label);
+    }
+
+    private const string Shapes =
+        "interface Settings\n    color: Color\n    label: string\nend\n\ninterface Outer\n    inner: Settings\nend\n\nlocal function apply(settings: Settings): nil\nend\n\n";
+
+    [Theory]
+    [InlineData("local settings: Settings = {\n    color = {|cursor|}")]
+    [InlineData("local settings: Settings = { label = \"x\", color = {|cursor|} }")]
+    [InlineData("local settings: Settings = { [\"color\"] = {|cursor|} }")]
+    [InlineData("local colors: Color[] = { RED, {|cursor|} }")]
+    [InlineData("local outer: Outer = {\n    inner = {\n        color = {|cursor|}\n    }\n}")]
+    [InlineData("apply({ color = {|cursor|} })")]
+    public async Task AFieldOfATableWrittenForAShapeTakesTheFieldsType(string source)
+    {
+        var items = await RankedAsync(Shapes + source);
+
+        Assert.Equal(["RED", "GREEN", "BLUE"], items.Take(3).Select(item => item.Label));
+    }
+
+    [Fact]
+    public async Task AFieldOfAnotherTypeIsNotOfferedTheEnum()
+    {
+        var items = await RankedAsync(Shapes + "local settings: Settings = { label = {|cursor|} }");
+
+        Assert.DoesNotContain(items, item => item.Kind == CompletionItemKind.EnumMember);
     }
 
     [Fact]
