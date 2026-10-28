@@ -15,7 +15,10 @@ internal sealed class LuaVersionConverter : TomlConverter<LuaVersion>
     ];
     
     private static readonly Dictionary<LuaVersion, string> LuaVersionToString = LuaVersionStrings.ToDictionary(t => t.Item1, t => t.Item2);
-    private static readonly Dictionary<string, LuaVersion> StringToLuaVersion = LuaVersionStrings.ToDictionary(t => t.Item2, t => t.Item1);
+    private static readonly Dictionary<string, LuaVersion> StringToLuaVersion = LuaVersionStrings
+        .ToDictionary(t => t.Item2, t => t.Item1)
+        .Append(new KeyValuePair<string, LuaVersion>("luajit", LuaVersion.LuaJIT))
+        .ToDictionary();
     
     public override LuaVersion Read(TomlReader reader)
     {

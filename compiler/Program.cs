@@ -77,10 +77,27 @@ internal static class Program
         return await RunBuildProjectAsync();
     }
 
+    /// <summary>
+    /// Loads the project's <c>nebra.toml</c>, or the defaults when there is none. A file that
+    /// cannot be read, such as one naming an unknown target, has already been reported and stops
+    /// the command rather than letting it run on defaults the project never asked for.
+    /// </summary>
+    private static bool TryLoadProjectConfig(string configPath, out Config config)
+    {
+        if (!File.Exists(configPath))
+        {
+            config = new Config();
+            return true;
+        }
+
+        config = Config.LoadFromFile(configPath)!;
+        return config != null;
+    }
+
     private static async Task<int> RunBuildProjectAsync()
     {
         var configPath = Path.Combine(Environment.CurrentDirectory, "nebra.toml");
-        var config = Config.LoadFromFile(configPath) ?? new Config();
+        if (!TryLoadProjectConfig(configPath, out var config)) return 1;
         return await CompileProjectAsync(config, runScripts: true);
     }
 
@@ -217,7 +234,7 @@ internal static class Program
             return 1;
         }
 
-        var initialConfig = Config.LoadFromFile(configPath) ?? new Config();
+        if (!TryLoadProjectConfig(configPath, out var initialConfig)) return 1;
         if (initialConfig.TypesOnly)
         {
             Console.WriteLine("Types-only project — nothing to watch.");
@@ -239,8 +256,8 @@ internal static class Program
             Console.WriteLine($"\n[{stamp}] {reason} — rebuilding…");
             try
             {
-                var config = Config.LoadFromFile(configPath) ?? new Config();
-                await CompileProjectAsync(config, runScripts: false);
+                if (TryLoadProjectConfig(configPath, out var config))
+                    await CompileProjectAsync(config, runScripts: false);
             }
             catch (Exception ex)
             {
@@ -618,7 +635,7 @@ internal static class Program
         if (projectMode)
         {
             var configPath = Path.Combine(Environment.CurrentDirectory, "nebra.toml");
-            config ??= Config.LoadFromFile(configPath) ?? new Config();
+            if (config == null && !TryLoadProjectConfig(configPath, out config)) return 1;
 
             if (config.TypesOnly)
             {
@@ -901,7 +918,7 @@ internal static class Program
         }
 
         var configPath = Path.Combine(Environment.CurrentDirectory, "nebra.toml");
-        var config = Config.LoadFromFile(configPath) ?? new Config();
+        if (!TryLoadProjectConfig(configPath, out var config)) return 1;
 
         var site = Doc.DocSiteBuilder.Build(config, Environment.CurrentDirectory, out var diagnostics);
         foreach (var d in diagnostics) await Console.Error.WriteLineAsync(d);
@@ -961,7 +978,7 @@ internal static class Program
         }
 
         var configPath = Path.Combine(Environment.CurrentDirectory, "nebra.toml");
-        var config = Config.LoadFromFile(configPath) ?? new Config();
+        if (!TryLoadProjectConfig(configPath, out var config)) return 1;
         quiet = quiet || config.Test.Quiet;
 
         if (config.TypesOnly && explicitFiles.Count == 0)
@@ -1123,7 +1140,7 @@ internal static class Program
     private static async Task<int> RunReplAsync(string[] args)
     {
         var configPath = Path.Combine(Environment.CurrentDirectory, "nebra.toml");
-        var config = Config.LoadFromFile(configPath) ?? new Config();
+        if (!TryLoadProjectConfig(configPath, out var config)) return 1;
 
         NebraRuntime CreateRuntime()
         {
@@ -1403,7 +1420,7 @@ internal static class Program
         }
 
         var configPath = Path.Combine(Environment.CurrentDirectory, "nebra.toml");
-        var config = Config.LoadFromFile(configPath) ?? new Config();
+        if (!TryLoadProjectConfig(configPath, out var config)) return 1;
 
         if (config.TypesOnly)
         {

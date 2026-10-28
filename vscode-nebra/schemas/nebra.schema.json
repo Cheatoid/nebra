@@ -15,7 +15,7 @@
     "target": {
       "type": "string",
       "description": "The Lua dialect the compiler emits. It decides which operators and library calls the generated code may use.",
-      "enum": ["5.1", "5.2", "5.3", "5.4", "jit"],
+      "enum": ["5.1", "5.2", "5.3", "5.4", "jit", "luajit"],
       "enumDescriptions": ["Lua 5.1", "Lua 5.2", "Lua 5.3", "Lua 5.4", "LuaJIT"],
       "default": "5.4"
     },
