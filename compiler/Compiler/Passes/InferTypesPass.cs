@@ -860,7 +860,7 @@ public sealed partial class InferTypesPass() : Pass(PassName, PassScope.PerBuild
                 if (fd.IsAsync) _asyncDepth++;
                 using (FixTypeParams(fd.TypeParams))
                     ResolveFunctionLike(pc, fd.Parameters, fd.ReturnType, fd.Body, fd.ReturnStmt,
-                        fd.NamePath.Count == 1 && fd.MethodName == null ? fd.NamePath[0] : null, fd.IsAsync);
+                        fd.NamePath.Count == 1 && fd.MethodName == null ? fd.NamePath[0] : null, fd.IsAsync, ExpectedSignatureOfField(pc, fd));
                 if (fd.IsAsync) _asyncDepth--;
                 if (fd.NamePath.Count == 1 && fd.MethodName == null) ReportIndistinguishableFunction(pc, fd.NamePath[0]);
                 break;
@@ -2138,7 +2138,7 @@ public sealed partial class InferTypesPass() : Pass(PassName, PassScope.PerBuild
     }
 
     private void ResolveFunctionLike(PassContext pc, List<Parameter> parameters, TypeRef? returnTypeRef,
-        List<Stmt> body, ReturnStmt? returnStmt, NameRef? funcName, bool isAsync = false)
+        List<Stmt> body, ReturnStmt? returnStmt, NameRef? funcName, bool isAsync = false, FunctionType? expected = null)
     {
         var paramTypes = new List<Tuple<string, Type>>();
         var isVararg = false;
@@ -2148,7 +2148,7 @@ public sealed partial class InferTypesPass() : Pass(PassName, PassScope.PerBuild
         for (var i = 0; i < parameters.Count; i++)
         {
             var param = parameters[i];
-            var t = ResolveParamType(pc, param);
+            var t = ParamTypeFrom(expected, param, i) ?? ResolveParamType(pc, param);
 
             if (param.IsVararg)
             {

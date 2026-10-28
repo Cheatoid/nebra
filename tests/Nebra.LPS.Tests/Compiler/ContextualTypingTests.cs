@@ -13,6 +13,7 @@ public sealed class ContextualTypingTests
     [InlineData("local handler: (string, number) -> nil = function(name, count)\n    local wrong: boolean = count\nend\n", "number")]
     [InlineData("interface Handlers\n    onLogin: (string) -> nil\nend\n\nlocal handlers: Handlers = { onLogin = function(user)\n    local wrong: number = user\nend }\n", "string")]
     [InlineData("class Button\n    onClick: ((number) -> nil)? = nil\nend\n\nlocal button = new Button()\nbutton.onClick = function(x)\n    local wrong: string = x\nend\n", "number")]
+    [InlineData("declare interface Game\n    update: ((number) -> any)?\nend\n\ndeclare game: Game\n\nfunction game.update(dt)\n    local wrong: string = dt\nend\n", "number")]
     public void AnUnannotatedParameterTakesItsTypeFromTheExpectedFunctionType(string source, string got)
     {
         var error = Assert.Single(Errors(source));

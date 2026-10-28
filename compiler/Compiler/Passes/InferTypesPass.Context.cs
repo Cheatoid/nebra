@@ -198,6 +198,36 @@ public sealed partial class InferTypesPass
     }
 
     /// <summary>
+    /// The signature <c>function a.b.c(...)</c> is written for: the type of the field <c>c</c> of
+    /// what <c>a.b</c> is, as <c>love.update</c> is a field of the <c>love</c> table typed as the
+    /// callback LÖVE calls. <c>null</c> for a plain function or a method, or a field of no function type.
+    /// </summary>
+    private FunctionType? ExpectedSignatureOfField(PassContext pc, FunctionDecl declaration)
+    {
+        if (declaration.NamePath.Count < 2 || declaration.MethodName != null) return null;
+        if (!pc.Pkg!.Types.GetByID(LookupSymbolType(pc, declaration.NamePath[0].Sym), out var current)) return null;
+
+        foreach (var name in declaration.NamePath.Skip(1))
+        {
+            if (!pc.Pkg.Types.GetByID(Evaluate(pc, StripNil(pc, current.ID)), out var owner)) return null;
+            var field = Type.FieldTypeOf(owner, name.Name);
+            if (field == null) return null;
+            current = field;
+        }
+
+        return ExpectedSignature(pc, Evaluate(pc, current.ID));
+    }
+
+    /// <summary>The type of an unannotated parameter from the signature <paramref name="expected"/> a function is written for.</summary>
+    private static Type? ParamTypeFrom(FunctionType? expected, Parameter parameter, int index)
+    {
+        if (expected == null || parameter.TypeAnnotation != null) return null;
+        if (parameter.IsVararg) return expected.IsVararg ? expected.VarargType : null;
+        if (index < expected.ParamTypes.Count) return expected.ParamTypes[index];
+        return expected.IsVararg ? expected.VarargType : null;
+    }
+
+    /// <summary>
     /// The type of the parameter at <paramref name="index"/> of <paramref name="literal"/> from the
     /// signature it is written for, or <c>null</c> when it has an annotation or there is none.
     /// </summary>
