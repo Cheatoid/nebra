@@ -195,6 +195,7 @@ public sealed partial class InferTypesPass() : Pass(PassName, PassScope.PerBuild
                     ResolveImportsPass.PropagateImportTypes(context, importerPkg, importerFile);
         }
 
+        ReportUnresolvedNames();
         return true;
     }
 
@@ -219,7 +220,7 @@ public sealed partial class InferTypesPass() : Pass(PassName, PassScope.PerBuild
         if (value is FunctionDefExpr literal && TakesSignatureFromContext(literal))
             return SynthesizeWithSignature(pc, literal, ExpectedSignature(pc, Evaluate(pc, expected)));
 
-        if (LiteralFor(pc, value, expected) is { } literalType)
+        if (ContextualTypeFor(pc, value, expected) is { } literalType)
         {
             SynthesizeExpr(pc, value);
             return literalType;
@@ -771,7 +772,7 @@ public sealed partial class InferTypesPass() : Pass(PassName, PassScope.PerBuild
                 {
                     if (arm.Pattern.ValueExpr != null)
                     {
-                        var patType = SynthesizeExpr(pc, arm.Pattern.ValueExpr);
+                        var patType = EnumMemberFor(pc, arm.Pattern.ValueExpr, scrutType) ?? SynthesizeExpr(pc, arm.Pattern.ValueExpr);
                         CheckMatchPatternType(pc, scrutType, patType, arm.Pattern.ValueExpr.Span);
                     }
                     if (arm.Pattern.Kind == MatchPatternKind.TypeBinding && arm.Pattern.TypeRef != null)
@@ -2281,7 +2282,7 @@ public sealed partial class InferTypesPass() : Pass(PassName, PassScope.PerBuild
                 valueTypes[i] = SynthesizeWithSignature(pc, literal, ExpectedSignature(pc, Evaluate(pc, targetType)));
             if (i < stmt.Values.Count && stmt.Values[i] is TableConstructorExpr table && _pendingTables.Contains(table))
                 valueTypes[i] = SynthesizeTableFor(pc, table, Evaluate(pc, targetType));
-            if (i < stmt.Values.Count && LiteralFor(pc, stmt.Values[i], targetType) is { } literalValue)
+            if (i < stmt.Values.Count && ContextualTypeFor(pc, stmt.Values[i], targetType) is { } literalValue)
                 valueTypes[i] = literalValue;
             if (i < valueTypes.Count && targetType != TypID.Invalid && targetType != pc.Types.PrimAny.ID)
             {
@@ -2563,6 +2564,9 @@ public sealed partial class InferTypesPass() : Pass(PassName, PassScope.PerBuild
             case VarargExpr:
                 result = tt.PrimAny.ID;
                 break;
+            case NameExpr { IsUnresolved: true } unresolved:
+                result = SynthesizeUnresolvedName(pc, unresolved);
+                break;
             case NameExpr nameExpr:
                 result = LookupSymbolType(pc, nameExpr.Name.Sym);
                 break;
@@ -2678,6 +2682,9 @@ public sealed partial class InferTypesPass() : Pass(PassName, PassScope.PerBuild
         var tt = pc.Types;
         var l = FirstValue(pc, SynthesizeExpr(pc, bin.Left));
         var r = FirstValue(pc, bin.Op is BinaryOp.And or BinaryOp.Or ? SynthesizeShortCircuitRight(pc, bin) : SynthesizeExpr(pc, bin.Right));
+        AdoptComparedEnumMember(pc, bin, l, r);
+        l = bin.Left.Type != TypID.Invalid ? FirstValue(pc, bin.Left.Type) : l;
+        r = bin.Right.Type != TypID.Invalid ? FirstValue(pc, bin.Right.Type) : r;
         if (bin.Op == BinaryOp.Concat && l == tt.PrimNumber.ID && r == tt.PrimNumber.ID)
         {
             bin.IsRange = true;
@@ -2896,7 +2903,7 @@ public sealed partial class InferTypesPass() : Pass(PassName, PassScope.PerBuild
         {
             if (arm.Pattern.ValueExpr != null)
             {
-                var patType = SynthesizeExpr(pc, arm.Pattern.ValueExpr);
+                var patType = EnumMemberFor(pc, arm.Pattern.ValueExpr, scrutType) ?? SynthesizeExpr(pc, arm.Pattern.ValueExpr);
                 CheckMatchPatternType(pc, scrutType, patType, arm.Pattern.ValueExpr.Span);
             }
             if (arm.Pattern.Kind == MatchPatternKind.TypeBinding && arm.Pattern.TypeRef != null)
@@ -5580,6 +5587,8 @@ public sealed partial class InferTypesPass() : Pass(PassName, PassScope.PerBuild
             {
                 if (pattern.Kind == MatchPatternKind.Value && pattern.ValueExpr is DotAccessExpr dot)
                     covered.Add(dot.FieldName.Name);
+                if (pattern.Kind == MatchPatternKind.Value && pattern.ValueExpr is NameExpr { EnumMember: { } member })
+                    covered.Add(member.Name);
             }
 
             var missing = enumType.Members.Where(m => !covered.Contains(m.Name)).ToList();

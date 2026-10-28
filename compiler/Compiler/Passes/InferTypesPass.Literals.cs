@@ -240,11 +240,13 @@ public sealed partial class InferTypesPass
     }
 
     /// <summary>
-    /// The literal type of <paramref name="value"/> where a value of <paramref name="expected"/>
-    /// is wanted and takes literal types, or <c>null</c>.
+    /// The type <paramref name="value"/> takes from <paramref name="expected"/>: the literal type
+    /// of a literal where literal types are wanted, or the enum of a name without a declaration
+    /// that names one of its members; <c>null</c> otherwise.
     /// </summary>
-    private TypID? LiteralFor(PassContext pc, Expr value, TypID expected)
+    private TypID? ContextualTypeFor(PassContext pc, Expr value, TypID expected)
     {
+        if (EnumMemberFor(pc, value, expected) is { } member) return member;
         if (expected == TypID.Invalid || LiteralValue.Of(value) is not { } literal || !WantsLiteral(pc, expected)) return null;
         return pc.Types.LiteralOf(literal).ID;
     }
@@ -258,7 +260,7 @@ public sealed partial class InferTypesPass
             if (position >= argTypes.Count) break;
 
             var parameter = position < fnType.ParamTypes.Count ? fnType.ParamTypes[position] : fnType.IsVararg ? fnType.VarargType : null;
-            if (parameter != null && LiteralFor(pc, arguments[i], parameter.ID) is { } literal) argTypes[position] = literal;
+            if (parameter != null && ContextualTypeFor(pc, arguments[i], parameter.ID) is { } literal) argTypes[position] = literal;
         }
     }
 
@@ -354,7 +356,7 @@ public sealed partial class InferTypesPass
             var expected = declared is TupleType tuple
                 ? i < tuple.Fields.Count ? tuple.Fields[i].Type.ID : TypID.Invalid
                 : i == 0 ? declared.ID : TypID.Invalid;
-            if (LiteralFor(pc, values[i], expected) is { } literal) values[i].Type = literal;
+            if (ContextualTypeFor(pc, values[i], expected) is { } literal) values[i].Type = literal;
         }
     }
 }

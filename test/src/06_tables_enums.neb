@@ -11,6 +11,13 @@ enum Status
     Inactive = "INACTIVE"
 end
 
+local function statusName(status: Status): string
+    return match status
+        case Active then "on"
+        case Inactive then "off"
+    end
+end
+
 export function run(): nil
     section("tables")
 
@@ -113,4 +120,8 @@ export function run(): nil
     expectEq("bare unpack first", x2, 4)
     expectEq("bare unpack last", z2, 6)
 
+    local shorthand: Color = Blue
+    expectEq("enum shorthand in an annotated local", shorthand, Color.Blue)
+    expect("enum shorthand in a comparison", shorthand == Blue and shorthand ~= Red)
+    expectEq("enum shorthand as an argument and in match", statusName(Inactive), "off")
 end

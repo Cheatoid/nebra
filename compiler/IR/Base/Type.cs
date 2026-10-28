@@ -698,6 +698,12 @@ public sealed class EnumType(string name, IEnumerable<EnumType.Member> members, 
     public List<Member> Members { get; } = members.ToList();
     public Type BaseType { get; } = baseType;
 
+    /// <summary>
+    /// Declared in a declaration file for an enum defined elsewhere, whose values the declaration
+    /// does not carry, so a member is reached through the enum's table rather than its value.
+    /// </summary>
+    public bool IsDeclared { get; set; }
+
     protected override TypeKey GenerateNewKey()
     {
         return $"enum<{Name}>";

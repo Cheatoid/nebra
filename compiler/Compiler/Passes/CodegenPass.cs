@@ -1884,6 +1884,9 @@ public sealed partial class CodegenPass() : Pass(PassName, PassScope.PerBuild, t
             case VarargExpr:
                 gen.Write("...");
                 break;
+            case NameExpr { Enum: { } shorthandEnum, EnumMember: { } shorthandMember }:
+                gen.Write(EnumMemberValue(shorthandEnum, shorthandMember));
+                break;
             case NameExpr name:
                 if (_overloadDispatchers.TryGetValue(name.Name.Sym, out var dispatcher))
                 {
@@ -3002,6 +3005,19 @@ public sealed partial class CodegenPass() : Pass(PassName, PassScope.PerBuild, t
         var sub = new LuaGenerator(gen.Config);
         EmitExpr(ctx, pkg, sub, expr);
         return sub.Finish();
+    }
+
+    /// <summary>
+    /// The Lua a member of <paramref name="enumType"/> written without its enum, as <c>RED</c>,
+    /// compiles to: its value, so the enum does not have to be in scope where it is used. A
+    /// declared enum does not carry its values, so its member is read from the enum's table.
+    /// </summary>
+    private static string EnumMemberValue(EnumType enumType, EnumType.Member member)
+    {
+        if (enumType.IsDeclared || member.Value == null) return enumType.Name + "." + member.Name;
+        return enumType.BaseType.Kind == TypeKind.PrimitiveString
+            ? "\"" + EscapeLuaString(member.Value.ToString()!) + "\""
+            : member.Value.ToString()!;
     }
 
     private static string EscapeLuaString(string s)

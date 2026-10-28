@@ -281,6 +281,7 @@ public class ResolveTypeRefsPass() : Pass(PassName, PassScope.PerBuild)
         var enumType = pkg.Types.EnumOf(decl.Name.Name, members, baseType);
         enumType.ReflectionId = $"{ReflectNamespace(pkg, decl, decl.Name)}::{decl.Name.Name}";
         enumType.DeclaredAt ??= decl.Name;
+        enumType.IsDeclared = decl.IsDeclare;
         pkg.Syms.SetType(decl.Name.Sym, enumType.ID);
     }
     

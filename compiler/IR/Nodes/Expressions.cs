@@ -97,6 +97,19 @@ public sealed class NameExpr(NodeID id, TextSpan span, NameRef name) : Expr(id, 
     /// compile time, so codegen calls that overload directly instead of its dispatcher.
     /// </summary>
     public bool CallsResolvedOverload { get; set; }
+
+    /// <summary>
+    /// Set by name resolution when no declaration of the name is in scope. Type inference may
+    /// still read it as a member of the enum expected where it stands, as <c>RED</c> in
+    /// <c>local color: Color = RED</c>, and reports it otherwise.
+    /// </summary>
+    public bool IsUnresolved { get; set; }
+
+    /// <summary>The enum member an unresolved name stands for, set by type inference.</summary>
+    public EnumType.Member? EnumMember { get; set; }
+
+    /// <summary>The enum <see cref="EnumMember"/> belongs to.</summary>
+    public EnumType? Enum { get; set; }
 }
 
 public sealed class ParenExpr(NodeID id, TextSpan span, Expr inner) : Expr(id, span)

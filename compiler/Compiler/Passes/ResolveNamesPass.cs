@@ -465,6 +465,12 @@ public sealed class ResolveNamesPass() : Pass(PassName, PassScope.PerFile)
             case NameExpr nameExpr:
             {
                 pkg.Scopes.EnclosingScope(nameExpr.ID, out var scope);
+                if (IsUndeclaredValue(pc, nameExpr.Name, scope, pkg))
+                {
+                    nameExpr.IsUnresolved = true;
+                    break;
+                }
+
                 ResolveNameRef(pc, nameExpr.Name, scope, pkg);
                 RejectTypeImport(pc, pkg, nameExpr.Name);
             }
@@ -611,6 +617,13 @@ public sealed class ResolveNamesPass() : Pass(PassName, PassScope.PerFile)
             pc.Diag.Report(nameRef.Span, DiagnosticCode.ErrUndeclaredSymbol, nameRef.Name);
         }
     }
+
+    /// <summary>
+    /// Whether a name used as a value has no declaration in scope, so it is left for type
+    /// inference, which reads it as a member of the enum expected there or reports it.
+    /// </summary>
+    private bool IsUndeclaredValue(PassContext pc, NameRef nameRef, ScopeID start, PackageContext pkg) =>
+        !pc.Config.ReplMode && nameRef.Name != "self" && pkg.Scopes.LookupAll(start, nameRef.Name).Count == 0;
 
     private void ResolveNameRefForDecl(PassContext pc, NameRef nameRef, ScopeID start, PackageContext pkg, NodeID declNode)
     {
