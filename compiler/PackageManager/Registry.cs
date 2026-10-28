@@ -27,9 +27,6 @@ public static class Registry
     }
 
     /// <summary>
-    /// Resolves an alias name to a git URL. Returns <c>null</c> if the alias is not in the index.
-    /// </summary>
-    /// <summary>
     /// A location from the index with a version range added: after <c>@</c> for a shortcut such as
     /// <c>github:owner/repo/directory</c>, after <c>#</c> for a URL.
     /// </summary>
@@ -39,10 +36,19 @@ public static class Registry
         return location.Contains("://", StringComparison.Ordinal) ? $"{location}#{range}" : $"{location}@{range}";
     }
 
+    /// <summary>
+    /// Resolves an alias name to a git URL. Returns <c>null</c> if the alias is not in the index.
+    /// A name the cached index does not have refreshes it once before giving up, so a package
+    /// published since the index was cached is found right away.
+    /// </summary>
     public static async Task<string?> ResolveAsync(string aliasName, bool forceRefresh = false)
     {
         var index = await LoadIndexAsync(forceRefresh);
-        return index.TryGetValue(aliasName, out var url) ? url : null;
+        if (index.TryGetValue(aliasName, out var url)) return url;
+        if (forceRefresh) return null;
+
+        var refreshed = await LoadIndexAsync(true);
+        return refreshed.TryGetValue(aliasName, out var published) ? published : null;
     }
 
     /// <summary>
