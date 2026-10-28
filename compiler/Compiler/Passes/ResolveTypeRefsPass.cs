@@ -740,17 +740,24 @@ public class ResolveTypeRefsPass() : Pass(PassName, PassScope.PerBuild)
 
     /// <summary>
     /// Looks up the symbol a type name stands for. A static class member is a value, not a type,
-    /// so the lookup passes over it to whatever the name means outside the class.
+    /// so the lookup passes over it to whatever the name means outside the class. So does a
+    /// variable or function, such as the parameter <c>Vector</c> in <c>(Vector: Vector)</c>,
+    /// unless no type of that name is in scope, as for a name an import binds.
     /// </summary>
     private bool LookupTypeName(ScopeID scope, string name, out SymID sym)
     {
+        SymID? firstValue = null;
         while (_pkg.Scopes.Lookup(scope, name, out sym))
         {
-            if (!_pkg.Syms.GetByID(sym, out var symbol) || !symbol.Flags.HasFlag(SymbolFlags.Static)) return true;
-            if (!_pkg.Scopes.ParentScope(symbol.Owner, out scope)) return false;
+            if (!_pkg.Syms.GetByID(sym, out var symbol)) return true;
+            var isValue = symbol.Kind is SymbolKind.Variable or SymbolKind.Function;
+            if (!symbol.Flags.HasFlag(SymbolFlags.Static) && !isValue) return true;
+            if (isValue && !symbol.Flags.HasFlag(SymbolFlags.Static)) firstValue ??= sym;
+            if (!_pkg.Scopes.ParentScope(symbol.Owner, out scope)) break;
         }
 
-        return false;
+        sym = firstValue ?? SymID.Invalid;
+        return firstValue != null;
     }
 
     /// <summary>

@@ -306,6 +306,8 @@ public sealed class BindDeclarePass() : Pass(PassName, PassScope.PerFile)
                 var funcScope = pkg.Scopes.NewScope(scope);
                 pkg.Scopes.BindNode(funcDecl.ID, funcScope);
                 DeclareTypeParams(ctx, funcScope, funcDecl.TypeParams);
+                if (funcDecl.MethodName != null)
+                    DeclareSymbol(ctx, funcScope, "self", SymbolKind.Variable, funcDecl.ID);
                 foreach (var param in funcDecl.Parameters)
                 {
                     pkg.Scopes.BindNode(param.ID, funcScope);

@@ -204,18 +204,56 @@ public sealed partial class InferTypesPass
     /// </summary>
     private FunctionType? ExpectedSignatureOfField(PassContext pc, FunctionDecl declaration)
     {
-        if (declaration.NamePath.Count < 2 || declaration.MethodName != null) return null;
-        if (!pc.Pkg!.Types.GetByID(LookupSymbolType(pc, declaration.NamePath[0].Sym), out var current)) return null;
+        var path = declaration.MethodName != null ? declaration.NamePath.Append(declaration.MethodName).ToList() : declaration.NamePath;
+        if (path.Count < 2 || TypeOfPath(pc, path) is not { } field) return null;
 
-        foreach (var name in declaration.NamePath.Skip(1))
+        var signature = ExpectedSignature(pc, Evaluate(pc, field.ID));
+        if (signature == null || declaration.MethodName == null || signature.ParamNames.Count == 0 || signature.ParamNames[0] != "self") return signature;
+        return (FunctionType)GetType(pc, pc.Types.FuncOf(signature.ParamTypes.Skip(1), signature.ReturnType, signature.IsVararg, signature.VarargType));
+    }
+
+    /// <summary>
+    /// The type of <c>a.b.c</c>, each name a field of what the names before it are; <c>null</c>
+    /// where one is not known.
+    /// </summary>
+    private Type? TypeOfPath(PassContext pc, List<NameRef> path)
+    {
+        if (!pc.Pkg!.Types.GetByID(LookupSymbolType(pc, path[0].Sym), out var current)) return null;
+
+        foreach (var name in path.Skip(1))
         {
             if (!pc.Pkg.Types.GetByID(Evaluate(pc, StripNil(pc, current.ID)), out var owner)) return null;
-            var field = Type.FieldTypeOf(owner, name.Name);
-            if (field == null) return null;
-            current = field;
+            var member = Type.FieldTypeOf(owner, name.Name) ?? MethodOf(owner, name.Name);
+            if (member == null) return null;
+            current = member;
         }
 
-        return ExpectedSignature(pc, Evaluate(pc, current.ID));
+        return current;
+    }
+
+    private static Type? MethodOf(Type owner, string name)
+    {
+        return owner switch
+        {
+            ClassType classType => Type.ClassChainOf(classType).Select(current => current.Methods.GetValueOrDefault(name)).FirstOrDefault(method => method != null),
+            InterfaceType interfaceType => Type.BaseInterfacesOf(interfaceType).Prepend(interfaceType)
+                .Select(candidate => candidate.Methods.GetValueOrDefault(name))
+                .FirstOrDefault(method => method != null),
+            _ => null,
+        };
+    }
+
+    /// <summary>
+    /// Types the implicit <c>self</c> of <c>function a.b:method(...)</c> as what <c>a.b</c> is,
+    /// the table the method is called on.
+    /// </summary>
+    private void TypeMethodSelf(PassContext pc, FunctionDecl declaration)
+    {
+        if (declaration.MethodName == null) return;
+        if (!pc.Pkg!.Scopes.EnclosingScope(declaration.ID, out var scope) || !pc.Pkg.Scopes.LookupOnlyCurrent(scope, "self", out var self)) return;
+
+        var owner = TypeOfPath(pc, declaration.NamePath);
+        pc.Pkg.Syms.SetType(self, owner != null ? StripNil(pc, owner.ID) : pc.Types.PrimAny.ID);
     }
 
     /// <summary>The type of an unannotated parameter from the signature <paramref name="expected"/> a function is written for.</summary>

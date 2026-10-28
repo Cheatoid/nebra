@@ -348,6 +348,9 @@ public class Type(TypeKind kind)
         };
     }
 
+    /// <summary><paramref name="classType"/> and the classes it extends, nearest first.</summary>
+    public static IEnumerable<ClassType> ClassChainOf(ClassType classType) => ClassChain(classType);
+
     private static IEnumerable<ClassType> ClassChain(ClassType classType)
     {
         for (var current = classType; current != null; current = current.BaseClass)

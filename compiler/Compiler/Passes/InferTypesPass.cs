@@ -857,6 +857,7 @@ public sealed partial class InferTypesPass() : Pass(PassName, PassScope.PerBuild
         {
             case FunctionDecl fd:
                 ReportClassMemberReplacement(pc, fd);
+                TypeMethodSelf(pc, fd);
                 if (fd.IsAsync) _asyncDepth++;
                 using (FixTypeParams(fd.TypeParams))
                     ResolveFunctionLike(pc, fd.Parameters, fd.ReturnType, fd.Body, fd.ReturnStmt,
@@ -1216,7 +1217,7 @@ public sealed partial class InferTypesPass() : Pass(PassName, PassScope.PerBuild
         {
             foreach (var defer in DeferStmt.In(constructor.Body))
                 pc.Diag.Report(defer.Span, DiagnosticCode.ErrDeferInConstructor);
-            CheckSuperCall(pc, cd, classType, constructor);
+            if (!cd.IsDeclare) CheckSuperCall(pc, cd, classType, constructor);
             var outerConstructorSuperCalls = _constructorSuperCalls;
             _constructorSuperCalls = constructor.Body
                 .Select(stmt => stmt is ExprStmt { Expression: SuperCallExpr superCall } ? superCall : null)
