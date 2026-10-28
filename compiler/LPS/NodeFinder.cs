@@ -221,10 +221,10 @@ public static class NodeFinder
                 if (gs.ElseExpr != null) SearchExpr(gs.ElseExpr, line, col, ref best);
                 break;
             case ClassDecl cd:
-                if (cd.Constructor != null)
+                foreach (var classConstructor in cd.Constructors)
                 {
-                    SearchStmtList(cd.Constructor.Body, line, col, ref best);
-                    if (cd.Constructor.ReturnStmt != null) SearchStmt(cd.Constructor.ReturnStmt, line, col, ref best);
+                    SearchStmtList(classConstructor.Body, line, col, ref best);
+                    if (classConstructor.ReturnStmt != null) SearchStmt(classConstructor.ReturnStmt, line, col, ref best);
                 }
                 foreach (var method in cd.Methods)
                 {
@@ -493,15 +493,15 @@ public static class NodeFinder
                 foreach (var iface in cd.Interfaces) CheckNameRef(iface, line, col, ref best);
                 foreach (var argList in cd.InterfaceTypeArgs)
                     foreach (var arg in argList) SearchTypeArgRefForNameRef(arg, line, col, ref best);
-                if (cd.Constructor != null)
+                foreach (var classConstructor in cd.Constructors)
                 {
-                    foreach (var p in cd.Constructor.Parameters)
+                    foreach (var p in classConstructor.Parameters)
                     {
                         CheckNameRef(p.Name, line, col, ref best);
                         SearchTypeRefForNameRef(p.TypeAnnotation, line, col, ref best);
                     }
-                    SearchStmtListForNameRef(cd.Constructor.Body, line, col, ref best);
-                    if (cd.Constructor.ReturnStmt != null) SearchStmtForNameRef(cd.Constructor.ReturnStmt, line, col, ref best);
+                    SearchStmtListForNameRef(classConstructor.Body, line, col, ref best);
+                    if (classConstructor.ReturnStmt != null) SearchStmtForNameRef(classConstructor.ReturnStmt, line, col, ref best);
                 }
                 foreach (var method in cd.Methods)
                 {
@@ -887,15 +887,15 @@ public static class NodeFinder
                 foreach (var iface in cd.Interfaces) AddRef(iface, refs);
                 foreach (var argList in cd.InterfaceTypeArgs)
                     foreach (var arg in argList) CollectFromTypeArgRef(arg, refs);
-                if (cd.Constructor != null)
+                foreach (var classConstructor in cd.Constructors)
                 {
-                    foreach (var p in cd.Constructor.Parameters)
+                    foreach (var p in classConstructor.Parameters)
                     {
                         AddRef(p.Name, refs);
                         CollectFromTypeRef(p.TypeAnnotation, refs);
                     }
-                    CollectFromStmtList(cd.Constructor.Body, refs);
-                    if (cd.Constructor.ReturnStmt != null) CollectFromStmt(cd.Constructor.ReturnStmt, refs);
+                    CollectFromStmtList(classConstructor.Body, refs);
+                    if (classConstructor.ReturnStmt != null) CollectFromStmt(classConstructor.ReturnStmt, refs);
                 }
                 foreach (var method in cd.Methods)
                 {

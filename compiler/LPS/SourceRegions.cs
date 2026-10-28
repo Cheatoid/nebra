@@ -35,7 +35,7 @@ public static class SourceRegions
         switch (node)
         {
             case ClassDecl classDecl:
-                if (classDecl.Constructor != null) yield return classDecl.Constructor.Span;
+                foreach (var classConstructor in classDecl.Constructors) yield return classConstructor.Span;
                 foreach (var method in classDecl.Methods) yield return method.Span;
                 foreach (var field in classDecl.Fields) yield return field.Span;
                 foreach (var accessor in classDecl.Accessors) yield return accessor.Span;

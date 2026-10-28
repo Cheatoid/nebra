@@ -87,6 +87,8 @@ public sealed partial class TypeTable
             instance.ConstructorSide = definition.ConstructorSide;
             instance.BaseClass = definition.BaseClass == null ? null : Substitute(definition.BaseClass, map) as ClassType;
             instance.ConstructorType = definition.ConstructorType == null ? null : (FunctionType)Substitute(definition.ConstructorType, map);
+            Replace(instance.ConstructorOverloads, definition.ConstructorOverloads.Select(constructor => (FunctionType)Substitute(constructor, map)));
+            Replace(instance.LocalConstructors, definition.LocalConstructors.Select(constructor => (FunctionType)Substitute(constructor, map)));
 
             Replace(instance.Interfaces, definition.Interfaces.Select(iface => Substitute(iface, map)).OfType<InterfaceType>());
             Replace(instance.InstanceFields, definition.InstanceFields, field => new StructType.Field(field.Name, Substitute(field.Type, map), field.IsMeta));

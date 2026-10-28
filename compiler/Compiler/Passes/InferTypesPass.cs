@@ -1031,11 +1031,12 @@ public sealed partial class InferTypesPass() : Pass(PassName, PassScope.PerBuild
             StampMemberSide(pc, field.Annotations, classType.FieldSides, field.Name.Name);
         }
 
+        foreach (var parameter in cd.Constructors.SelectMany(constructor => constructor.Parameters).Where(parameter => parameter.DefaultValue != null))
+            SynthesizeExpr(pc, parameter.DefaultValue!);
+        RegisterConstructors(pc, cd, classType);
+        ReportDuplicateConstructors(pc, cd, classType);
         if (cd.Constructor != null)
         {
-            foreach (var parameter in cd.Constructor.Parameters.Where(parameter => parameter.DefaultValue != null))
-                SynthesizeExpr(pc, parameter.DefaultValue!);
-            classType.ConstructorType = ConstructorTypeOf(pc, cd.Constructor, classType);
             var ctorSide = Nebra.Compiler.Annotations.BuiltinAnnotations.ExtractSide(cd.Constructor.Annotations,
                 (ann, badName) => ReportBadSide(pc, ann, badName));
             classType.ConstructorSide = ctorSide;
@@ -1183,17 +1184,17 @@ public sealed partial class InferTypesPass() : Pass(PassName, PassScope.PerBuild
         List<(ClassMethodNode Method, Type ReturnType)> methodBodies)
     {
         using var classTypeParams = FixTypeParams(cd.TypeParams);
-        if (cd.Constructor != null)
+        foreach (var constructor in cd.Constructors)
         {
-            foreach (var defer in DeferStmt.In(cd.Constructor.Body))
+            foreach (var defer in DeferStmt.In(constructor.Body))
                 pc.Diag.Report(defer.Span, DiagnosticCode.ErrDeferInConstructor);
-            CheckSuperCall(pc, cd, classType);
+            CheckSuperCall(pc, cd, classType, constructor);
             var outerConstructorSuperCalls = _constructorSuperCalls;
-            _constructorSuperCalls = cd.Constructor.Body
+            _constructorSuperCalls = constructor.Body
                 .Select(stmt => stmt is ExprStmt { Expression: SuperCallExpr superCall } ? superCall : null)
                 .OfType<SuperCallExpr>()
                 .ToHashSet();
-            ResolveFunctionBody(pc, cd.Constructor.Body, cd.Constructor.ReturnStmt);
+            ResolveFunctionBody(pc, constructor.Body, constructor.ReturnStmt);
             _constructorSuperCalls = outerConstructorSuperCalls;
         }
 
@@ -1288,8 +1289,7 @@ public sealed partial class InferTypesPass() : Pass(PassName, PassScope.PerBuild
             if (!pc.Types.GetByID(classSym.Type, out var rawType) || rawType is not ClassType classType) continue;
 
             LinkBaseClass(pc, cd, classType, report: false);
-            if (cd.Constructor != null)
-                classType.ConstructorType = ConstructorTypeOf(pc, cd.Constructor, classType);
+            RegisterConstructors(pc, cd, classType);
         }
     }
 
@@ -1384,14 +1384,19 @@ public sealed partial class InferTypesPass() : Pass(PassName, PassScope.PerBuild
         var baseClass = _currentClass?.BaseClass;
         if (baseClass == null) return;
 
-        var ctorType = ResolveConstructorType(baseClass);
-        if (ctorType == null)
+        var constructors = ResolveConstructorOverloads(baseClass);
+        if (constructors == null)
         {
             if (superCall.Arguments.Count > 0)
                 pc.Diag.Report(superCall.Span, DiagnosticCode.ErrNoConstructor, baseClass.Name);
             return;
         }
 
+        var (owner, overloads) = constructors.Value;
+        var ctorType = PickConstructor(pc, superCall.Span, baseClass.Name, owner, overloads, argTypes, out var overloadName);
+        if (ctorType == null) return;
+
+        if (owner.Definition == baseClass.Definition) superCall.OverloadName = overloadName;
         CheckConstructorArguments(pc, superCall.Span, baseClass.Name, ctorType, superCall.Arguments, argTypes);
     }
 
@@ -1420,9 +1425,8 @@ public sealed partial class InferTypesPass() : Pass(PassName, PassScope.PerBuild
     /// base half of the object unset. A super call that is not the first statement is equally
     /// broken, since everything before it runs before <c>self</c> exists.
     /// </summary>
-    private void CheckSuperCall(PassContext pc, ClassDecl cd, ClassType classType)
+    private void CheckSuperCall(PassContext pc, ClassDecl cd, ClassType classType, ClassConstructorNode ctor)
     {
-        var ctor = cd.Constructor!;
         var superIndex = ctor.Body.FindIndex(s => s is ExprStmt { Expression: SuperCallExpr });
 
         if (classType.BaseClass == null)
@@ -1438,10 +1442,7 @@ public sealed partial class InferTypesPass() : Pass(PassName, PassScope.PerBuild
             return;
         }
 
-        if (superIndex == 0) return;
-
-        var inherited = ResolveConstructorType(classType.BaseClass);
-        if (inherited == null || inherited.MinParamCount == 0) return;
+        if (superIndex == 0 || HasArgumentlessConstructor(classType.BaseClass)) return;
 
         pc.Diag.Report(ctor.Span, Diagnostics.DiagnosticCode.ErrMissingSuperCall, cd.Name.Name);
     }
@@ -3035,20 +3036,23 @@ public sealed partial class InferTypesPass() : Pass(PassName, PassScope.PerBuild
             return classTypId;
         }
 
-        if (classType.HasLocalConstructor && _currentClass?.Definition != classType.Definition)
-            pc.Diag.Report(newExpr.Span, DiagnosticCode.ErrLocalConstructor, classType.Name);
-
-        var ctorType = ResolveConstructorType(classType);
-        if (ctorType == null)
+        var constructors = ResolveConstructorOverloads(classType);
+        if (constructors == null)
         {
             if (newExpr.Arguments.Count > 0)
                 pc.Diag.Report(newExpr.Span, DiagnosticCode.ErrNoConstructor, newExpr.ClassName.Name);
-        }
-        else
-        {
-            CheckConstructorArguments(pc, newExpr.Span, newExpr.ClassName.Name, ctorType, newExpr.Arguments, argTypes);
+            return InferredInstantiation(pc, classType, null, argTypes).ID;
         }
 
+        var (owner, overloads) = constructors.Value;
+        var ctorType = PickConstructor(pc, newExpr.Span, newExpr.ClassName.Name, owner, overloads, argTypes, out var overloadName);
+        if (ctorType == null) return InferredInstantiation(pc, classType, null, argTypes).ID;
+
+        if (owner.Definition == classType.Definition) newExpr.OverloadName = overloadName;
+        if (owner.LocalConstructors.Contains(ctorType) && _currentClass?.Definition != owner.Definition)
+            pc.Diag.Report(newExpr.Span, DiagnosticCode.ErrLocalConstructor, owner.Name);
+
+        CheckConstructorArguments(pc, newExpr.Span, newExpr.ClassName.Name, ctorType, newExpr.Arguments, argTypes);
         return InferredInstantiation(pc, classType, ctorType, argTypes).ID;
     }
 
@@ -3070,21 +3074,6 @@ public sealed partial class InferTypesPass() : Pass(PassName, PassScope.PerBuild
 
         var arguments = classType.TypeParams.Select(typeParam => bindings.GetValueOrDefault(typeParam.ID) ?? pc.Types.PrimAny).ToList();
         return pc.Types.Instantiate(classType, arguments);
-    }
-
-    /// <summary>
-    /// Finds the constructor a <c>new</c> on <paramref name="classType"/> actually runs: its own,
-    /// or else the nearest one it inherits. A class that declares none is constructed through the
-    /// inherited one, so that is the signature the call site has to satisfy.
-    /// </summary>
-    private static FunctionType? ResolveConstructorType(ClassType classType)
-    {
-        for (var cur = classType; cur != null; cur = cur.BaseClass)
-        {
-            if (cur.ConstructorType != null) return cur.ConstructorType;
-        }
-
-        return null;
     }
 
     private TypID InferFunctionDef(PassContext pc, FunctionDefExpr fde)

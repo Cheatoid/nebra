@@ -188,11 +188,11 @@ public sealed class DetectUnusedPass() : Pass(PassName, PassScope.PerBuild)
                 break;
             }
             case ClassDecl classDecl:
-                if (classDecl.Constructor != null)
+                foreach (var classConstructor in classDecl.Constructors)
                 {
-                    foreach (var p in classDecl.Constructor.Parameters)
+                    foreach (var p in classConstructor.Parameters)
                         if (pkg.Syms.GetByID(p.Name.Sym, out var ps)) ps.Flags |= SymbolFlags.Unused;
-                    MarkStmtListUnused(pc, pkg, classDecl.Constructor.Body);
+                    MarkStmtListUnused(pc, pkg, classConstructor.Body);
                 }
                 foreach (var method in classDecl.Methods)
                 {
@@ -389,10 +389,10 @@ public sealed class DetectUnusedPass() : Pass(PassName, PassScope.PerBuild)
                 break;
             }
             case ClassDecl classDecl:
-                if (classDecl.Constructor != null)
+                foreach (var classConstructor in classDecl.Constructors)
                 {
-                    TrackStmtListUsage(pc, pkg, classDecl.Constructor.Body);
-                    if (classDecl.Constructor.ReturnStmt != null) TrackStmtUsage(pc, pkg, classDecl.Constructor.ReturnStmt);
+                    TrackStmtListUsage(pc, pkg, classConstructor.Body);
+                    if (classConstructor.ReturnStmt != null) TrackStmtUsage(pc, pkg, classConstructor.ReturnStmt);
                 }
                 foreach (var method in classDecl.Methods)
                 {

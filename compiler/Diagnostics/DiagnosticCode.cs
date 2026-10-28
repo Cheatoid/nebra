@@ -155,8 +155,8 @@ public enum DiagnosticCode
 
     [Level(DiagnosticLevel.Error)]
     [Category(DiagnosticCategory.Semantic)]
-    [Format("'{0}' already has a constructor; a class has exactly one")]
-    [Help("give parameters default values or make them optional to support several ways of constructing it")]
+    [Format("'{0}' already has a constructor taking these parameter types")]
+    [Help("give the constructors different parameter types so a call can tell them apart")]
     ErrDuplicateConstructor = 0x1011,
 
     [Level(DiagnosticLevel.Error)]
@@ -494,6 +494,12 @@ public enum DiagnosticCode
     [Category(DiagnosticCategory.Type)]
     [Format("'keyof' needs a struct, class or interface type, but got '{0}'")]
     ErrKeyOfNonShape = 0x403E,
+
+    [Level(DiagnosticLevel.Error)]
+    [Category(DiagnosticCategory.Type)]
+    [Format("no constructor of '{0}' takes the arguments ({1})")]
+    [Help("its constructors take: {2}")]
+    ErrNoMatchingConstructor = 0x403F,
 
     [Level(DiagnosticLevel.Warning)]
     [Category(DiagnosticCategory.Semantic)]

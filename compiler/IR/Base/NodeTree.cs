@@ -119,11 +119,11 @@ public static class NodeTree
                 if (gs.ElseExpr != null) RegisterExpr(gs.ElseExpr, reg);
                 break;
             case ClassDecl cd:
-                if (cd.Constructor != null)
+                foreach (var classConstructor in cd.Constructors)
                 {
-                    foreach (var p in cd.Constructor.Parameters) reg[p.ID] = p;
-                    RegisterStmtList(cd.Constructor.Body, reg);
-                    if (cd.Constructor.ReturnStmt != null) RegisterStmt(cd.Constructor.ReturnStmt, reg);
+                    foreach (var p in classConstructor.Parameters) reg[p.ID] = p;
+                    RegisterStmtList(classConstructor.Body, reg);
+                    if (classConstructor.ReturnStmt != null) RegisterStmt(classConstructor.ReturnStmt, reg);
                 }
                 foreach (var method in cd.Methods)
                 {

@@ -335,17 +335,17 @@ public sealed class ResolveNamesPass() : Pass(PassName, PassScope.PerFile)
                 foreach (var iface in classDecl.Interfaces)
                     ResolveNameRef(pc, iface, scope, pkg);
 
-                if (classDecl.Constructor != null)
+                foreach (var classConstructor in classDecl.Constructors)
                 {
-                    foreach (var p in classDecl.Constructor.Parameters)
+                    foreach (var p in classConstructor.Parameters)
                     {
                         pkg.Scopes.EnclosingScope(p.ID, out var pScope);
                         ResolveNameRef(pc, p.Name, pScope, pkg);
                         if (p.DefaultValue != null) ResolveExprNames(pc, p.DefaultValue, pkg);
                     }
-                    ResolveStmtListNames(pc, classDecl.Constructor.Body, pkg);
-                    if (classDecl.Constructor.ReturnStmt != null)
-                        ResolveStmtNames(pc, classDecl.Constructor.ReturnStmt, pkg);
+                    ResolveStmtListNames(pc, classConstructor.Body, pkg);
+                    if (classConstructor.ReturnStmt != null)
+                        ResolveStmtNames(pc, classConstructor.ReturnStmt, pkg);
                 }
 
                 foreach (var method in classDecl.Methods)

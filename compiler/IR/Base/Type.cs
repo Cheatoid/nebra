@@ -731,8 +731,17 @@ public sealed class ClassType(
     /// <summary>Declared <c>sealed</c>: no class may extend it.</summary>
     public bool IsSealed { get; set; }
 
-    /// <summary>Its constructor is <c>local</c>: instances are created only inside the class itself.</summary>
+    /// <summary>Every constructor is <c>local</c>: instances are created only inside the class itself.</summary>
     public bool HasLocalConstructor { get; set; }
+
+    /// <summary>
+    /// The signatures of every constructor the class declares, in declaration order; more than
+    /// one are overloads. <see cref="ConstructorType"/> is the first of them.
+    /// </summary>
+    public List<FunctionType> ConstructorOverloads { get; } = [];
+
+    /// <summary>The constructors of <see cref="ConstructorOverloads"/> written <c>local constructor</c>.</summary>
+    public HashSet<FunctionType> LocalConstructors { get; } = [];
     public Dictionary<string, StructType.Field> InstanceFields { get; } = new();
     public Dictionary<string, FunctionType> Methods { get; } = new();
     /// <summary>

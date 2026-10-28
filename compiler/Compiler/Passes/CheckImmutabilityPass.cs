@@ -96,10 +96,10 @@ public sealed class CheckImmutabilityPass() : Pass(PassName, PassScope.PerFile)
 
                 break;
             case ClassDecl cd:
-                if (cd.Constructor != null)
+                foreach (var classConstructor in cd.Constructors)
                 {
-                    CheckStmtList(ctx, pkg, cd.Constructor.Body);
-                    if (cd.Constructor.ReturnStmt != null) CheckStmt(ctx, pkg, cd.Constructor.ReturnStmt);
+                    CheckStmtList(ctx, pkg, classConstructor.Body);
+                    if (classConstructor.ReturnStmt != null) CheckStmt(ctx, pkg, classConstructor.ReturnStmt);
                 }
                 foreach (var method in cd.Methods)
                 {

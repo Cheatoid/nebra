@@ -470,20 +470,20 @@ public sealed class BindDeclarePass() : Pass(PassName, PassScope.PerFile)
                 DeclareTypeParams(ctx, classScope, classDecl.TypeParams);
                 DeclareStaticMembers(ctx, classDecl, classScope);
 
-                if (classDecl.Constructor != null)
+                foreach (var classConstructor in classDecl.Constructors)
                 {
                     var ctorScope = pkg.Scopes.NewScope(classScope);
                     DeclareSymbol(ctx, ctorScope, "self", SymbolKind.Variable, classDecl.ID);
-                    foreach (var param in classDecl.Constructor.Parameters)
+                    foreach (var param in classConstructor.Parameters)
                     {
                         pkg.Scopes.BindNode(param.ID, ctorScope);
                         DeclareSymbol(ctx, ctorScope, param.Name.Name, SymbolKind.Variable, param.ID);
                         if (param.DefaultValue != null && !BindExprScopes(ctx, param.DefaultValue, ctorScope))
                             return false;
                     }
-                    if (!BindStmtListScopes(ctx, classDecl.Constructor.Body, ctorScope))
+                    if (!BindStmtListScopes(ctx, classConstructor.Body, ctorScope))
                         return false;
-                    if (classDecl.Constructor.ReturnStmt != null && !BindStmtScopes(ctx, classDecl.Constructor.ReturnStmt, ctorScope))
+                    if (classConstructor.ReturnStmt != null && !BindStmtScopes(ctx, classConstructor.ReturnStmt, ctorScope))
                         return false;
                 }
 

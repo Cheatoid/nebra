@@ -135,7 +135,7 @@ public class ResolveTypeRefsPass() : Pass(PassName, PassScope.PerBuild)
 
         var classType = pkg.Types.ClassOf(decl.Name.Name, isAbstract: decl.IsAbstract);
         classType.IsSealed = decl.IsSealed;
-        classType.HasLocalConstructor = decl.Constructor?.IsLocal == true;
+        classType.HasLocalConstructor = decl.Constructors.Count > 0 && decl.Constructors.All(constructor => constructor.IsLocal);
         classType.ReflectionId = $"{ReflectNamespace(pkg, decl, decl.Name)}::{decl.Name.Name}";
         classType.DeclaredAt ??= decl.Name;
         pkg.Syms.SetType(decl.Name.Sym, classType.ID);
@@ -539,14 +539,14 @@ public class ResolveTypeRefsPass() : Pass(PassName, PassScope.PerBuild)
                     ResolveMethodTypes(tt, $"method:{classDecl.Name.Name}.{method.Name.Name}", method.TypeParams,
                         method.Parameters, method.ReturnType, method.Body, method.ReturnStmt);
                 }
-                if (classDecl.Constructor != null)
+                foreach (var classConstructor in classDecl.Constructors)
                 {
-                    foreach (var p in classDecl.Constructor.Parameters)
+                    foreach (var p in classConstructor.Parameters)
                     {
                         if (p.TypeAnnotation != null) ResolveTypeRef(tt, p.TypeAnnotation);
                     }
-                    ResolveStmtListTypes(tt, classDecl.Constructor.Body);
-                    if (classDecl.Constructor.ReturnStmt != null) ResolveStmtTypes(tt, classDecl.Constructor.ReturnStmt);
+                    ResolveStmtListTypes(tt, classConstructor.Body);
+                    if (classConstructor.ReturnStmt != null) ResolveStmtTypes(tt, classConstructor.ReturnStmt);
                 }
                 foreach (var accessor in classDecl.Accessors)
                 {

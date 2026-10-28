@@ -595,98 +595,7 @@ public sealed partial class CodegenPass() : Pass(PassName, PassScope.PerBuild, t
             gen.WriteSemicolon();
         }
 
-        gen.Write("function ");
-        gen.Write(className);
-        gen.Write(".new(");
-        if (cd.Constructor != null)
-        {
-            for (var i = 0; i < cd.Constructor.Parameters.Count; i++)
-            {
-                if (i > 0) gen.Write(", ");
-                gen.Write(ResolveName(ctx, pkg, cd.Constructor.Parameters[i].Name));
-            }
-        }
-        else if (hasBase && InheritsConstructorArguments(operatorClass?.BaseClass))
-        {
-            gen.Write("...");
-        }
-        gen.Write(")");
-        gen.NewLine();
-        gen.Indent();
-
-        if (cd.Constructor != null)
-        {
-            EmitDefaultParamPreamble(ctx, pkg, gen, cd.Constructor.Parameters);
-        }
-
-        if (TryCollectCollapsibleInits(cd, hasBase, hasAccessors, out var inits))
-        {
-            EmitCollapsedConstructor(ctx, pkg, gen, className, inits);
-        }
-        else if (hasBase && OnlyWrapsBaseConstructor(cd))
-        {
-            var forwarded = cd.Constructor == null && InheritsConstructorArguments(operatorClass?.BaseClass) ? "..." : "";
-            var metatable = ClassNeedsProxy(ctx, pkg, cd) ? $"{gen.GetClassProxyHelper()}({className}, {baseName})" : className;
-            gen.WriteLine($"return setmetatable({baseName}.new({forwarded}), {metatable})");
-            gen.WriteSemicolon();
-        }
-        else
-        {
-            var hasSuperCall = hasBase && cd.Constructor != null && HasSuperCall(cd.Constructor.Body);
-            if (hasBase)
-            {
-                if (!hasSuperCall)
-                {
-                    gen.Write("local self = ");
-                    gen.Write(baseName!);
-                    gen.Write(cd.Constructor == null && InheritsConstructorArguments(operatorClass?.BaseClass) ? ".new(...)" : ".new()");
-                    gen.NewLine();
-                    gen.WriteSemicolon();
-                    gen.Write("setmetatable(self, ");
-                    gen.Write(ClassNeedsProxy(ctx, pkg, cd) ? $"{gen.GetClassProxyHelper()}({className}, {baseName})" : className);
-                    gen.Write(")");
-                    gen.NewLine();
-                    gen.WriteSemicolon();
-                }
-            }
-            else
-            {
-                if (hasAccessors)
-                {
-                    var proxyHelper = gen.GetClassProxyHelper();
-                    gen.Write("local self = setmetatable({}, ");
-                    gen.Write(proxyHelper);
-                    gen.Write("(");
-                    gen.Write(className);
-                    gen.Write(", nil))");
-                }
-                else
-                {
-                    gen.Write("local self = setmetatable({}, ");
-                    gen.Write(className);
-                    gen.Write(")");
-                }
-                gen.NewLine();
-                gen.WriteSemicolon();
-            }
-
-            if (!hasSuperCall)
-            {
-                EmitInstanceFieldDefaults(ctx, pkg, gen, cd);
-            }
-
-            if (cd.Constructor != null)
-            {
-                EmitClassConstructorBody(ctx, pkg, gen, cd, cd.Constructor);
-            }
-
-            gen.WriteLine("return self");
-            gen.WriteSemicolon();
-        }
-
-        gen.Dedent();
-        gen.WriteLine("end");
-        gen.WriteSemicolon();
+        EmitConstructors(ctx, pkg, gen, cd, operatorClass, className, baseName, hasAccessors);
 
         var declaredType = pkg.Syms.GetByID(cd.Name.Sym, out var declaredSymbol)
                            && ctx.Types.GetByID(declaredSymbol.Type, out var declared)
@@ -818,6 +727,134 @@ public sealed partial class CodegenPass() : Pass(PassName, PassScope.PerBuild, t
         }
     }
 
+    /// <summary>
+    /// Emits the constructors of a class: one <c>new</c>, or for overloaded constructors each one
+    /// under its variant name, such as <c>new__string</c>, and a <c>new</c> that dispatches to the
+    /// one whose parameters fit the arguments it receives.
+    /// </summary>
+    private void EmitConstructors(PassContext ctx, PackageContext pkg, LuaGenerator gen, ClassDecl cd, ClassType? operatorClass,
+        string className, string? baseName, bool hasAccessors)
+    {
+        var overloads = operatorClass?.ConstructorOverloads ?? [];
+        if (cd.Constructors.Count < 2 || overloads.Count != cd.Constructors.Count || !OverloadSignature.AreDistinct(overloads, false))
+        {
+            EmitConstructor(ctx, pkg, gen, cd, cd.Constructor, operatorClass, className + ".new", className, baseName, hasAccessors);
+            return;
+        }
+
+        var branches = new List<OverloadBranch>();
+        for (var i = 0; i < cd.Constructors.Count; i++)
+        {
+            var variant = className + "." + OverloadSignature.VariantName("new", overloads[i], false);
+            EmitConstructor(ctx, pkg, gen, cd, cd.Constructors[i], operatorClass, variant, className, baseName, hasAccessors);
+            branches.Add(new OverloadBranch(overloads[i], false, variant + "(...)"));
+        }
+
+        EmitOverloadDispatcher(gen, $"function {className}.new(...)", "new", branches);
+    }
+
+    /// <summary>
+    /// Emits <paramref name="ctor"/>, or the constructor of a class declaring none, as the Lua
+    /// function <paramref name="functionName"/>.
+    /// </summary>
+    private void EmitConstructor(PassContext ctx, PackageContext pkg, LuaGenerator gen, ClassDecl cd, ClassConstructorNode? ctor,
+        ClassType? operatorClass, string functionName, string className, string? baseName, bool hasAccessors)
+    {
+        var hasBase = cd.BaseClass != null;
+        gen.Write("function ");
+        gen.Write(functionName);
+        gen.Write("(");
+        if (ctor != null)
+        {
+            for (var i = 0; i < ctor.Parameters.Count; i++)
+            {
+                if (i > 0) gen.Write(", ");
+                gen.Write(ResolveName(ctx, pkg, ctor.Parameters[i].Name));
+            }
+        }
+        else if (hasBase && InheritsConstructorArguments(operatorClass?.BaseClass))
+        {
+            gen.Write("...");
+        }
+        gen.Write(")");
+        gen.NewLine();
+        gen.Indent();
+
+        if (ctor != null)
+        {
+            EmitDefaultParamPreamble(ctx, pkg, gen, ctor.Parameters);
+        }
+
+        if (TryCollectCollapsibleInits(cd, ctor, hasBase, hasAccessors, out var inits))
+        {
+            EmitCollapsedConstructor(ctx, pkg, gen, className, inits);
+        }
+        else if (hasBase && OnlyWrapsBaseConstructor(cd, ctor))
+        {
+            var forwarded = ctor == null && InheritsConstructorArguments(operatorClass?.BaseClass) ? "..." : "";
+            var metatable = ClassNeedsProxy(ctx, pkg, cd) ? $"{gen.GetClassProxyHelper()}({className}, {baseName})" : className;
+            gen.WriteLine($"return setmetatable({baseName}.new({forwarded}), {metatable})");
+            gen.WriteSemicolon();
+        }
+        else
+        {
+            var hasSuperCall = hasBase && ctor != null && HasSuperCall(ctor.Body);
+            if (hasBase)
+            {
+                if (!hasSuperCall)
+                {
+                    gen.Write("local self = ");
+                    gen.Write(baseName!);
+                    gen.Write(ctor == null && InheritsConstructorArguments(operatorClass?.BaseClass) ? ".new(...)" : ".new()");
+                    gen.NewLine();
+                    gen.WriteSemicolon();
+                    gen.Write("setmetatable(self, ");
+                    gen.Write(ClassNeedsProxy(ctx, pkg, cd) ? $"{gen.GetClassProxyHelper()}({className}, {baseName})" : className);
+                    gen.Write(")");
+                    gen.NewLine();
+                    gen.WriteSemicolon();
+                }
+            }
+            else
+            {
+                if (hasAccessors)
+                {
+                    var proxyHelper = gen.GetClassProxyHelper();
+                    gen.Write("local self = setmetatable({}, ");
+                    gen.Write(proxyHelper);
+                    gen.Write("(");
+                    gen.Write(className);
+                    gen.Write(", nil))");
+                }
+                else
+                {
+                    gen.Write("local self = setmetatable({}, ");
+                    gen.Write(className);
+                    gen.Write(")");
+                }
+                gen.NewLine();
+                gen.WriteSemicolon();
+            }
+
+            if (!hasSuperCall)
+            {
+                EmitInstanceFieldDefaults(ctx, pkg, gen, cd);
+            }
+
+            if (ctor != null)
+            {
+                EmitClassConstructorBody(ctx, pkg, gen, cd, ctor);
+            }
+
+            gen.WriteLine("return self");
+            gen.WriteSemicolon();
+        }
+
+        gen.Dedent();
+        gen.WriteLine("end");
+        gen.WriteSemicolon();
+    }
+
     private void EmitClassConstructorBody(PassContext ctx, PackageContext pkg, LuaGenerator gen, ClassDecl cd, ClassConstructorNode ctor)
     {
         var className = ResolveName(ctx, pkg, cd.Name);
@@ -833,7 +870,7 @@ public sealed partial class CodegenPass() : Pass(PassName, PassScope.PerBuild, t
                 {
                     gen.Write("local self = ");
                     gen.Write(baseName!);
-                    gen.Write(".new(");
+                    gen.Write("." + (superCall.OverloadName ?? "new") + "(");
                     for (var i = 0; i < superCall.Arguments.Count; i++)
                     {
                         if (i > 0) gen.Write(", ");
@@ -897,7 +934,7 @@ public sealed partial class CodegenPass() : Pass(PassName, PassScope.PerBuild, t
     /// whose values never read <c>self</c> or capture it in a closure. Returns the ordered field
     /// initializers via <paramref name="inits"/> when collapsible.
     /// </summary>
-    private static bool TryCollectCollapsibleInits(ClassDecl cd, bool hasBase, bool hasAccessors, out List<(string Field, Expr Value)> inits)
+    private static bool TryCollectCollapsibleInits(ClassDecl cd, ClassConstructorNode? ctor, bool hasBase, bool hasAccessors, out List<(string Field, Expr Value)> inits)
     {
         inits = [];
         if (hasBase || hasAccessors) return false;
@@ -912,10 +949,10 @@ public sealed partial class CodegenPass() : Pass(PassName, PassScope.PerBuild, t
             inits.Add((field.Name.Name, field.DefaultValue));
         }
 
-        if (cd.Constructor != null)
+        if (ctor != null)
         {
-            if (cd.Constructor.ReturnStmt != null) return false;
-            foreach (var stmt in cd.Constructor.Body)
+            if (ctor.ReturnStmt != null) return false;
+            foreach (var stmt in ctor.Body)
             {
                 if (stmt is not AssignStmt { Targets.Count: 1, Values.Count: 1 } asn) return false;
                 if (asn.Targets[0] is not DotAccessExpr { IsOptional: false, Object: NameExpr { Name.Name: "self" } } dot) return false;
@@ -1053,7 +1090,7 @@ public sealed partial class CodegenPass() : Pass(PassName, PassScope.PerBuild, t
         }
 
         gen.Write(className);
-        gen.Write(".new(");
+        gen.Write("." + (ne.OverloadName ?? "new") + "(");
         for (var i = 0; i < ne.Arguments.Count; i++)
         {
             if (i > 0) gen.Write(", ");

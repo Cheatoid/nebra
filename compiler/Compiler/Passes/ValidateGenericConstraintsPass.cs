@@ -119,11 +119,11 @@ public sealed class ValidateGenericConstraintsPass() : Pass(PassName, PassScope.
                     if (f.TypeAnnotation != null) VisitTypeRef(ctx, pkg, f.TypeAnnotation);
                     if (f.DefaultValue != null) VisitExpr(ctx, pkg, f.DefaultValue);
                 }
-                if (cd.Constructor != null)
+                foreach (var classConstructor in cd.Constructors)
                 {
-                    foreach (var p in cd.Constructor.Parameters)
+                    foreach (var p in classConstructor.Parameters)
                         if (p.TypeAnnotation != null) VisitTypeRef(ctx, pkg, p.TypeAnnotation);
-                    foreach (var s in cd.Constructor.Body) VisitStmt(ctx, pkg, s);
+                    foreach (var s in classConstructor.Body) VisitStmt(ctx, pkg, s);
                 }
                 foreach (var m in cd.Methods)
                 {

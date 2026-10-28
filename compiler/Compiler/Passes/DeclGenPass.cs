@@ -357,11 +357,11 @@ public sealed class DeclGenPass() : Pass(PassName, PassScope.PerBuild, true)
             sb.AppendLine();
         }
 
-        if (cd.Constructor != null)
+        foreach (var classConstructor in cd.Constructors)
         {
-            EmitDoc(sb, "        ", cd.Constructor.Doc);
-            sb.Append(cd.Constructor.IsLocal ? "        local constructor(" : "        constructor(");
-            EmitParams(sb, ctx, pkg, cd.Constructor.Parameters);
+            EmitDoc(sb, "        ", classConstructor.Doc);
+            sb.Append(classConstructor.IsLocal ? "        local constructor(" : "        constructor(");
+            EmitParams(sb, ctx, pkg, classConstructor.Parameters);
             sb.AppendLine(")");
         }
 

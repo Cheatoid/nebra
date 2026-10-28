@@ -301,11 +301,11 @@ public sealed class ApplyAnnotationsPass()
                 ProcessAnnotatedList(ctx, registry, cd.Methods, m => m.Annotations, AnnotationTargetKind.ClassMethod);
                 ProcessAnnotatedList(ctx, registry, cd.Accessors, a => a.Annotations,
                     AnnotationTargetKind.ClassAccessor);
-                if (cd.Constructor is { Annotations.Count: > 0 })
-                    ApplyAnnotationsToMember(ctx, registry, cd.Constructor, cd.Constructor.Annotations,
+                foreach (var classConstructor in cd.Constructors.Where(classConstructor => classConstructor.Annotations.Count > 0))
+                    ApplyAnnotationsToMember(ctx, registry, classConstructor, classConstructor.Annotations,
                         AnnotationTargetKind.ClassConstructor);
                 foreach (var m in cd.Methods) ProcessParameterAnnotations(ctx, registry, m.Parameters);
-                if (cd.Constructor != null) ProcessParameterAnnotations(ctx, registry, cd.Constructor.Parameters);
+                foreach (var classConstructor in cd.Constructors) ProcessParameterAnnotations(ctx, registry, classConstructor.Parameters);
                 foreach (var a in cd.Accessors) ProcessParameterAnnotations(ctx, registry, a.Parameters);
                 break;
             case InterfaceDecl id:

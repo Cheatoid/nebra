@@ -253,9 +253,18 @@ public sealed class NewExpr(NodeID id, TextSpan span, NameRef className, List<Ex
 {
     public NameRef ClassName { get; } = className;
     public List<Expr> Arguments { get; } = arguments;
+
+    /// <summary>
+    /// The name of the constructor overload the arguments pick, such as <c>new__string</c>, set
+    /// when it is known at compile time; <c>null</c> calls <c>new</c>, which dispatches at runtime.
+    /// </summary>
+    public string? OverloadName { get; set; }
 }
 
 public sealed class SuperCallExpr(NodeID id, TextSpan span, List<Expr> arguments) : Expr(id, span)
 {
     public List<Expr> Arguments { get; } = arguments;
+
+    /// <summary>The name of the base constructor overload the arguments pick, as for <see cref="NewExpr.OverloadName"/>.</summary>
+    public string? OverloadName { get; set; }
 }

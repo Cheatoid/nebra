@@ -82,9 +82,9 @@ public static class SymbolCollector
     {
         var members = new List<DocumentSymbol>();
 
-        if (classDecl.Constructor != null)
+        foreach (var classConstructor in classDecl.Constructors)
         {
-            members.Add(Symbol("constructor", LspSymbolKind.Constructor, classDecl.Constructor.Span, classDecl.Constructor.Span));
+            members.Add(Symbol("constructor", LspSymbolKind.Constructor, classConstructor.Span, classConstructor.Span));
         }
 
         foreach (var field in classDecl.Fields)

@@ -143,15 +143,15 @@ public sealed class CheckSidesPass()
                     if (f.TypeAnnotation != null) VisitTypeRef(ctx, f.TypeAnnotation, fileMask);
                     if (f.DefaultValue != null) VisitExpr(ctx, f.DefaultValue, fileMask);
                 }
-                if (cd.Constructor != null)
+                foreach (var classConstructor in cd.Constructors)
                 {
-                    foreach (var p in cd.Constructor.Parameters)
+                    foreach (var p in classConstructor.Parameters)
                     {
                         if (p.TypeAnnotation != null) VisitTypeRef(ctx, p.TypeAnnotation, fileMask);
                         if (p.DefaultValue != null) VisitExpr(ctx, p.DefaultValue, fileMask);
                     }
-                    VisitStmtList(ctx, cd.Constructor.Body, fileMask);
-                    if (cd.Constructor.ReturnStmt != null) VisitStmt(ctx, cd.Constructor.ReturnStmt, fileMask);
+                    VisitStmtList(ctx, classConstructor.Body, fileMask);
+                    if (classConstructor.ReturnStmt != null) VisitStmt(ctx, classConstructor.ReturnStmt, fileMask);
                 }
                 foreach (var m in cd.Methods)
                 {

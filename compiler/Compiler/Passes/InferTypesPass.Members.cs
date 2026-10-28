@@ -143,7 +143,9 @@ public sealed partial class InferTypesPass
     {
         if (!pc.Config.Rules.StrictNil || cd.IsDeclare) return;
 
-        var assigned = cd.Constructor != null ? AssignedFields(cd.Constructor.Body) : [];
+        var assigned = cd.Constructors.Count == 0
+            ? []
+            : cd.Constructors.Select(classConstructor => AssignedFields(classConstructor.Body)).Aggregate((all, next) => all.Intersect(next).ToHashSet());
         foreach (var field in cd.Fields.Where(field => !field.IsStatic && field.DefaultValue == null))
         {
             if (assigned.Contains(field.Name.Name)) continue;

@@ -114,7 +114,7 @@ public sealed class ClassDecl(
     List<NameRef> interfaces,
     List<ClassFieldNode> fields,
     List<ClassMethodNode> methods,
-    ClassConstructorNode? constructor,
+    List<ClassConstructorNode> constructors,
     List<ClassAccessorNode> accessors,
     bool isDeclare = false,
     bool isAbstract = false
@@ -125,7 +125,11 @@ public sealed class ClassDecl(
     public List<NameRef> Interfaces { get; } = interfaces;
     public List<ClassFieldNode> Fields { get; } = fields;
     public List<ClassMethodNode> Methods { get; } = methods;
-    public ClassConstructorNode? Constructor { get; } = constructor;
+    /// <summary>Every constructor the class declares, in declaration order; several are overloads.</summary>
+    public List<ClassConstructorNode> Constructors { get; } = constructors;
+
+    /// <summary>The first constructor the class declares, or <c>null</c> without one.</summary>
+    public ClassConstructorNode? Constructor => Constructors.Count > 0 ? Constructors[0] : null;
     public List<ClassAccessorNode> Accessors { get; } = accessors;
     public bool IsDeclare { get; } = isDeclare;
     public bool IsAbstract { get; } = isAbstract;

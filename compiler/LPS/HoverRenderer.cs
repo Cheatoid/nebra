@@ -251,7 +251,8 @@ public sealed class HoverRenderer(AnalysisResult result, NebraWorkspace workspac
 
         var members = new List<string>();
         members.AddRange(classType.InstanceFields.Where(entry => IsPublic(classType, entry.Key)).Select(entry => $"{entry.Key}: {Format(entry.Value.Type)}"));
-        if (classType.ConstructorType != null) members.Add(Constructor(classType.ConstructorType));
+        if (classType.ConstructorOverloads.Count > 0) members.AddRange(classType.ConstructorOverloads.Select(Constructor));
+        else if (classType.ConstructorType != null) members.Add(Constructor(classType.ConstructorType));
         members.AddRange(classType.Getters.Where(entry => IsPublic(classType, entry.Key)).Select(entry => $"get {entry.Key}(): {Format(entry.Value.ReturnType)}"));
         members.AddRange(classType.Methods.Where(entry => IsPublic(classType, entry.Key)).Select(entry => Signature("function", entry.Key, entry.Value, null, skipSelf: true)));
         members.AddRange(classType.StaticMethods.Where(entry => IsPublic(classType, entry.Key)).Select(entry => Signature("static function", entry.Key, entry.Value, null, skipSelf: false)));

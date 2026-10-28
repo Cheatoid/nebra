@@ -40,7 +40,7 @@ public static class StatementLists
                 foreach (var arm in match.Arms) yield return arm.Body;
                 break;
             case ClassDecl classDecl:
-                if (classDecl.Constructor != null) yield return classDecl.Constructor.Body;
+                foreach (var classConstructor in classDecl.Constructors) yield return classConstructor.Body;
                 foreach (var method in classDecl.Methods) yield return method.Body;
                 foreach (var accessor in classDecl.Accessors) yield return accessor.Body;
                 break;

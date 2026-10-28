@@ -204,11 +204,12 @@ public sealed class SourceFormTests
     }
 
     [Fact]
-    public void ASecondConstructorIsAnError()
+    public void ASecondConstructorOfTheSameParameterTypesIsAnError()
     {
-        var build = Build("class Animal\n    constructor()\n    end\n\n    constructor(name: string)\n    end\nend\n\nprint(Animal)\n");
+        var build = Build("class Animal\n    constructor(name: string)\n    end\n\n    constructor(label: string)\n    end\nend\n\nprint(Animal)\n");
 
         Assert.Equal(DiagnosticCode.ErrDuplicateConstructor, Assert.Single(build.Errors).Code);
+        Assert.Empty(Build("class Animal\n    constructor()\n    end\n\n    constructor(name: string)\n    end\nend\n\nprint(new Animal(), new Animal(\"cat\"))\n").Errors);
         Assert.Empty(Build("declare class Widget\n    constructor(path: string)\n    constructor(native: any)\nend\n\nprint(Widget)\n").Errors);
     }
 

@@ -15,6 +15,7 @@ public sealed partial class CodegenPass
         for (var current = baseClass; current != null; current = current.BaseClass)
         {
             if (!current.IsCompiledFromSource) return true;
+            if (current.ConstructorOverloads.Count > 0) return current.ConstructorOverloads.Any(constructor => constructor.ParamTypes.Count > 0 || constructor.IsVararg);
             if (current.ConstructorType is { } constructor) return constructor.ParamTypes.Count > 0 || constructor.IsVararg;
         }
 
@@ -25,10 +26,10 @@ public sealed partial class CodegenPass
     /// Whether a derived class's constructor does nothing but create the base instance: no
     /// field defaults of its own, and a constructor, if any, without a body or <c>super</c> call.
     /// </summary>
-    private static bool OnlyWrapsBaseConstructor(ClassDecl cd)
+    private static bool OnlyWrapsBaseConstructor(ClassDecl cd, ClassConstructorNode? ctor)
     {
         if (cd.Fields.Any(field => !field.IsStatic && field.DefaultValue != null)) return false;
-        return cd.Constructor == null || (cd.Constructor.Body.Count == 0 && cd.Constructor.ReturnStmt == null && cd.Constructor.Parameters.Count == 0);
+        return ctor == null || (ctor.Body.Count == 0 && ctor.ReturnStmt == null && ctor.Parameters.Count == 0);
     }
 
     /// <summary>

@@ -208,14 +208,14 @@ public static class DocSiteBuilder
                 IsProtected = f.IsProtected
             });
         }
-        if (cd.Constructor != null)
+        foreach (var classConstructor in cd.Constructors)
         {
             members.Add(new DocMember
             {
                 Name = "constructor",
                 Kind = DocMemberKind.Constructor,
-                Signature = $"constructor({FormatParams(pkg, cd.Constructor.Parameters)})",
-                Doc = cd.Constructor.Doc
+                Signature = $"constructor({FormatParams(pkg, classConstructor.Parameters)})",
+                Doc = classConstructor.Doc
             });
         }
         foreach (var m in cd.Methods)

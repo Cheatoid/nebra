@@ -388,10 +388,10 @@ public sealed class SemanticTokensHandler(NebraWorkspace workspace) : SemanticTo
                             WalkAnnotations(m.Annotations);
                             foreach (var p in m.Parameters) WalkAnnotations(p.Annotations);
                         }
-                        if (cd.Constructor != null)
+                        foreach (var classConstructor in cd.Constructors)
                         {
-                            WalkAnnotations(cd.Constructor.Annotations);
-                            foreach (var p in cd.Constructor.Parameters) WalkAnnotations(p.Annotations);
+                            WalkAnnotations(classConstructor.Annotations);
+                            foreach (var p in classConstructor.Parameters) WalkAnnotations(p.Annotations);
                         }
                         foreach (var a in cd.Accessors)
                         {

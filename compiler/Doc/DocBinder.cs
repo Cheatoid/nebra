@@ -38,8 +38,8 @@ public static class DocBinder
         switch (decl)
         {
             case ClassDecl cd:
-                if (cd.Constructor != null)
-                    cd.Constructor.Doc = DocCommentParser.ExtractAt(source, cd.Constructor.Span.StartLn);
+                foreach (var classConstructor in cd.Constructors)
+                    classConstructor.Doc = DocCommentParser.ExtractAt(source, classConstructor.Span.StartLn);
                 foreach (var f in cd.Fields)
                     f.Doc = DocCommentParser.ExtractAt(source, f.Span.StartLn);
                 foreach (var m in cd.Methods)
