@@ -501,6 +501,30 @@ public enum DiagnosticCode
     [Help("its constructors take: {2}")]
     ErrNoMatchingConstructor = 0x403F,
 
+    [Level(DiagnosticLevel.Error)]
+    [Category(DiagnosticCategory.Semantic)]
+    [Format("'{0}' cannot leave a try, catch or finally block")]
+    [Help("keep the loop it ends inside the block, or move the '{0}' out of the try")]
+    ErrJumpOutOfTry = 0x4040,
+
+    [Level(DiagnosticLevel.Error)]
+    [Category(DiagnosticCategory.Semantic)]
+    [Format("a finally block cannot return")]
+    [Help("return from the try or catch block instead; the finally block always runs before it")]
+    ErrReturnInFinally = 0x4041,
+
+    [Level(DiagnosticLevel.Error)]
+    [Category(DiagnosticCategory.Semantic)]
+    [Format("'defer' cannot be used inside a try, catch or finally block")]
+    [Help("defer before the try, or do the cleanup in a finally block")]
+    ErrDeferInTry = 0x4042,
+
+    [Level(DiagnosticLevel.Error)]
+    [Category(DiagnosticCategory.Semantic)]
+    [Format("'await' inside a try block needs Lua 5.2 or newer")]
+    [Help("Lua {0} cannot yield across the pcall a try block runs in; await before or after the try")]
+    ErrAwaitInTryOnLua51 = 0x4043,
+
     [Level(DiagnosticLevel.Warning)]
     [Category(DiagnosticCategory.Semantic)]
     [Format("Method '{0}' shadows a method in parent class '{1}'; use 'override' to indicate this is intentional")]

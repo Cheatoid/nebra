@@ -58,6 +58,9 @@ public sealed class CheckMemberSidesPass()
                 foreach (var v in asg.Values) VisitExpr(ctx, v, fileMask);
                 break;
             case DoBlockStmt db: VisitStmtList(ctx, db.Body, fileMask); break;
+            case TryStmt tryStmt:
+                foreach (var block in tryStmt.Blocks) VisitStmtList(ctx, block, fileMask);
+                break;
             case WhileStmt w:
                 VisitExpr(ctx, w.Condition, fileMask);
                 VisitStmtList(ctx, w.Body, fileMask);

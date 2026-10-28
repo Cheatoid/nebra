@@ -71,6 +71,10 @@ public static class NodeTree
             case DoBlockStmt db:
                 RegisterStmtList(db.Body, reg);
                 break;
+            case TryStmt tryStmt:
+                if (tryStmt.Catch != null) reg[tryStmt.Catch.ID] = tryStmt.Catch;
+                foreach (var block in tryStmt.Blocks) RegisterStmtList(block, reg);
+                break;
             case WhileStmt ws:
                 RegisterExpr(ws.Condition, reg);
                 RegisterStmtList(ws.Body, reg);

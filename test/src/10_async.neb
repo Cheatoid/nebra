@@ -17,6 +17,16 @@ async function fetchTwoStep(): string
     return a .. b
 end
 
+async function guarded(fail: boolean): string
+    try
+        local value = await instant("ok")
+        if fail then error("bad", 0) end
+        return value
+    catch (err)
+        return "caught " .. tostring(err)
+    end
+end
+
 async function returnsNumber(n: number): number
     local v = await instant(tostring(n))
     return tonumber(v)!
@@ -125,5 +135,12 @@ export function run(): nil
     local mut got10: string = ""
     awaitCallbackInterface(new CallbackMirror(), function(r: string): nil got10 = r end)
     expectEq("await on a callback-last interface method", got10, "mirror:b")
+
+    local mut got11: string = ""
+    guarded(false, function(r: string): nil got11 = r end)
+    expectEq("await inside try", got11, "ok")
+    local mut got12: string = ""
+    guarded(true, function(r: string): nil got12 = r end)
+    expectEq("catch inside an async function", got12, "caught bad")
 
 end

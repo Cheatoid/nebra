@@ -169,6 +169,9 @@ public static class NodeFinder
             case DoBlockStmt db:
                 SearchStmtList(db.Body, line, col, ref best);
                 break;
+            case TryStmt tryStmt:
+                foreach (var block in tryStmt.Blocks) SearchStmtList(block, line, col, ref best);
+                break;
             case WhileStmt ws:
                 SearchExpr(ws.Condition, line, col, ref best);
                 SearchStmtList(ws.Body, line, col, ref best);
@@ -414,6 +417,10 @@ public static class NodeFinder
                 break;
             case DoBlockStmt db:
                 SearchStmtListForNameRef(db.Body, line, col, ref best);
+                break;
+            case TryStmt tryStmt:
+                if (tryStmt.Catch?.Name != null) CheckNameRef(tryStmt.Catch.Name, line, col, ref best);
+                foreach (var block in tryStmt.Blocks) SearchStmtListForNameRef(block, line, col, ref best);
                 break;
             case WhileStmt ws:
                 SearchExprForNameRef(ws.Condition, line, col, ref best);
@@ -812,6 +819,9 @@ public static class NodeFinder
                 break;
             case DoBlockStmt db:
                 CollectFromStmtList(db.Body, refs);
+                break;
+            case TryStmt tryStmt:
+                foreach (var block in tryStmt.Blocks) CollectFromStmtList(block, refs);
                 break;
             case WhileStmt ws:
                 CollectFromExpr(ws.Condition, refs);

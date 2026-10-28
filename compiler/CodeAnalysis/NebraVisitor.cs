@@ -128,6 +128,13 @@ public interface INebraVisitor<Result> : IParseTreeVisitor<Result> {
 	/// <return>The visitor result.</return>
 	Result VisitGuardStat_([NotNull] NebraParser.GuardStat_Context context);
 	/// <summary>
+	/// Visit a parse tree produced by the <c>TryStat_</c>
+	/// labeled alternative in <see cref="NebraParser.stmt"/>.
+	/// </summary>
+	/// <param name="context">The parse tree.</param>
+	/// <return>The visitor result.</return>
+	Result VisitTryStat_([NotNull] NebraParser.TryStat_Context context);
+	/// <summary>
 	/// Visit a parse tree produced by the <c>DoStat</c>
 	/// labeled alternative in <see cref="NebraParser.stmt"/>.
 	/// </summary>
@@ -362,6 +369,12 @@ public interface INebraVisitor<Result> : IParseTreeVisitor<Result> {
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
 	Result VisitGuardStat([NotNull] NebraParser.GuardStatContext context);
+	/// <summary>
+	/// Visit a parse tree produced by <see cref="NebraParser.tryStat"/>.
+	/// </summary>
+	/// <param name="context">The parse tree.</param>
+	/// <return>The visitor result.</return>
+	Result VisitTryStat([NotNull] NebraParser.TryStatContext context);
 	/// <summary>
 	/// Visit a parse tree produced by <see cref="NebraParser.returnStat"/>.
 	/// </summary>

@@ -40,6 +40,7 @@ public sealed class ValidateGenericConstraintsPass() : Pass(PassName, PassScope.
                 break;
             case ExprStmt es: VisitExpr(ctx, pkg, es.Expression); break;
             case DoBlockStmt db: foreach (var s in db.Body) VisitStmt(ctx, pkg, s); break;
+            case TryStmt tryStmt: foreach (var s in tryStmt.Blocks.SelectMany(block => block)) VisitStmt(ctx, pkg, s); break;
             case WhileStmt w: VisitExpr(ctx, pkg, w.Condition); foreach (var s in w.Body) VisitStmt(ctx, pkg, s); break;
             case RepeatStmt r: foreach (var s in r.Body) VisitStmt(ctx, pkg, s); VisitExpr(ctx, pkg, r.Condition); break;
             case IfStmt ifs:

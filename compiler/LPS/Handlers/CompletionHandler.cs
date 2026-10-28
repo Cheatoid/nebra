@@ -18,7 +18,7 @@ public sealed class CompletionHandler(NebraWorkspace workspace) : CompletionHand
         "as", "async", "await", "case", "class", "constructor", "declare", "export", "extends", "from",
         "abstract", "implements", "import", "interface", "match", "meta", "module", "mut", "new", "override",
         "protected", "static", "super", "when", "typeof", "instanceof", "keyof",
-        "defer", "guard", "continue"
+        "defer", "guard", "continue", "try", "catch", "finally"
     ];
 
     public override async Task<CompletionList> Handle(CompletionParams request, CancellationToken ct)

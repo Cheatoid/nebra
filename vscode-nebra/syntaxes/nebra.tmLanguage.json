@@ -180,7 +180,7 @@
       "patterns": [
         {
           "name": "keyword.control.flow.nebra",
-          "match": "\\b(if|then|else|elseif|end|for|in|while|do|repeat|until|break|return|goto|continue|defer|guard)\\b"
+          "match": "\\b(if|then|else|elseif|end|for|in|while|do|repeat|until|break|return|goto|continue|defer|guard|try|catch|finally)\\b"
         },
         {
           "name": "keyword.control.match.nebra",

@@ -323,6 +323,9 @@ public sealed partial class CodegenPass() : Pass(PassName, PassScope.PerBuild, t
             case ReturnStmt ret:
                 EmitReturn(ctx, pkg, gen, ret);
                 break;
+            case TryStmt tryStmt:
+                EmitTry(ctx, pkg, gen, tryStmt);
+                break;
             case BreakStmt bs:
                 EmitBreak(ctx, pkg, gen, bs);
                 break;
@@ -733,6 +736,15 @@ public sealed partial class CodegenPass() : Pass(PassName, PassScope.PerBuild, t
     /// one whose parameters fit the arguments it receives.
     /// </summary>
     private void EmitConstructors(PassContext ctx, PackageContext pkg, LuaGenerator gen, ClassDecl cd, ClassType? operatorClass,
+        string className, string? baseName, bool hasAccessors)
+    {
+        var enclosingTryReturn = _tryReturnHelper;
+        _tryReturnHelper = null;
+        EmitConstructorOverloads(ctx, pkg, gen, cd, operatorClass, className, baseName, hasAccessors);
+        _tryReturnHelper = enclosingTryReturn;
+    }
+
+    private void EmitConstructorOverloads(PassContext ctx, PackageContext pkg, LuaGenerator gen, ClassDecl cd, ClassType? operatorClass,
         string className, string? baseName, bool hasAccessors)
     {
         var overloads = operatorClass?.ConstructorOverloads ?? [];
@@ -1674,13 +1686,14 @@ public sealed partial class CodegenPass() : Pass(PassName, PassScope.PerBuild, t
 
     private void EmitReturn(PassContext ctx, PackageContext pkg, LuaGenerator gen, ReturnStmt ret)
     {
+        var marker = _tryReturnHelper != null ? _tryReturnHelper + "_return" : null;
         if (ret.Values.Count == 0)
         {
-            gen.WriteLine("return");
+            gen.WriteLine(marker != null ? "return " + marker : "return");
         }
         else
         {
-            gen.Write("return ");
+            gen.Write(marker != null ? "return " + marker + ", " : "return ");
             EmitExprList(ctx, pkg, gen, ret.Values);
             gen.NewLine();
         }
@@ -2900,6 +2913,14 @@ public sealed partial class CodegenPass() : Pass(PassName, PassScope.PerBuild, t
     }
 
     private void EmitFuncBodyContent(PassContext ctx, PackageContext pkg, LuaGenerator gen, List<Parameter> parameters, List<Stmt> body, ReturnStmt? returnStmt, bool isAsync)
+    {
+        var enclosingTryReturn = _tryReturnHelper;
+        _tryReturnHelper = null;
+        EmitFuncBodyContentCore(ctx, pkg, gen, parameters, body, returnStmt, isAsync);
+        _tryReturnHelper = enclosingTryReturn;
+    }
+
+    private void EmitFuncBodyContentCore(PassContext ctx, PackageContext pkg, LuaGenerator gen, List<Parameter> parameters, List<Stmt> body, ReturnStmt? returnStmt, bool isAsync)
     {
         if (isAsync)
         {

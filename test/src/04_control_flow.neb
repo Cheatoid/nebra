@@ -1,5 +1,46 @@
 import { section, expectEq, expect } from "_runner"
 
+local function failing(fail: boolean): number
+    if fail then error("boom", 0) end
+    return 1
+end
+
+local function caught(): string
+    try
+        failing(true)
+        return "not reached"
+    catch (err)
+        return "caught " .. tostring(err)
+    end
+end
+
+local function returnedThroughFinally(steps: string[]): number
+    try
+        return failing(false) + 41
+    finally
+        table.insert(steps, "finally")
+    end
+    return 0
+end
+
+local function swallowed(): string
+    try
+        failing(true)
+    end
+    return "swallowed"
+end
+
+local function sumUntil(limit: number, ...: number): number
+    local mut total = 0
+    try
+        for _, value in ipairs({ ... }) do
+            if value > limit then break end
+            total = total + value
+        end
+    end
+    return total
+end
+
 export function run(): nil
     section("control flow")
 
@@ -125,4 +166,19 @@ export function run(): nil
     local first = 3
     expectEq("concat with a string stays concat", first .. "!", "3!")
     expectEq("numbers followed by a string concatenate", 1 .. 2 .. "x", "12x")
+
+    expectEq("catch receives the error and returns from the function", caught(), "caught boom")
+    local steps: string[] = {}
+    expectEq("a return from try runs finally first", returnedThroughFinally(steps), 42)
+    expectEq("finally ran", steps[1], "finally")
+    expectEq("try without catch or finally swallows the error", swallowed(), "swallowed")
+    expectEq("varargs and break inside try", sumUntil(2, 1, 2, 3), 3)
+    local rethrown, message = pcall(function()
+        try
+            failing(true)
+        finally
+            table.insert(steps, "rethrow")
+        end
+    end)
+    expect("try with finally but no catch raises again", not rethrown and message == "boom" and steps[2] == "rethrow")
 end

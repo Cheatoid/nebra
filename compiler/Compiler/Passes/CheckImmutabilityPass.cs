@@ -50,6 +50,9 @@ public sealed class CheckImmutabilityPass() : Pass(PassName, PassScope.PerFile)
             case DoBlockStmt db:
                 CheckStmtList(ctx, pkg, db.Body);
                 break;
+            case TryStmt tryStmt:
+                foreach (var block in tryStmt.Blocks) CheckStmtList(ctx, pkg, block);
+                break;
             case WhileStmt ws:
                 CheckExpr(ctx, pkg, ws.Condition);
                 CheckStmtList(ctx, pkg, ws.Body);

@@ -391,6 +391,28 @@ public sealed class LuaGenerator(Config config)
             $"if not ok then error((...), 0) end return ... end");
     }
 
+    /// <summary>
+    /// A helper running a try statement: the body under <c>pcall</c>, then the catch clause under
+    /// <c>pcall</c> if the body raised, then the finally block, after which a remaining error is
+    /// raised again. A body or catch clause returning from the enclosing function returns the
+    /// marker <c>&lt;name&gt;_return</c> first, and the helper hands the returned values on in a table.
+    /// </summary>
+    public string GetTryHelper()
+    {
+        var unpackFn = Features.HasTableUnpack ? "table.unpack" : "unpack";
+        return RequireHelper("try", name =>
+            $"local {name}_return = {{}} " +
+            $"local function {name}_pack(...) return {{ n = select(\"#\", ...), ... }} end " +
+            $"local function {name}(body, handler, finalizer, swallow, ...) " +
+            $"local result = {name}_pack(pcall(body, ...)) " +
+            $"if not result[1] and handler then result = {name}_pack(pcall(handler, result[2], ...)) " +
+            $"elseif not result[1] and swallow then result = {{ n = 1, true }} end " +
+            $"if finalizer then finalizer(...) end " +
+            $"if not result[1] then error(result[2], 0) end " +
+            $"if result[2] == {name}_return then return {{ n = result.n - 2, {unpackFn}(result, 3, result.n) }} end " +
+            $"end");
+    }
+
     #endregion
 
     #region Async Driver Helper

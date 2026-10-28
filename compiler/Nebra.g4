@@ -71,6 +71,7 @@ stmt
     | GOTO NAME                                                 # GotoStat
     | deferStat                                                  # DeferStat_
     | guardStat                                                  # GuardStat_
+    | tryStat                                                    # TryStat_
     | doBlock                                                   # DoStat
     | whileLoop                                                 # WhileStat
     | repeatLoop                                                # RepeatStat
@@ -177,6 +178,10 @@ deferStat
 
 guardStat
     : GUARD expr (ELSE expr)?
+    ;
+
+tryStat
+    : TRY block (CATCH (LPAREN NAME RPAREN)? block)? (FINALLY block)? END
     ;
 
 // --- Return ---
@@ -887,6 +892,7 @@ memberName
     | AS | DECLARE | ENUM | EXPORT | IMPORT | IS | CASE | MATCH | META | MODULE | MUT | WHEN
     | ASYNC | AWAIT | ABSTRACT | CLASS | INTERFACE | EXTENDS | EXTEND | IMPLEMENTS | CONSTRUCTOR
     | STATIC | NEW | SUPER | OVERRIDE | PROTECTED | TYPEOF | INSTANCEOF | KEYOF | DEFER | GUARD
+    | TRY | CATCH | FINALLY
     | CONTINUE
     ;
 
@@ -1038,6 +1044,9 @@ KEYOF       : 'keyof';
 INSTANCEOF  : 'instanceof';
 DEFER       : 'defer';
 GUARD       : 'guard';
+TRY         : 'try';
+CATCH       : 'catch';
+FINALLY     : 'finally';
 CONTINUE    : 'continue';
 
 // -----------------------------------------------------------------------------

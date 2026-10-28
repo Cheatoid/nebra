@@ -163,6 +163,9 @@ public sealed class SemanticTokensHandler(NebraWorkspace workspace) : SemanticTo
             case DoBlockStmt db:
                 CollectEnumMemberTokens(result, db.Body, overrides);
                 break;
+            case TryStmt tryStmt:
+                foreach (var block in tryStmt.Blocks) CollectEnumMemberTokens(result, block, overrides);
+                break;
             case WhileStmt ws:
                 CollectEnumMemberFromExpr(result, ws.Condition, overrides);
                 CollectEnumMemberTokens(result, ws.Body, overrides);

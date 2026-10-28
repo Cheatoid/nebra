@@ -101,6 +101,9 @@ public sealed class ApplyAnnotationsPass()
         switch (stmt)
         {
             case DoBlockStmt d: RewriteStmtList(ctx, registry, d.Body); break;
+            case TryStmt t:
+                foreach (var block in t.Blocks) RewriteStmtList(ctx, registry, block);
+                break;
             case WhileStmt w: RewriteStmtList(ctx, registry, w.Body); break;
             case RepeatStmt r: RewriteStmtList(ctx, registry, r.Body); break;
             case IfStmt ifs:

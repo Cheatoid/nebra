@@ -83,6 +83,26 @@ internal partial class IRVisitor
         Expr? elseExpr = exprs.Length > 1 ? (Expr)Visit(exprs[1]) : null;
         return new GuardStmt(NewNodeID, SpanFromCtx(context), condition, elseExpr);
     }
+    public override Node VisitTryStat_(NebraParser.TryStat_Context context) => Visit(context.tryStat());
+
+    public override Node VisitTryStat(NebraParser.TryStatContext context)
+    {
+        var blocks = context.block();
+        var body = VisitBranchBlock(blocks[0]);
+        var next = 1;
+
+        CatchClause? catchClause = null;
+        if (context.CATCH() != null)
+        {
+            var name = context.NAME() != null ? NameRefFromTerm(context.NAME()) : null;
+            var catchBlock = blocks[next++];
+            catchClause = new CatchClause(NewNodeID, SpanFromCtx(catchBlock), name, VisitBranchBlock(catchBlock));
+        }
+
+        var finallyBody = context.FINALLY() != null ? VisitBranchBlock(blocks[next]) : null;
+        return new TryStmt(NewNodeID, SpanFromCtx(context), body, catchClause, finallyBody);
+    }
+
     public override Node VisitGotoStat(NebraParser.GotoStatContext context) => new GotoStmt(NewNodeID, SpanFromCtx(context), NameRefFromTerm(context.NAME()));
     public override Node VisitDoStat(NebraParser.DoStatContext context) => Visit(context.doBlock());
     public override Node VisitWhileStat(NebraParser.WhileStatContext context) => Visit(context.whileLoop());

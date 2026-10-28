@@ -228,6 +228,20 @@ public partial class NebraBaseListener : INebraListener {
 	/// <param name="context">The parse tree.</param>
 	public virtual void ExitGuardStat_([NotNull] NebraParser.GuardStat_Context context) { }
 	/// <summary>
+	/// Enter a parse tree produced by the <c>TryStat_</c>
+	/// labeled alternative in <see cref="NebraParser.stmt"/>.
+	/// <para>The default implementation does nothing.</para>
+	/// </summary>
+	/// <param name="context">The parse tree.</param>
+	public virtual void EnterTryStat_([NotNull] NebraParser.TryStat_Context context) { }
+	/// <summary>
+	/// Exit a parse tree produced by the <c>TryStat_</c>
+	/// labeled alternative in <see cref="NebraParser.stmt"/>.
+	/// <para>The default implementation does nothing.</para>
+	/// </summary>
+	/// <param name="context">The parse tree.</param>
+	public virtual void ExitTryStat_([NotNull] NebraParser.TryStat_Context context) { }
+	/// <summary>
 	/// Enter a parse tree produced by the <c>DoStat</c>
 	/// labeled alternative in <see cref="NebraParser.stmt"/>.
 	/// <para>The default implementation does nothing.</para>
@@ -697,6 +711,18 @@ public partial class NebraBaseListener : INebraListener {
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	public virtual void ExitGuardStat([NotNull] NebraParser.GuardStatContext context) { }
+	/// <summary>
+	/// Enter a parse tree produced by <see cref="NebraParser.tryStat"/>.
+	/// <para>The default implementation does nothing.</para>
+	/// </summary>
+	/// <param name="context">The parse tree.</param>
+	public virtual void EnterTryStat([NotNull] NebraParser.TryStatContext context) { }
+	/// <summary>
+	/// Exit a parse tree produced by <see cref="NebraParser.tryStat"/>.
+	/// <para>The default implementation does nothing.</para>
+	/// </summary>
+	/// <param name="context">The parse tree.</param>
+	public virtual void ExitTryStat([NotNull] NebraParser.TryStatContext context) { }
 	/// <summary>
 	/// Enter a parse tree produced by <see cref="NebraParser.returnStat"/>.
 	/// <para>The default implementation does nothing.</para>

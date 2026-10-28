@@ -60,6 +60,9 @@ public sealed class DetectUnusedPass() : Pass(PassName, PassScope.PerBuild)
             case DoBlockStmt doBlockStmt:
                 MarkStmtListUnused(pc, pkg, doBlockStmt.Body);
                 break;
+            case TryStmt tryStmt:
+                foreach (var block in tryStmt.Blocks) MarkStmtListUnused(pc, pkg, block);
+                break;
             case WhileStmt whileStmt:
                 MarkStmtListUnused(pc, pkg, whileStmt.Body);
                 break;
@@ -232,6 +235,9 @@ public sealed class DetectUnusedPass() : Pass(PassName, PassScope.PerBuild)
                 break;
             case DoBlockStmt doBlockStmt:
                 TrackStmtListUsage(pc, pkg, doBlockStmt.Body);
+                break;
+            case TryStmt tryStmt:
+                foreach (var block in tryStmt.Blocks) TrackStmtListUsage(pc, pkg, block);
                 break;
             case WhileStmt whileStmt:
                 TrackExprUsage(pc, pkg, whileStmt.Condition);

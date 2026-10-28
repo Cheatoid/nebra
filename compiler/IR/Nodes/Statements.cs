@@ -196,3 +196,33 @@ public sealed class ExportStmt(NodeID id, TextSpan span, Decl declaration) : Stm
 {
     public Decl Declaration { get; } = declaration;
 }
+
+/// <summary>
+/// <c>try ... catch (err) ... finally ... end</c>. The body runs protected: an error it raises
+/// runs the catch clause, if any, and the finally block runs either way. Without a catch clause
+/// an error is raised again after the finally block, and without both it is ignored.
+/// </summary>
+public sealed class TryStmt(NodeID id, TextSpan span, List<Stmt> body, CatchClause? catchClause, List<Stmt>? finallyBody) : Stmt(id, span)
+{
+    public List<Stmt> Body { get; } = body;
+    public CatchClause? Catch { get; } = catchClause;
+    public List<Stmt>? Finally { get; } = finallyBody;
+
+    /// <summary>The body, the catch body and the finally block, those that are written.</summary>
+    public IEnumerable<List<Stmt>> Blocks
+    {
+        get
+        {
+            yield return Body;
+            if (Catch != null) yield return Catch.Body;
+            if (Finally != null) yield return Finally;
+        }
+    }
+}
+
+/// <summary>The <c>catch</c> of a <see cref="TryStmt"/>, with the name the error is bound to, if any.</summary>
+public sealed class CatchClause(NodeID id, TextSpan span, NameRef? name, List<Stmt> body) : Node(id, span)
+{
+    public NameRef? Name { get; } = name;
+    public List<Stmt> Body { get; } = body;
+}

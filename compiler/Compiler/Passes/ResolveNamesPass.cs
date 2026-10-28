@@ -109,6 +109,16 @@ public sealed class ResolveNamesPass() : Pass(PassName, PassScope.PerFile)
             case DoBlockStmt doBlockStmt:
                 ResolveStmtListNames(pc, doBlockStmt.Body, pkg);
                 break;
+            case TryStmt tryStmt:
+                ResolveStmtListNames(pc, tryStmt.Body, pkg);
+                if (tryStmt.Catch != null)
+                {
+                    pkg.Scopes.EnclosingScope(tryStmt.Catch.ID, out var catchScope);
+                    if (tryStmt.Catch.Name != null) ResolveNameRef(pc, tryStmt.Catch.Name, catchScope, pkg);
+                    ResolveStmtListNames(pc, tryStmt.Catch.Body, pkg);
+                }
+                if (tryStmt.Finally != null) ResolveStmtListNames(pc, tryStmt.Finally, pkg);
+                break;
             case WhileStmt whileStmt:
                 ResolveExprNames(pc, whileStmt.Condition, pkg);
                 ResolveStmtListNames(pc, whileStmt.Body, pkg);

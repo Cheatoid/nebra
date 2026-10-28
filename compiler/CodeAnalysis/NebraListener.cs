@@ -195,6 +195,18 @@ public interface INebraListener : IParseTreeListener {
 	/// <param name="context">The parse tree.</param>
 	void ExitGuardStat_([NotNull] NebraParser.GuardStat_Context context);
 	/// <summary>
+	/// Enter a parse tree produced by the <c>TryStat_</c>
+	/// labeled alternative in <see cref="NebraParser.stmt"/>.
+	/// </summary>
+	/// <param name="context">The parse tree.</param>
+	void EnterTryStat_([NotNull] NebraParser.TryStat_Context context);
+	/// <summary>
+	/// Exit a parse tree produced by the <c>TryStat_</c>
+	/// labeled alternative in <see cref="NebraParser.stmt"/>.
+	/// </summary>
+	/// <param name="context">The parse tree.</param>
+	void ExitTryStat_([NotNull] NebraParser.TryStat_Context context);
+	/// <summary>
 	/// Enter a parse tree produced by the <c>DoStat</c>
 	/// labeled alternative in <see cref="NebraParser.stmt"/>.
 	/// </summary>
@@ -594,6 +606,16 @@ public interface INebraListener : IParseTreeListener {
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	void ExitGuardStat([NotNull] NebraParser.GuardStatContext context);
+	/// <summary>
+	/// Enter a parse tree produced by <see cref="NebraParser.tryStat"/>.
+	/// </summary>
+	/// <param name="context">The parse tree.</param>
+	void EnterTryStat([NotNull] NebraParser.TryStatContext context);
+	/// <summary>
+	/// Exit a parse tree produced by <see cref="NebraParser.tryStat"/>.
+	/// </summary>
+	/// <param name="context">The parse tree.</param>
+	void ExitTryStat([NotNull] NebraParser.TryStatContext context);
 	/// <summary>
 	/// Enter a parse tree produced by <see cref="NebraParser.returnStat"/>.
 	/// </summary>

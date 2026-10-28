@@ -537,8 +537,10 @@ public sealed partial class InferTypesPass() : Pass(PassName, PassScope.PerBuild
     {
         var enclosingLoops = _loopDepth;
         var enclosingReturn = _declaredReturn;
+        var enclosingTry = (_tryDepth, _finallyDepth);
         _loopDepth = 0;
         _declaredReturn = declaredReturn ?? TypID.Invalid;
+        (_tryDepth, _finallyDepth) = (0, 0);
         try
         {
             ResolveStmts(pc, stmts, tail);
@@ -547,6 +549,7 @@ public sealed partial class InferTypesPass() : Pass(PassName, PassScope.PerBuild
         {
             _loopDepth = enclosingLoops;
             _declaredReturn = enclosingReturn;
+            (_tryDepth, _finallyDepth) = enclosingTry;
         }
     }
 
@@ -626,7 +629,11 @@ public sealed partial class InferTypesPass() : Pass(PassName, PassScope.PerBuild
                 SynthesizeExpr(pc, exprStmt.Expression);
                 break;
             case BreakStmt breakStmt:
-                if (breakStmt.Depth < 1 || breakStmt.Depth > _loopDepth)
+                if (_tryDepth > 0 && breakStmt.Depth > _loopDepth)
+                {
+                    pc.Diag.Report(breakStmt.Span, DiagnosticCode.ErrJumpOutOfTry, "break");
+                }
+                else if (breakStmt.Depth < 1 || breakStmt.Depth > _loopDepth)
                 {
                     pc.Diag.Report(breakStmt.Span, DiagnosticCode.ErrInvalidControlFlowDepth, "break");
                 }
@@ -637,7 +644,12 @@ public sealed partial class InferTypesPass() : Pass(PassName, PassScope.PerBuild
                 }
                 break;
             case LabelStmt:
-            case GotoStmt:
+                break;
+            case GotoStmt gotoStmt:
+                if (_tryDepth > 0) pc.Diag.Report(gotoStmt.Span, DiagnosticCode.ErrJumpOutOfTry, "goto");
+                break;
+            case TryStmt tryStmt:
+                ResolveTry(pc, tryStmt);
                 break;
             case DoBlockStmt doBlockStmt:
                 ResolveStmts(pc, doBlockStmt.Body);
@@ -753,6 +765,7 @@ public sealed partial class InferTypesPass() : Pass(PassName, PassScope.PerBuild
                 break;
             }
             case ReturnStmt returnStmt:
+                if (_finallyDepth > 0) pc.Diag.Report(returnStmt.Span, DiagnosticCode.ErrReturnInFinally);
                 foreach (var value in returnStmt.Values)
                 {
                     SynthesizeExpr(pc, value);
@@ -783,9 +796,11 @@ public sealed partial class InferTypesPass() : Pass(PassName, PassScope.PerBuild
                 CheckExhaustiveMatch(pc, matchStmt);
                 break;
             }
-            case ContinueStmt:
+            case ContinueStmt continueStmt:
+                if (_tryDepth > 0 && _loopDepth == 0) pc.Diag.Report(continueStmt.Span, DiagnosticCode.ErrJumpOutOfTry, "continue");
                 break;
             case DeferStmt ds:
+                if (_tryDepth > 0) pc.Diag.Report(ds.Span, DiagnosticCode.ErrDeferInTry);
                 if (_asyncDepth > 0 && pc.Config.Target == Configuration.LuaVersion.Lua51)
                     pc.Diag.Report(ds.Span, DiagnosticCode.ErrDeferInAsyncOnLua51, "5.1");
                 if (ds.Call != null) SynthesizeExpr(pc, ds.Call);
@@ -2928,6 +2943,8 @@ public sealed partial class InferTypesPass() : Pass(PassName, PassScope.PerBuild
 
     private TypID InferAwaitExpr(PassContext pc, AwaitExpr awaitExpr)
     {
+        if (_tryDepth > 0 && !Codegen.LuaFeatureSet.For(pc.Config.Target).CanYieldAcrossPcall)
+            pc.Diag.Report(awaitExpr.Span, DiagnosticCode.ErrAwaitInTryOnLua51, "5.1");
         if (_asyncDepth <= 0)
         {
             pc.Diag.Report(awaitExpr.Span, DiagnosticCode.ErrAwaitOutsideAsync);
@@ -4491,6 +4508,10 @@ public sealed partial class InferTypesPass() : Pass(PassName, PassScope.PerBuild
             case DoBlockStmt db:
                 foreach (var s in db.Body) CollectReturnTypesStmt(pc, s, result);
                 break;
+            case TryStmt tryStmt:
+                foreach (var s in tryStmt.Body) CollectReturnTypesStmt(pc, s, result);
+                foreach (var s in tryStmt.Catch?.Body ?? []) CollectReturnTypesStmt(pc, s, result);
+                break;
             case IfStmt ifs:
                 foreach (var s in ifs.Body) CollectReturnTypesStmt(pc, s, result);
                 foreach (var e in ifs.ElseIfs)
@@ -4656,6 +4677,9 @@ public sealed partial class InferTypesPass() : Pass(PassName, PassScope.PerBuild
                 return IsDivergingCall(pc, es.Expression);
             case DoBlockStmt db:
                 return BlockAlwaysExits(pc, db.Body);
+            case TryStmt tryStmt:
+                return BlockAlwaysExits(pc, tryStmt.Body)
+                       && (tryStmt.Catch != null ? BlockAlwaysExits(pc, tryStmt.Catch.Body) : tryStmt.Finally != null);
             case IfStmt ifs:
                 if (ifs.ElseBody == null) return false;
                 if (!BlockAlwaysExits(pc, ifs.Body)) return false;

@@ -323,6 +323,9 @@ public class ResolveTypeRefsPass() : Pass(PassName, PassScope.PerBuild)
             case DoBlockStmt doBlockStmt:
                 ResolveStmtListTypes(tt, doBlockStmt.Body);
                 break;
+            case TryStmt tryStmt:
+                foreach (var block in tryStmt.Blocks) ResolveStmtListTypes(tt, block);
+                break;
             case WhileStmt whileStmt:
                 ResolveExprTypes(tt, whileStmt.Condition);
                 ResolveStmtListTypes(tt, whileStmt.Body);

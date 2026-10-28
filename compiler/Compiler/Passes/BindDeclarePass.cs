@@ -102,6 +102,20 @@ public sealed class BindDeclarePass() : Pass(PassName, PassScope.PerFile)
                 }
 
                 return true;
+            case TryStmt tryStmt:
+            {
+                if (!BindStmtListScopes(ctx, tryStmt.Body, pkg.Scopes.NewScope(scope))) return false;
+                if (tryStmt.Catch != null)
+                {
+                    var catchScope = pkg.Scopes.NewScope(scope);
+                    pkg.Scopes.BindNode(tryStmt.Catch.ID, catchScope);
+                    if (tryStmt.Catch.Name != null)
+                        DeclareSymbol(ctx, catchScope, tryStmt.Catch.Name.Name, SymbolKind.Variable, tryStmt.Catch.ID);
+                    if (!BindStmtListScopes(ctx, tryStmt.Catch.Body, catchScope)) return false;
+                }
+
+                return tryStmt.Finally == null || BindStmtListScopes(ctx, tryStmt.Finally, pkg.Scopes.NewScope(scope));
+            }
             case WhileStmt whileStmt:
                 var whileScope = pkg.Scopes.NewScope(scope);
                 if (!BindExprScopes(ctx, whileStmt.Condition, whileScope))

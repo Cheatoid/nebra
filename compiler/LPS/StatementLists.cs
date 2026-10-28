@@ -26,6 +26,9 @@ public static class StatementLists
             case LocalFunctionDecl function: yield return function.Body; break;
             case FunctionDefExpr function: yield return function.Body; break;
             case DoBlockStmt block: yield return block.Body; break;
+            case TryStmt protectedBlock:
+                foreach (var block in protectedBlock.Blocks) yield return block;
+                break;
             case WhileStmt loop: yield return loop.Body; break;
             case RepeatStmt loop: yield return loop.Body; break;
             case NumericForStmt loop: yield return loop.Body; break;

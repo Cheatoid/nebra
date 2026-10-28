@@ -21,6 +21,9 @@ public sealed class LuaFeatureSet
     public bool HasCloseLocal { get; init; }
     public bool HasTableUnpack { get; init; }
 
+    /// <summary>Whether a coroutine may yield from inside a <c>pcall</c>, which Lua 5.1 does not allow.</summary>
+    public bool CanYieldAcrossPcall { get; init; } = true;
+
     public static LuaFeatureSet For(LuaVersion version)
     {
         return version switch
@@ -36,6 +39,7 @@ public sealed class LuaFeatureSet
                 HasConstLocal = false,
                 HasCloseLocal = false,
                 HasTableUnpack = false,
+                CanYieldAcrossPcall = false,
             },
             LuaVersion.Lua52 => new LuaFeatureSet
             {
