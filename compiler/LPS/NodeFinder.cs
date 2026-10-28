@@ -135,9 +135,9 @@ public static class NodeFinder
             SearchStmt(stmt, line, col, ref best);
     }
 
-    private static void SearchStmt(Stmt stmt, int line, int col, ref Node? best)
+    private static void SearchStmt(Stmt? stmt, int line, int col, ref Node? best)
     {
-        if (!Contains(stmt.Span, line, col)) return;
+        if (stmt == null || !Contains(stmt.Span, line, col)) return;
         if (IsTighter(stmt, best)) best = stmt;
 
         switch (stmt)
@@ -249,9 +249,9 @@ public static class NodeFinder
         }
     }
 
-    private static void SearchExpr(Expr expr, int line, int col, ref Node? best)
+    private static void SearchExpr(Expr? expr, int line, int col, ref Node? best)
     {
-        if (!Contains(expr.Span, line, col)) return;
+        if (expr == null || !Contains(expr.Span, line, col)) return;
         if (IsTighter(expr, best)) best = expr;
 
         switch (expr)
@@ -361,9 +361,9 @@ public static class NodeFinder
             SearchStmtForNameRef(stmt, line, col, ref best);
     }
 
-    private static void SearchStmtForNameRef(Stmt stmt, int line, int col, ref NameRef? best)
+    private static void SearchStmtForNameRef(Stmt? stmt, int line, int col, ref NameRef? best)
     {
-        if (!Contains(stmt.Span, line, col)) return;
+        if (stmt == null || !Contains(stmt.Span, line, col)) return;
 
         switch (stmt)
         {
@@ -667,9 +667,9 @@ public static class NodeFinder
         foreach (var b in tp.ImplementsBounds) SearchTypeRefForNameRef(b, line, col, ref best);
     }
 
-    private static void SearchExprForNameRef(Expr expr, int line, int col, ref NameRef? best)
+    private static void SearchExprForNameRef(Expr? expr, int line, int col, ref NameRef? best)
     {
-        if (!Contains(expr.Span, line, col)) return;
+        if (expr == null || !Contains(expr.Span, line, col)) return;
 
         switch (expr)
         {
@@ -765,8 +765,9 @@ public static class NodeFinder
         if (nr != null) refs.Add(nr);
     }
 
-    private static void CollectFromStmt(Stmt stmt, List<NameRef> refs)
+    private static void CollectFromStmt(Stmt? stmt, List<NameRef> refs)
     {
+        if (stmt == null) return;
         switch (stmt)
         {
             case FunctionDecl fd:
@@ -1042,8 +1043,9 @@ public static class NodeFinder
         foreach (var b in tp.ImplementsBounds) CollectFromTypeRef(b, refs);
     }
 
-    private static void CollectFromExpr(Expr expr, List<NameRef> refs)
+    private static void CollectFromExpr(Expr? expr, List<NameRef> refs)
     {
+        if (expr == null) return;
         switch (expr)
         {
             case NameExpr ne:

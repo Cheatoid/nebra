@@ -165,7 +165,9 @@ internal partial class IRVisitor
         {
             guard = (Expr)Visit(exprs[0]);
         }
-        var value = (Expr)Visit(exprs[^1]);
+        var value = exprs.Length > (guard != null ? 1 : 0)
+            ? (Expr)Visit(exprs[^1])
+            : new NilLiteralExpr(NewNodeID, SpanFromCtx(ctx));
         return new MatchExprArm(pattern, guard, value, SpanFromCtx(ctx));
     }
 
@@ -178,7 +180,9 @@ internal partial class IRVisitor
             return new MatchPattern(MatchPatternKind.TypeBinding, null, typeRef, name, SpanFromCtx(ctx));
         }
 
-        var vp = (NebraParser.ValuePatternContext)ctx;
+        if (ctx is not NebraParser.ValuePatternContext vp)
+            return new MatchPattern(MatchPatternKind.Value, null, null, null, SpanFromCtx(ctx));
+
         var expr = (Expr)Visit(vp.expr());
         if (expr is NameExpr ne && ne.Name.Name == "_")
             return new MatchPattern(MatchPatternKind.Wildcard, null, null, null, SpanFromCtx(ctx));

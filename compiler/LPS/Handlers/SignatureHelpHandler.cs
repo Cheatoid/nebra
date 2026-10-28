@@ -19,58 +19,9 @@ public sealed class SignatureHelpHandler(NebraWorkspace workspace) : SignatureHe
         var annotationHelp = TryAnnotationSignatureHelp(result, request.Position);
         if (annotationHelp != null) return annotationHelp;
 
-        var callNode = NodeFinder.FindEnclosingCall(result.Hir, line, col);
-        if (callNode == null) return null;
-
-        var calleeSym = SymID.Invalid;
-        List<Expr> arguments;
-        FunctionType? ft = null;
-        string calleeLabel = "fn";
-
-        switch (callNode)
-        {
-            case FunctionCallExpr fce:
-                if (fce.Callee is NameExpr ne) calleeSym = ne.Name.Sym;
-                if (calleeSym == SymID.Invalid && fce.Callee is DotAccessExpr fcDot)
-                {
-                    ft = ResolveMemberAsFunction(result, fcDot.Object, fcDot.FieldName.Name, isStatic: true);
-                    if (ft != null) calleeLabel = fcDot.FieldName.Name;
-                }
-                break;
-            case MethodCallExpr mce:
-                calleeSym = mce.MethodName.Sym;
-                arguments = mce.Arguments;
-                if (calleeSym == SymID.Invalid)
-                {
-                    ft = ResolveMemberAsFunction(result, mce.Object, mce.MethodName.Name, isStatic: false);
-                    if (ft != null) calleeLabel = mce.MethodName.Name;
-                }
-                break;
-            case NewExpr creation:
-                ft = ConstructorOf(ClassOfSymbol(result, creation.ClassName.Sym));
-                calleeLabel = creation.ClassName.Name;
-                break;
-            case SuperCallExpr:
-                ft = ConstructorOf(EnclosingClass(result, line, col)?.BaseClass);
-                calleeLabel = "super";
-                break;
-            default:
-                return null;
-        }
-
-        if (ft == null && callNode is NewExpr or SuperCallExpr) return null;
-
-        Symbol? sym = null;
-        if (ft == null)
-        {
-            if (calleeSym == SymID.Invalid || !result.Syms.GetByID(calleeSym, out var s))
-                return null;
-            sym = s;
-            if (!result.Types.GetByID(sym.Type, out var typ) || typ is not FunctionType bound)
-                return null;
-            ft = bound;
-            calleeLabel = sym.Name;
-        }
+        var call = ResolveCall(result, line, col);
+        if (call == null) return null;
+        var (callNode, ft, sym, calleeLabel) = call.Value;
 
         var activeParam = CountActiveParam(result.SourceText, request.Position);
 
@@ -231,7 +182,7 @@ public sealed class SignatureHelpHandler(NebraWorkspace workspace) : SignatureHe
     /// <c>Entity</c>, or <c>Events.CallRemote(...)</c> with side-overloaded
     /// dispatch.
     /// </summary>
-    private FunctionType? ResolveMemberAsFunction(AnalysisResult result, Expr receiver, string name, bool isStatic)
+    private static FunctionType? ResolveMemberAsFunction(AnalysisResult result, Expr receiver, string name, bool isStatic)
     {
         if (receiver.Type == TypID.Invalid) return null;
         if (!result.Types.GetByID(receiver.Type, out var rt)) return null;
@@ -327,7 +278,7 @@ public sealed class SignatureHelpHandler(NebraWorkspace workspace) : SignatureHe
         return Math.Min(arguments.Count - 1, entry.Parameters.Count - 1);
     }
 
-    private static int CountActiveParam(string sourceText, OmniSharp.Extensions.LanguageServer.Protocol.Models.Position pos)
+    internal static int CountActiveParam(string sourceText, OmniSharp.Extensions.LanguageServer.Protocol.Models.Position pos)
     {
         var lines = sourceText.Split('\n');
         if (pos.Line < 0 || pos.Line >= lines.Length) return 0;
@@ -366,5 +317,66 @@ public sealed class SignatureHelpHandler(NebraWorkspace workspace) : SignatureHe
             DocumentSelector = TextDocumentSelector.ForLanguage("nebra"),
             TriggerCharacters = new Container<string>("(", ",", "@", "=", " ")
         };
+    }
+
+    /// <summary>
+    /// The call the cursor at <paramref name="line"/>, <paramref name="col"/> writes an argument
+    /// of: its node, the signature it calls, the symbol of the callee when it has one and the
+    /// name to show for it. Shared with completion, which offers what fits the parameter.
+    /// </summary>
+    internal static (Node Call, FunctionType Function, Symbol? Symbol, string Label)? ResolveCall(AnalysisResult result, int line, int col)
+    {
+        var callNode = NodeFinder.FindEnclosingCall(result.Hir, line, col);
+        if (callNode == null) return null;
+
+        var calleeSym = SymID.Invalid;
+        FunctionType? ft = null;
+        string calleeLabel = "fn";
+
+        switch (callNode)
+        {
+            case FunctionCallExpr fce:
+                if (fce.Callee is NameExpr ne) calleeSym = ne.Name.Sym;
+                if (calleeSym == SymID.Invalid && fce.Callee is DotAccessExpr fcDot)
+                {
+                    ft = ResolveMemberAsFunction(result, fcDot.Object, fcDot.FieldName.Name, isStatic: true);
+                    if (ft != null) calleeLabel = fcDot.FieldName.Name;
+                }
+                break;
+            case MethodCallExpr mce:
+                calleeSym = mce.MethodName.Sym;
+                if (calleeSym == SymID.Invalid)
+                {
+                    ft = ResolveMemberAsFunction(result, mce.Object, mce.MethodName.Name, isStatic: false);
+                    if (ft != null) calleeLabel = mce.MethodName.Name;
+                }
+                break;
+            case NewExpr creation:
+                ft = ConstructorOf(ClassOfSymbol(result, creation.ClassName.Sym));
+                calleeLabel = creation.ClassName.Name;
+                break;
+            case SuperCallExpr:
+                ft = ConstructorOf(EnclosingClass(result, line, col)?.BaseClass);
+                calleeLabel = "super";
+                break;
+            default:
+                return null;
+        }
+
+        if (ft == null && callNode is NewExpr or SuperCallExpr) return null;
+
+        Symbol? sym = null;
+        if (ft == null)
+        {
+            if (calleeSym == SymID.Invalid || !result.Syms.GetByID(calleeSym, out var s))
+                return null;
+            sym = s;
+            if (!result.Types.GetByID(sym.Type, out var typ) || typ is not FunctionType bound)
+                return null;
+            ft = bound;
+            calleeLabel = sym.Name;
+        }
+
+        return (callNode, ft, sym, calleeLabel);
     }
 }

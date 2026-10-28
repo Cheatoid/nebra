@@ -95,11 +95,15 @@ public sealed class CompletionHandler(NebraWorkspace workspace) : CompletionHand
                 result.Scopes.EnclosingScope(node.ID, out scopeId);
 
             var symbols = workspace.CollectVisibleSymbols(result, scopeId);
+            var symbolTypes = new Dictionary<string, NebraType>(StringComparer.Ordinal);
             foreach (var sym in symbols)
             {
                 var kind = DeclaredKind(result, sym);
                 if (typeContext && !IsTypeKind(kind))
                     continue;
+
+                if (!IsTypeKind(kind) && result.Types.GetByID(sym.Type, out var symbolType))
+                    symbolTypes.TryAdd(sym.Name, symbolType);
 
                 var typeStr = workspace.FormatType(result.Types, sym.Type);
                 items.Add(new CompletionItem
@@ -114,6 +118,11 @@ public sealed class CompletionHandler(NebraWorkspace workspace) : CompletionHand
 
             var visible = symbols.Select(sym => sym.Name).ToHashSet(StringComparer.Ordinal);
             items.AddRange(AutoImportCompletion.Items(result, workspace.LatestSnapshotFor(result.FilePath), request.Position, typeContext, visible));
+
+            if (!typeContext && ExpectedTypeAtCursor.Find(result, line, col, symbols) is { } expected)
+            {
+                items = RankByExpectedType(items, expected, symbolTypes, symbols);
+            }
 
             if (!typeContext)
             {
@@ -133,6 +142,68 @@ public sealed class CompletionHandler(NebraWorkspace workspace) : CompletionHand
         }
 
         return new CompletionList(items);
+    }
+
+    /// <summary>
+    /// Orders <paramref name="items"/> by what fits <paramref name="expected"/>, the type a value
+    /// written at the cursor should have: the members of an expected enum first, written without
+    /// their enum where no declaration in scope takes the name, the first of them preselected;
+    /// then the values and functions whose type or return type fits; then everything else.
+    /// </summary>
+    private static List<CompletionItem> RankByExpectedType(List<CompletionItem> items, NebraType expected,
+        IReadOnlyDictionary<string, NebraType> symbolTypes, IReadOnlyList<Symbol> visible)
+    {
+        var declared = visible.Select(symbol => symbol.Name).ToHashSet(StringComparer.Ordinal);
+        var members = EnumsIn(expected)
+            .SelectMany(enumType => enumType.Members.Select(member => (Enum: enumType, Member: member)))
+            .Select((entry, index) =>
+            {
+                var shorthand = !declared.Contains(entry.Member.Name);
+                return new CompletionItem
+                {
+                    Label = shorthand ? entry.Member.Name : $"{entry.Enum.Name}.{entry.Member.Name}",
+                    Kind = CompletionItemKind.EnumMember,
+                    Detail = $"{entry.Enum.Name}.{entry.Member.Name}",
+                    SortText = $"0_{index:D4}",
+                    Preselect = index == 0
+                };
+            })
+            .ToList();
+
+        var ranked = items.Select(item => item with { SortText = RankOf(item, expected, symbolTypes) + item.Label, Preselect = members.Count == 0 && item.Preselect });
+        return members.Concat(ranked).ToList();
+    }
+
+    private static string RankOf(CompletionItem item, NebraType expected, IReadOnlyDictionary<string, NebraType> symbolTypes)
+    {
+        if (item.Kind == CompletionItemKind.Keyword) return KeywordFits(item.Label, expected) ? "1_" : "3_";
+        if (!symbolTypes.TryGetValue(item.Label, out var type)) return "2_";
+
+        var value = type is FunctionType function && IsCallable(item) ? function.ReturnType : type;
+        return ExpectedTypeAtCursor.Fits(value, expected) ? "1_" : "2_";
+    }
+
+    private static bool KeywordFits(string keyword, NebraType expected)
+    {
+        var members = expected is UnionType union ? union.Types : [expected];
+        return keyword switch
+        {
+            "true" or "false" => members.Any(member => member.Kind == TypeKind.PrimitiveBool),
+            "nil" => members.Any(member => member.Kind == TypeKind.PrimitiveNil),
+            "new" => members.Any(member => member is ClassType),
+            "function" => members.Any(member => member is FunctionType),
+            _ => false,
+        };
+    }
+
+    private static IEnumerable<EnumType> EnumsIn(NebraType expected)
+    {
+        return expected switch
+        {
+            EnumType enumType => [enumType],
+            UnionType union => union.Types.OfType<EnumType>(),
+            _ => [],
+        };
     }
 
     /// <summary>
