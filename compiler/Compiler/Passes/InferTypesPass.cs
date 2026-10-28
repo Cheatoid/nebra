@@ -3274,8 +3274,7 @@ public sealed partial class InferTypesPass() : Pass(PassName, PassScope.PerBuild
                 var member = et.Members.FirstOrDefault(m => m.Name == dot.FieldName.Name);
                 if (member == null)
                 {
-                    pc.Diag.Report(dot.FieldName.Span, DiagnosticCode.ErrTypeNotIndexable,
-                        $"enum '{et.Name}' has no member '{dot.FieldName.Name}'");
+                    pc.Diag.Report(dot.FieldName.Span, DiagnosticCode.ErrNoSuchMember, et.Name, dot.FieldName.Name);
                     return pc.Types.PrimAny.ID;
                 }
 
@@ -3307,8 +3306,7 @@ public sealed partial class InferTypesPass() : Pass(PassName, PassScope.PerBuild
                     }
                     if (!found)
                     {
-                        pc.Diag.Report(dot.FieldName.Span, DiagnosticCode.ErrTypeNotIndexable,
-                            $"interface '{ift.Name}' has no member '{fname}'");
+                        pc.Diag.Report(dot.FieldName.Span, DiagnosticCode.ErrNoSuchMember, ift.Name, fname);
                         return pc.Types.PrimAny.ID;
                     }
                 }

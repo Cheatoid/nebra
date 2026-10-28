@@ -546,7 +546,8 @@ public sealed class BindDeclarePass() : Pass(PassName, PassScope.PerFile)
             }
             case InterfaceDecl interfaceDecl:
             {
-                DeclareSymbol(ctx, scope, interfaceDecl.Name.Name, SymbolKind.Interface, interfaceDecl.ID, interfaceDecl.Name.Span);
+                if (!MergesIntoDeclaredInterface(ctx, scope, interfaceDecl))
+                    DeclareSymbol(ctx, scope, interfaceDecl.Name.Name, SymbolKind.Interface, interfaceDecl.ID, interfaceDecl.Name.Span);
                 StampSide(ctx, scope, interfaceDecl.Name.Name, interfaceDecl.Annotations);
                 var ifaceScope = pkg.Scopes.NewScope(scope);
                 pkg.Scopes.BindNode(interfaceDecl.ID, ifaceScope);
@@ -838,6 +839,21 @@ public sealed class BindDeclarePass() : Pass(PassName, PassScope.PerFile)
         {
             DeclareSymbol(ctx, classScope, method.Name.Name, SymbolKind.Function, classDecl.ID, method.Name.Span, SymbolFlags.Static);
         }
+    }
+
+    /// <summary>
+    /// Whether <paramref name="declaration"/> adds to an interface of the same name already
+    /// declared in <paramref name="scope"/> instead of declaring one: a declaration file may
+    /// extend an interface another one declares, such as the standard library's <c>MathLib</c>
+    /// with the functions a game adds to <c>math</c>.
+    /// </summary>
+    private static bool MergesIntoDeclaredInterface(PassContext ctx, ScopeID scope, InterfaceDecl declaration)
+    {
+        var pkg = ctx.Pkg!;
+        return declaration.IsDeclare
+               && pkg.Scopes.LookupOnlyCurrent(scope, declaration.Name.Name, out var existing)
+               && pkg.Syms.GetByID(existing, out var symbol)
+               && symbol.Kind == SymbolKind.Interface;
     }
 
     private static void DeclareSymbol(PassContext ctx, ScopeID scope, string name, SymbolKind kind, NodeID decl, params SymbolFlags[] flags)
