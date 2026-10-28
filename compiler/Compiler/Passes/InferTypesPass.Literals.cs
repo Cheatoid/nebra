@@ -289,6 +289,22 @@ public sealed partial class InferTypesPass
         return pc.Types.LiteralOf(literal).ID;
     }
 
+    /// <summary>
+    /// The argument types an overload is picked by: a literal argument counts as its literal type,
+    /// which fits both a parameter of its base type and one of a union of literals, such as the
+    /// <c>"fill" | "line"</c> of a drawing mode, so the overload taking it can be told apart.
+    /// </summary>
+    private List<TypID> WithLiteralTypes(PassContext pc, List<Expr> arguments, List<TypID> argTypes)
+    {
+        var result = new List<TypID>(argTypes);
+        for (var i = 0; i < arguments.Count && i < result.Count; i++)
+        {
+            if (LiteralValue.Of(arguments[i]) is { } literal) result[i] = pc.Types.LiteralOf(literal).ID;
+        }
+
+        return result;
+    }
+
     /// <summary>Gives the literal arguments of a call the literal types their parameters ask for.</summary>
     private void AdoptLiteralArguments(PassContext pc, FunctionType fnType, List<Expr> arguments, List<TypID> argTypes, int offset)
     {

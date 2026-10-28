@@ -80,6 +80,24 @@ public sealed class LiteralTypeTests
         Assert.Contains("handlers[name] = callback", build.Lua("src/main.neb"));
     }
 
+    private const string Graphics = "declare interface Graphics\n    function rectangle(mode: \"fill\" | \"line\", x: number, y: number): nil\n    function rectangle(mode: \"fill\" | \"line\", x: number, y: number, radius: number): nil\nend\n\ndeclare graphics: Graphics\n\n";
+
+    [Fact]
+    public void AnOverloadTakingALiteralUnionIsPickedForALiteralArgument()
+    {
+        Assert.Empty(Build(Graphics + "graphics.rectangle(\"fill\", 0, 0)\ngraphics.rectangle(\"line\", 0, 0, 4)\n").Errors);
+    }
+
+    [Fact]
+    public void ACallNoOverloadTakesListsTheOverloads()
+    {
+        var error = Assert.Single(Build(Graphics + "graphics.rectangle(\"filled\", 0, 0)\n").Errors);
+
+        Assert.Equal(DiagnosticCode.ErrNoMatchingOverload, error.Code);
+        Assert.Contains("rectangle", error.Message);
+        Assert.Contains("(\"fill\" | \"line\", number, number, number)", error.Help);
+    }
+
     [Fact]
     public void AGenericMethodImplementsAGenericInterfaceMethodKeyByKey()
     {

@@ -1421,7 +1421,7 @@ public sealed partial class InferTypesPass() : Pass(PassName, PassScope.PerBuild
         }
 
         var (owner, overloads) = constructors.Value;
-        var ctorType = PickConstructor(pc, superCall.Span, baseClass.Name, owner, overloads, argTypes, out var overloadName);
+        var ctorType = PickConstructor(pc, superCall.Span, baseClass.Name, owner, overloads, superCall.Arguments, argTypes, out var overloadName);
         if (ctorType == null) return;
 
         if (owner.Definition == baseClass.Definition) superCall.OverloadName = overloadName;
@@ -3081,7 +3081,7 @@ public sealed partial class InferTypesPass() : Pass(PassName, PassScope.PerBuild
         }
 
         var (owner, overloads) = constructors.Value;
-        var ctorType = PickConstructor(pc, newExpr.Span, newExpr.ClassName.Name, owner, overloads, argTypes, out var overloadName);
+        var ctorType = PickConstructor(pc, newExpr.Span, newExpr.ClassName.Name, owner, overloads, newExpr.Arguments, argTypes, out var overloadName);
         if (ctorType == null) return InferredInstantiation(pc, classType, null, argTypes).ID;
 
         if (owner.Definition == classType.Definition) newExpr.OverloadName = overloadName;
@@ -3562,7 +3562,7 @@ public sealed partial class InferTypesPass() : Pass(PassName, PassScope.PerBuild
                 // For class instance methods we'd normally need self, but a
                 // dot-access call on an INSTANCE is rejected earlier; only
                 // class-ref-static or interface methods reach here.
-                var picked = PickOverload(pc, ovFns, ovSides, argTypes, prefixSelf: false, out var certain);
+                var picked = PickOverload(pc, ovFns, ovSides, WithLiteralTypes(pc, call.Arguments, argTypes), prefixSelf: false, out var certain);
                 if (picked != null)
                 {
                     if (certain && isClassRef && receiverTyp is ClassType staticOwner)
@@ -3572,12 +3572,15 @@ public sealed partial class InferTypesPass() : Pass(PassName, PassScope.PerBuild
                     var ret = SpecializedReturn(pc, picked, argTypes);
                     return call.IsOptional ? MakeNullable(pc, ret) : ret;
                 }
+
+                ReportNoMatchingOverload(pc, call.Span, fname, ovFns, argTypes, skipSelf: false);
+                return pc.Types.PrimAny.ID;
             }
         }
 
         if (call.Callee is NameExpr ne && ne.Name.Overloads is { Count: > 1 } overloads)
         {
-            var resolved = ResolveOverload(pc, call.Span, overloads, argTypes);
+            var resolved = ResolveOverload(pc, call.Span, overloads, WithLiteralTypes(pc, call.Arguments, argTypes));
             if (resolved != null)
             {
                 if (!IsImported(pc, ne.Name.Sym)) ne.Name.Sym = resolved.Value.sym;
@@ -3662,8 +3665,26 @@ public sealed partial class InferTypesPass() : Pass(PassName, PassScope.PerBuild
             return (bestSym, bestFn, IsCertainOverload(pc, bestFn, bestScore, scores, argTypes, false));
         }
 
-        pc.Diag.Report(span, DiagnosticCode.ErrFuncParamMismatch, "overloaded", argTypes.Count);
+        var functions = overloads
+            .Select(symbol => pc.Pkg!.Syms.GetByID(symbol, out var overload) && pc.Types.GetByID(overload.Type, out var type) ? type as FunctionType : null)
+            .OfType<FunctionType>()
+            .ToList();
+        var name = pc.Pkg!.Syms.GetByID(overloads[0], out var first) ? first.Name : "function";
+        ReportNoMatchingOverload(pc, span, name, functions, argTypes, skipSelf: false);
         return null;
+    }
+
+    /// <summary>
+    /// Reports a call no overload of <paramref name="name"/> takes, listing the parameter types of
+    /// every overload, without the <c>self</c> of a method.
+    /// </summary>
+    private void ReportNoMatchingOverload(PassContext pc, TextSpan span, string name, List<FunctionType> overloads, List<TypID> argTypes, bool skipSelf)
+    {
+        var signatures = overloads
+            .Select(overload => "(" + string.Join(", ", overload.ParamTypes.Skip(skipSelf ? 1 : 0).Select(type => TypeName(pc, type.ID))) + ")")
+            .Distinct();
+        pc.Diag.Report(span, DiagnosticCode.ErrNoMatchingOverload, name,
+            string.Join(", ", argTypes.Select(type => TypeName(pc, type))), string.Join(", ", signatures));
     }
 
     /// <summary>
@@ -3798,10 +3819,11 @@ public sealed partial class InferTypesPass() : Pass(PassName, PassScope.PerBuild
         // instance methods we have to account for it when scoring (the stored
         // FunctionType includes `self` as its first param).
         var (mcFns, mcSides) = CollectMethodOverloads(pc, objType, mc.MethodName.Name, staticOnly: false);
+        var reportsNoOverload = mcFns.Count > 1;
         if (mcFns.Count > 1)
         {
             var ovPrefixSelf = objType is ClassType || (mcFns.Count > 0 && StartsWithSelfParam(mcFns[0]));
-            var picked = PickOverload(pc, mcFns, mcSides, argTypes, prefixSelf: ovPrefixSelf, out var certain);
+            var picked = PickOverload(pc, mcFns, mcSides, WithLiteralTypes(pc, mc.Arguments, argTypes), prefixSelf: ovPrefixSelf, out var certain);
             if (picked != null)
             {
                 if (certain && objType is ClassType overloadReceiver)
@@ -3813,6 +3835,12 @@ public sealed partial class InferTypesPass() : Pass(PassName, PassScope.PerBuild
                 AdoptArguments(pc, picked, mc.Arguments, pickedArgs, ovPrefixSelf ? 1 : 0);
                 CheckCallArguments(pc, mc.Span, picked, WithContinuation(picked, pickedArgs, continuationSupplied));
                 return SpecializedReturn(pc, picked, pickedArgs);
+            }
+
+            if (reportsNoOverload && !continuationSupplied)
+            {
+                ReportNoMatchingOverload(pc, mc.Span, mc.MethodName.Name, mcFns, argTypes, ovPrefixSelf);
+                return pc.Types.PrimAny.ID;
             }
         }
 

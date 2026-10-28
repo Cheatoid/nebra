@@ -536,6 +536,12 @@ public enum DiagnosticCode
     [Help("check the name for a typo")]
     ErrNoSuchMember = 0x4045,
 
+    [Level(DiagnosticLevel.Error)]
+    [Category(DiagnosticCategory.Type)]
+    [Format("no overload of '{0}' takes the arguments ({1})")]
+    [Help("its overloads take: {2}")]
+    ErrNoMatchingOverload = 0x4046,
+
     [Level(DiagnosticLevel.Warning)]
     [Category(DiagnosticCategory.Semantic)]
     [Format("Method '{0}' shadows a method in parent class '{1}'; use 'override' to indicate this is intentional")]

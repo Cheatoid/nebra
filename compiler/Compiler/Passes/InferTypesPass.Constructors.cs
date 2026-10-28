@@ -57,12 +57,12 @@ public sealed partial class InferTypesPass
     /// Reports arguments no constructor takes and returns <c>null</c> for them.
     /// </summary>
     private FunctionType? PickConstructor(PassContext pc, TextSpan span, string className, ClassType owner, List<FunctionType> overloads,
-        List<TypID> argTypes, out string? overloadName)
+        List<Expr> arguments, List<TypID> argTypes, out string? overloadName)
     {
         overloadName = null;
         if (overloads.Count == 1) return overloads[0];
 
-        var picked = PickOverload(pc, overloads, [], argTypes, false, out var certain);
+        var picked = PickOverload(pc, overloads, [], WithLiteralTypes(pc, arguments, argTypes), false, out var certain);
         if (picked == null)
         {
             var signatures = overloads.Select(overload => "(" + string.Join(", ", overload.ParamTypes.Select(type => TypeName(pc, type.ID))) + ")");
