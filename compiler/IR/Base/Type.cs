@@ -867,6 +867,9 @@ public sealed class InterfaceType(
     public Dictionary<string, NameRef> MemberDeclarations { get; } = new();
     public List<TypeParameterType> TypeParams { get; } = new();
 
+    /// <summary>Declared with <c>declare type</c>: a type the compiler builds itself, such as <c>Partial&lt;T&gt;</c>.</summary>
+    public bool IsIntrinsic { get; init; }
+
     /// <summary>
     /// Names of methods that carry a default implementation (a body). Implementing classes
     /// inherit these unless they override them, so they are not required to be implemented.
@@ -919,6 +922,8 @@ public sealed class InterfaceType(
 
     protected override TypeKey GenerateNewKey()
     {
+        if (IsIntrinsic) return $"intrinsic<{Name}>";
+
         return GenericDefinition == null
             ? $"interface<{Name}>"
             : $"interface<{Name}<{string.Join(", ", TypeArguments.Select(argument => argument.Key.Value))}>>";
@@ -1332,9 +1337,9 @@ public sealed partial class TypeTable
         return (ClassType)DeclareType(classType);
     }
 
-    public InterfaceType InterfaceOf(string name, List<InterfaceType>? baseInterfaces = null)
+    public InterfaceType InterfaceOf(string name, List<InterfaceType>? baseInterfaces = null, bool isIntrinsic = false)
     {
-        var interfaceType = new InterfaceType(name, baseInterfaces ?? []);
+        var interfaceType = new InterfaceType(name, baseInterfaces ?? []) { IsIntrinsic = isIntrinsic };
         return (InterfaceType)DeclareType(interfaceType);
     }
 

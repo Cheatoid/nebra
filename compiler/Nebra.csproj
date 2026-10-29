@@ -27,6 +27,7 @@
 
     <ItemGroup>
       <EmbeddedResource Include="stdlib\std.d.neb" />
+      <EmbeddedResource Include="stdlib\types.d.neb" />
       <EmbeddedResource Include="stdlib\http.d.neb" />
       <EmbeddedResource Include="stdlib\json.d.neb" />
       <EmbeddedResource Include="stdlib\fs.d.neb" />

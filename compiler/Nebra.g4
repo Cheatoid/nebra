@@ -463,6 +463,7 @@ matchPattern
 //   declare function type(v: any): string
 //   declare tostring: (any) -> string
 //   declare math: { abs: (number) -> number, pi: number }
+//   declare type Partial<T>
 //
 //   declare module "socket"
 //       function tcp(): Socket
@@ -485,6 +486,7 @@ declareBody
     | INTERFACE NAME typeParamList? (EXTENDS classRef (COMMA classRef)*)?
       declareInterfaceMember*
       END                                                        # DeclareInterface
+    | NAME NAME typeParamList                                    # DeclareIntrinsicType
     ;
 
 declareClassMember

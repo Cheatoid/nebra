@@ -319,8 +319,8 @@ public sealed class SemanticTokensHandler(NebraWorkspace workspace) : SemanticTo
     /// Highlights the contextual keywords the lexer reads as plain names: the <c>method</c> of an
     /// interface member, followed by the member's name and its parameter or type parameter list,
     /// the <c>operator</c> of a class member, followed by the operator it defines, the <c>from</c>
-    /// before an import's module, the <c>type</c> of an <c>import type</c> and the <c>sealed</c>
-    /// before <c>class</c>.
+    /// before an import's module, the <c>type</c> of an <c>import type</c> or a <c>declare type</c>
+    /// and the <c>sealed</c> before <c>class</c>.
     /// </summary>
     private static void CollectContextualKeywords(AnalysisResult result, Dictionary<(int, int), int> overrides)
     {
@@ -355,7 +355,10 @@ public sealed class SemanticTokensHandler(NebraWorkspace workspace) : SemanticTo
         if (tokens[index].Text == "from")
             return tokens[index + 1].Type is NebraLexer.NORMAL_STRING or NebraLexer.CHAR_STRING or NebraLexer.LONG_STRING;
 
-        return tokens[index].Text == "type" && index > 0 && tokens[index - 1].Type == NebraLexer.IMPORT
+        if (tokens[index].Text != "type" || index == 0) return false;
+        if (tokens[index - 1].Type == NebraLexer.DECLARE) return tokens[index + 1].Type == NebraLexer.NAME;
+
+        return tokens[index - 1].Type == NebraLexer.IMPORT
             && tokens[index + 1].Type is NebraLexer.LBRACE or NebraLexer.NAME or NebraLexer.STAR;
     }
 

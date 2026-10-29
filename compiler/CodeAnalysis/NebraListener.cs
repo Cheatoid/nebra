@@ -1561,6 +1561,18 @@ public interface INebraListener : IParseTreeListener {
 	/// <param name="context">The parse tree.</param>
 	void ExitDeclareInterface([NotNull] NebraParser.DeclareInterfaceContext context);
 	/// <summary>
+	/// Enter a parse tree produced by the <c>DeclareIntrinsicType</c>
+	/// labeled alternative in <see cref="NebraParser.declareBody"/>.
+	/// </summary>
+	/// <param name="context">The parse tree.</param>
+	void EnterDeclareIntrinsicType([NotNull] NebraParser.DeclareIntrinsicTypeContext context);
+	/// <summary>
+	/// Exit a parse tree produced by the <c>DeclareIntrinsicType</c>
+	/// labeled alternative in <see cref="NebraParser.declareBody"/>.
+	/// </summary>
+	/// <param name="context">The parse tree.</param>
+	void ExitDeclareIntrinsicType([NotNull] NebraParser.DeclareIntrinsicTypeContext context);
+	/// <summary>
 	/// Enter a parse tree produced by the <c>DeclareClassFieldMember</c>
 	/// labeled alternative in <see cref="NebraParser.declareClassMember"/>.
 	/// </summary>

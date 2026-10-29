@@ -70,6 +70,11 @@ public enum SymbolFlags
     /// only be used where a type is written.
     /// </summary>
     TypeImport = 1 << 8,
+    /// <summary>
+    /// The symbol names a type the compiler builds itself, declared with <c>declare type</c>, such
+    /// as <c>Partial</c>. A declaration of the same name takes its place instead of clashing with it.
+    /// </summary>
+    Intrinsic = 1 << 9,
 }
 
 /// <summary>

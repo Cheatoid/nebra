@@ -277,6 +277,9 @@ public sealed class HoverRenderer(AnalysisResult result, NebraWorkspace workspac
 
     private string InterfaceBody(InterfaceType interfaceType)
     {
+        if (interfaceType.IsIntrinsic)
+            return $"type {interfaceType.Name}<{string.Join(", ", interfaceType.TypeParams.Select(parameter => parameter.Name))}>";
+
         var header = "interface " + interfaceType.Name;
         if (interfaceType.BaseInterfaces.Count > 0) header += " extends " + string.Join(", ", interfaceType.BaseInterfaces.Select(iface => iface.Name));
 

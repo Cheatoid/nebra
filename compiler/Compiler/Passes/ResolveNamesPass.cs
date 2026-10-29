@@ -398,7 +398,10 @@ public sealed class ResolveNamesPass() : Pass(PassName, PassScope.PerFile)
             case InterfaceDecl interfaceDecl:
             {
                 pkg.Scopes.EnclosingScope(interfaceDecl.ID, out var scope);
-                ResolveNameRef(pc, interfaceDecl.Name, scope, pkg);
+                if (interfaceDecl.IsIntrinsic)
+                    ResolveNameRefForDecl(pc, interfaceDecl.Name, scope, pkg, interfaceDecl.ID);
+                else
+                    ResolveNameRef(pc, interfaceDecl.Name, scope, pkg);
                 foreach (var iface in interfaceDecl.BaseInterfaces)
                     ResolveNameRef(pc, iface, scope, pkg);
                 foreach (var method in interfaceDecl.Methods)

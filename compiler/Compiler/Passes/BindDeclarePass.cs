@@ -548,7 +548,9 @@ public sealed class BindDeclarePass() : Pass(PassName, PassScope.PerFile)
             }
             case InterfaceDecl interfaceDecl:
             {
-                if (!MergesIntoDeclaredInterface(ctx, scope, interfaceDecl))
+                if (interfaceDecl.IsIntrinsic)
+                    DeclareSymbol(ctx, scope, interfaceDecl.Name.Name, SymbolKind.Interface, interfaceDecl.ID, interfaceDecl.Name.Span, SymbolFlags.External, SymbolFlags.Intrinsic);
+                else if (!MergesIntoDeclaredInterface(ctx, scope, interfaceDecl))
                     DeclareSymbol(ctx, scope, interfaceDecl.Name.Name, SymbolKind.Interface, interfaceDecl.ID, interfaceDecl.Name.Span);
                 StampSide(ctx, scope, interfaceDecl.Name.Name, interfaceDecl.Annotations);
                 var ifaceScope = pkg.Scopes.NewScope(scope);
@@ -855,7 +857,8 @@ public sealed class BindDeclarePass() : Pass(PassName, PassScope.PerFile)
         return declaration.IsDeclare
                && pkg.Scopes.LookupOnlyCurrent(scope, declaration.Name.Name, out var existing)
                && pkg.Syms.GetByID(existing, out var symbol)
-               && symbol.Kind == SymbolKind.Interface;
+               && symbol.Kind == SymbolKind.Interface
+               && !symbol.Flags.HasFlag(SymbolFlags.Intrinsic);
     }
 
     private static void DeclareSymbol(PassContext ctx, ScopeID scope, string name, SymbolKind kind, NodeID decl, params SymbolFlags[] flags)

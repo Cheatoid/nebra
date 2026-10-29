@@ -1470,6 +1470,17 @@ public partial class NebraBaseVisitor<Result> : AbstractParseTreeVisitor<Result>
 	/// <return>The visitor result.</return>
 	public virtual Result VisitDeclareInterface([NotNull] NebraParser.DeclareInterfaceContext context) { return VisitChildren(context); }
 	/// <summary>
+	/// Visit a parse tree produced by the <c>DeclareIntrinsicType</c>
+	/// labeled alternative in <see cref="NebraParser.declareBody"/>.
+	/// <para>
+	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
+	/// on <paramref name="context"/>.
+	/// </para>
+	/// </summary>
+	/// <param name="context">The parse tree.</param>
+	/// <return>The visitor result.</return>
+	public virtual Result VisitDeclareIntrinsicType([NotNull] NebraParser.DeclareIntrinsicTypeContext context) { return VisitChildren(context); }
+	/// <summary>
 	/// Visit a parse tree produced by the <c>DeclareClassFieldMember</c>
 	/// labeled alternative in <see cref="NebraParser.declareClassMember"/>.
 	/// <para>

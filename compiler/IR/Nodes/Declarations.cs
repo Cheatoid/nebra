@@ -181,4 +181,10 @@ public sealed class InterfaceDecl(
     /// <summary>Parallel to <see cref="BaseInterfaces"/>: type arguments for each extended interface.</summary>
     public List<List<TypeArgRef>> BaseInterfaceTypeArgs { get; set; } = [];
     public List<Annotation> Annotations { get; set; } = [];
+
+    /// <summary>
+    /// Written <c>declare type Name&lt;T&gt;</c>: a type the compiler builds itself, such as
+    /// <c>Partial&lt;T&gt;</c>, declared so it can be found, completed and documented.
+    /// </summary>
+    public bool IsIntrinsic { get; set; }
 }

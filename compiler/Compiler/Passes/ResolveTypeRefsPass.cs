@@ -148,7 +148,7 @@ public class ResolveTypeRefsPass() : Pass(PassName, PassScope.PerBuild)
         if (!pkg.Syms.GetByID(decl.Name.Sym, out var sym)) return;
         if (sym.Type != TypID.Invalid) return;
 
-        var interfaceType = pkg.Types.InterfaceOf(decl.Name.Name);
+        var interfaceType = pkg.Types.InterfaceOf(decl.Name.Name, isIntrinsic: decl.IsIntrinsic);
         interfaceType.ReflectionId = $"{ReflectNamespace(pkg, decl, decl.Name)}::{decl.Name.Name}";
         interfaceType.DeclaredAt ??= decl.Name;
         pkg.Syms.SetType(decl.Name.Sym, interfaceType.ID);
@@ -804,6 +804,14 @@ public class ResolveTypeRefsPass() : Pass(PassName, PassScope.PerBuild)
         ["Omit"] = (UtilityKind.Omit, 2),
     };
 
+    /// <summary>Whether <paramref name="symbol"/> names a type declared with <c>declare type</c>, such as the standard library's <c>Partial</c>.</summary>
+    private bool IsIntrinsicType(TypeTable tt, SymID symbol)
+    {
+        return _pkg.Syms.GetByID(symbol, out var declared)
+            && tt.GetByID(declared.Type, out var type)
+            && type is InterfaceType { IsIntrinsic: true };
+    }
+
     /// <summary>Resolves a utility type such as <c>Partial&lt;User&gt;</c> or <c>Pick&lt;User, "name"&gt;</c>.</summary>
     private Type ResolveUtilityType(TypeTable tt, GenericTypeRef reference, UtilityKind kind, int arity)
     {
@@ -901,11 +909,14 @@ public class ResolveTypeRefsPass() : Pass(PassName, PassScope.PerBuild)
 
         if (tr is GenericTypeRef gtr)
         {
-            if (!LookupTypeName(lookupScope, gtr.Name.Name, out var gSym)
-                && UtilityTypes.TryGetValue(gtr.Name.Name, out var utility))
+            var found = LookupTypeName(lookupScope, gtr.Name.Name, out var gSym);
+            if (UtilityTypes.TryGetValue(gtr.Name.Name, out var utility) && (!found || IsIntrinsicType(tt, gSym)))
+            {
+                if (found) gtr.Name.Sym = gSym;
                 return ResolveUtilityType(tt, gtr, utility.Kind, utility.Arity);
+            }
 
-            if (!LookupTypeName(lookupScope, gtr.Name.Name, out gSym)
+            if (!found
                 || !_pkg.Syms.GetByID(gSym, out var gsym)
                 || gsym.Type == TypID.Invalid
                 || !tt.GetByID(gsym.Type, out var gDefType))

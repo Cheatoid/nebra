@@ -1,4 +1,5 @@
 ﻿using Antlr4.Runtime;
+using Nebra.Diagnostics;
 
 namespace Nebra.IR;
 
@@ -390,6 +391,18 @@ internal partial class IRVisitor
         ifaceDecl.TypeParams = typeParams;
         ifaceDecl.BaseInterfaceTypeArgs = baseInterfaceTypeArgs;
         return ifaceDecl;
+    }
+
+    public override Node VisitDeclareIntrinsicType(NebraParser.DeclareIntrinsicTypeContext context)
+    {
+        var keyword = context.NAME(0);
+        if (keyword.GetText() != "type")
+            diag.Report(SpanFromTerm(keyword), DiagnosticCode.ErrUnexpectedToken, $"unexpected `{keyword.GetText()}`; a built-in type is declared with `declare type`");
+
+        var declaration = new InterfaceDecl(NewNodeID, SpanFromCtx(context), NameRefFromTerm(context.NAME(1)), [], [], [], isDeclare: true);
+        declaration.TypeParams = VisitTypeParamListContent(context.typeParamList());
+        declaration.IsIntrinsic = true;
+        return declaration;
     }
 
     public override Node VisitModuleDeclareClass(NebraParser.ModuleDeclareClassContext context)

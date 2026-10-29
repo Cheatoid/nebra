@@ -931,6 +931,13 @@ public interface INebraVisitor<Result> : IParseTreeVisitor<Result> {
 	/// <return>The visitor result.</return>
 	Result VisitDeclareInterface([NotNull] NebraParser.DeclareInterfaceContext context);
 	/// <summary>
+	/// Visit a parse tree produced by the <c>DeclareIntrinsicType</c>
+	/// labeled alternative in <see cref="NebraParser.declareBody"/>.
+	/// </summary>
+	/// <param name="context">The parse tree.</param>
+	/// <return>The visitor result.</return>
+	Result VisitDeclareIntrinsicType([NotNull] NebraParser.DeclareIntrinsicTypeContext context);
+	/// <summary>
 	/// Visit a parse tree produced by the <c>DeclareClassFieldMember</c>
 	/// labeled alternative in <see cref="NebraParser.declareClassMember"/>.
 	/// </summary>

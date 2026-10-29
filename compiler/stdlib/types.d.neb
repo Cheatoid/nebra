@@ -1,0 +1,31 @@
+-- The utility types the compiler builds from the fields of a struct, class or interface.
+-- Each is declared here so it can be found, completed and documented; what it stands for is
+-- worked out by the compiler.
+
+--- Every field of the struct, class or interface `T`, each made optional.
+---
+--- ```nebra
+--- local changes: Partial<User> = { name = "Ada" }
+--- ```
+declare type Partial<T>
+
+--- Every field of the struct, class or interface `T`, each without `nil`.
+---
+--- ```nebra
+--- local complete: Required<Options> = { verbose = true, depth = 2 }
+--- ```
+declare type Required<T>
+
+--- The fields of the struct, class or interface `T` that `K` names: one name or a union of names.
+---
+--- ```nebra
+--- local preview: Pick<User, "name" | "email"> = { name = "Ada", email = "ada@example.com" }
+--- ```
+declare type Pick<T, K>
+
+--- Every field of the struct, class or interface `T` but those `K` names: one name or a union of names.
+---
+--- ```nebra
+--- local draft: Omit<User, "id"> = { name = "Ada", email = "ada@example.com" }
+--- ```
+declare type Omit<T, K>

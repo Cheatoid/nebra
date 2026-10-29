@@ -56,6 +56,24 @@ public sealed class UtilityTypeTests
         Assert.Empty(Build("class Partial<T>\n    value: T\n\n    constructor(value: T)\n        self.value = value\n    end\nend\n\nlocal boxed: Partial<number> = new Partial(1)\nprint(boxed.value)\n").Errors);
     }
 
+    [Theory]
+    [InlineData("interface Pick\n    value: number\nend\n\nlocal picked: Pick = { value = 1 }\nprint(picked.value)\n")]
+    [InlineData("declare interface Omit\n    value: number\nend\n\ndeclare omitted: Omit\nprint(omitted.value)\n")]
+    public void AnInterfaceOfTheSameNameTakesThePlaceOfTheDeclaredUtilityType(string source)
+    {
+        Assert.Empty(Build(source).Errors);
+    }
+
+    [Fact]
+    public void ABuiltInTypeIsDeclaredWithDeclareType()
+    {
+        var build = ProjectBuild.Run(_ => { }, ("src/types.d.neb", "declare kind Wrapped<T>\n"), ("src/main.neb", "print(1)\n"));
+
+        var error = Assert.Single(build.Errors);
+        Assert.Equal(DiagnosticCode.ErrUnexpectedToken, error.Code);
+        Assert.Contains("declare type", error.Message);
+    }
+
     [Fact]
     public void GeneratedDeclarationsKeepUtilityTypesAsWritten()
     {

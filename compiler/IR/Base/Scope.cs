@@ -61,6 +61,18 @@ public sealed class Scope(ScopeID id, ScopeID parent)
         syms.Add(sym);
     }
 
+    /// <summary>Adds a symbol in front of those already declared under <paramref name="name"/>, so lookups find it first.</summary>
+    public void AddSymbolFirst(string name, SymID sym)
+    {
+        if (!Symbols.TryGetValue(name, out var syms))
+        {
+            syms = [];
+            Symbols[name] = syms;
+        }
+
+        syms.Insert(0, sym);
+    }
+
     /// <summary>
     /// Returns the list of symbol IDs associated with the specified name in the scope, if any. If the name does not exist in
     /// the scope, this method returns false and sets the output parameter to an empty list. 
@@ -207,6 +219,18 @@ public sealed class ScopeGraph
 
         if (SymbolsIn(sc, name) is { } existingSyms)
         {
+            if (newSymbol.Flags.HasFlag(SymbolFlags.Intrinsic))
+            {
+                sc.AddSymbol(name, sym);
+                return true;
+            }
+
+            if (existingSyms.All(existing => arena.GetByID(existing, out var existingSymbol) && existingSymbol.Flags.HasFlag(SymbolFlags.Intrinsic)))
+            {
+                sc.AddSymbolFirst(name, sym);
+                return true;
+            }
+
             if (newSymbol.Kind == SymbolKind.Function)
             {
                 foreach (var existingSymID in existingSyms)

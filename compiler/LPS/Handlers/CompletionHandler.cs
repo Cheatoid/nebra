@@ -59,7 +59,34 @@ public sealed class CompletionHandler(NebraWorkspace workspace) : CompletionHand
                 return new CompletionList(WithCallParentheses(memberItems, result, request.Position));
             }
 
-            var typeContext = IsTypeAnnotationContext(result, request.Position);
+            var lineText = LineText(result, request.Position.Line);
+            var typePosition = TypePositionAtCursor.Find(lineText, request.Position.Character);
+            var typeContext = typePosition != null;
+            var openString = TypePositionAtCursor.OpenStringStart(lineText, Math.Min(request.Position.Character, lineText.Length));
+
+            var node = NodeFinder.Find(result.Hir, line, col);
+            var scopeId = result.Package.Root;
+            if (node != null)
+                result.Scopes.EnclosingScope(node.ID, out scopeId);
+
+            var symbols = workspace.CollectVisibleSymbols(result, scopeId);
+
+            if (typePosition?.KeysOf is { } keysOf && FieldNameItems(result, symbols, keysOf, lineText, request.Position) is { Count: > 0 } keyItems)
+                return new CompletionList(keyItems);
+            if (typeContext && openString != null)
+                return new CompletionList();
+
+            var expected = typeContext ? null : ExpectedTypeAtCursor.Find(result, line, openString is { } quote ? quote + 1 : col, symbols);
+            if (expected != null)
+            {
+                var literals = LiteralCompletion.ValuesOf(expected, result.Types);
+                if (literals.Count > 0)
+                {
+                    var literalItems = LiteralCompletion.Items(literals, workspace.FormatType(result.Types, expected.ID), lineText, request.Position);
+                    if (openString != null) return new CompletionList(literalItems);
+                    items.AddRange(literalItems);
+                }
+            }
 
             if (!typeContext)
             {
@@ -74,7 +101,8 @@ public sealed class CompletionHandler(NebraWorkspace workspace) : CompletionHand
             }
             else
             {
-                foreach (var prim in new[] { "string", "number", "boolean", "any", "void", "nil", "never", "thread", "userdata" })
+                items.Add(new CompletionItem { Label = "keyof", Kind = CompletionItemKind.Keyword });
+                foreach (var prim in new[] { "string", "number", "boolean", "any", "void", "nil", "never", "function", "thread", "userdata" })
                 {
                     items.Add(new CompletionItem
                     {
@@ -89,12 +117,6 @@ public sealed class CompletionHandler(NebraWorkspace workspace) : CompletionHand
             if (containingClass != null && !typeContext)
                 AppendSelfMemberSnippets(result, containingClass, items);
 
-            var node = NodeFinder.Find(result.Hir, line, col);
-            var scopeId = result.Package.Root;
-            if (node != null)
-                result.Scopes.EnclosingScope(node.ID, out scopeId);
-
-            var symbols = workspace.CollectVisibleSymbols(result, scopeId);
             var symbolTypes = new Dictionary<string, NebraType>(StringComparer.Ordinal);
             foreach (var sym in symbols)
             {
@@ -119,7 +141,12 @@ public sealed class CompletionHandler(NebraWorkspace workspace) : CompletionHand
             var visible = symbols.Select(sym => sym.Name).ToHashSet(StringComparer.Ordinal);
             items.AddRange(AutoImportCompletion.Items(result, workspace.LatestSnapshotFor(result.FilePath), request.Position, typeContext, visible));
 
-            if (!typeContext && ExpectedTypeAtCursor.Find(result, line, col, symbols) is { } expected)
+            if (typeContext)
+            {
+                items = WithTypeArguments(items, result, symbols, lineText, request.Position);
+            }
+
+            if (expected != null)
             {
                 items = RankByExpectedType(items, expected, symbolTypes, symbols);
             }
@@ -170,7 +197,11 @@ public sealed class CompletionHandler(NebraWorkspace workspace) : CompletionHand
             })
             .ToList();
 
-        var ranked = items.Select(item => item with { SortText = RankOf(item, expected, symbolTypes) + item.Label, Preselect = members.Count == 0 && item.Preselect });
+        var ranked = items.Select(item => item with
+        {
+            SortText = item.SortText ?? RankOf(item, expected, symbolTypes) + item.Label,
+            Preselect = members.Count == 0 && item.Preselect
+        });
         return members.Concat(ranked).ToList();
     }
 
@@ -351,32 +382,53 @@ public sealed class CompletionHandler(NebraWorkspace workspace) : CompletionHand
         }
     }
 
-    /// <summary>
-    /// Checks whether the cursor sits in a type-annotation position, i.e. the prefix on the
-    /// current line ends with <c>:</c> (optionally followed by whitespace and a partial name)
-    /// inside a context where a type is expected — variable declarations, parameters, and
-    /// function return types. Used to filter completion to types only.
-    /// </summary>
-    private static bool IsTypeAnnotationContext(AnalysisResult result, Position pos)
+    private static string LineText(AnalysisResult result, int line)
     {
         var lines = result.SourceText.Split('\n');
-        if (pos.Line < 0 || pos.Line >= lines.Length) return false;
-        var lineText = lines[pos.Line].TrimEnd('\r');
-        var cursor = Math.Min(pos.Character, lineText.Length);
+        return line >= 0 && line < lines.Length ? lines[line].TrimEnd('\r') : "";
+    }
 
-        var i = cursor;
-        while (i > 0 && (char.IsLetterOrDigit(lineText[i - 1]) || lineText[i - 1] == '_')) i--;
-        while (i > 0 && lineText[i - 1] == ' ') i--;
+    /// <summary>
+    /// The field names of the type <paramref name="typeText"/> names, as string literals: the keys
+    /// of <c>Pick&lt;User, |&gt;</c>, <c>Omit&lt;User, |&gt;</c> and <c>User[|]</c>.
+    /// </summary>
+    private List<CompletionItem>? FieldNameItems(AnalysisResult result, IReadOnlyList<Symbol> visible, string typeText, string lineText, Position position)
+    {
+        var name = typeText.Split('<')[0].Trim();
+        var symbol = visible.FirstOrDefault(candidate => candidate.Name == name && IsTypeKind(DeclaredKind(result, candidate)));
+        if (symbol == null || !result.Types.GetByID(symbol.Type, out var shape)) return null;
 
-        if (i <= 0) return false;
-        var c = lineText[i - 1];
-        if (c != ':') return false;
+        return LiteralCompletion.Items(LiteralCompletion.FieldNamesOf(shape), $"field of {name}", lineText, position);
+    }
 
-        var prefix = lineText[..(i - 1)];
-        var trimmed = prefix.TrimEnd();
-        if (trimmed.EndsWith("::")) return false;
+    /// <summary>
+    /// Completes a generic class or interface in a type position with its type argument list, the
+    /// cursor inside it, unless a <c>&lt;</c> already follows the cursor.
+    /// </summary>
+    private static List<CompletionItem> WithTypeArguments(List<CompletionItem> items, AnalysisResult result, IReadOnlyList<Symbol> visible, string lineText, Position position)
+    {
+        var rest = lineText[Math.Min(position.Character, lineText.Length)..];
+        if (rest.TrimStart().StartsWith('<')) return items;
 
-        return true;
+        var generic = visible
+            .Where(symbol => result.Types.GetByID(symbol.Type, out var type) && TypeParameterCount(type) > 0)
+            .Select(symbol => symbol.Name)
+            .ToHashSet(StringComparer.Ordinal);
+
+        return items.Select(item => generic.Contains(item.Label) && item.InsertText == null && item.TextEdit == null
+                ? item with { InsertText = $"{item.Label}<$0>", InsertTextFormat = InsertTextFormat.Snippet }
+                : item)
+            .ToList();
+    }
+
+    private static int TypeParameterCount(NebraType type)
+    {
+        return type switch
+        {
+            ClassType classType => classType.TypeParams.Count,
+            InterfaceType interfaceType => interfaceType.TypeParams.Count,
+            _ => 0,
+        };
     }
 
     /// <summary>
