@@ -23,33 +23,8 @@ public sealed record TypePositionAtCursor(string? KeysOf)
     public static TypePositionAtCursor? Find(string lineText, int character)
     {
         var cursor = Math.Clamp(character, 0, lineText.Length);
-        var start = OpenStringStart(lineText, cursor) ?? WordStart(lineText, cursor);
+        var start = StringAtCursor.OpenStringStart(lineText, cursor) ?? WordStart(lineText, cursor);
         return Before(lineText, start);
-    }
-
-    /// <summary>The offset of the quote opening a string left open before <paramref name="cursor"/>, or <c>null</c>.</summary>
-    public static int? OpenStringStart(string lineText, int cursor)
-    {
-        int? open = null;
-        for (var i = 0; i < cursor; i++)
-        {
-            var character = lineText[i];
-            if (open is { } quote)
-            {
-                if (character == '\\')
-                {
-                    i++;
-                    continue;
-                }
-
-                if (character == lineText[quote]) open = null;
-                continue;
-            }
-
-            if (character is '"' or '\'') open = i;
-        }
-
-        return open;
     }
 
     private static int WordStart(string text, int end)

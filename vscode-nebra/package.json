@@ -68,7 +68,10 @@
       {
         "language": "nebra",
         "scopeName": "source.nebra",
-        "path": "./syntaxes/nebra.tmLanguage.json"
+        "path": "./syntaxes/nebra.tmLanguage.json",
+        "tokenTypes": {
+          "meta.template.expression": "other"
+        }
       }
     ],
     "commands": [

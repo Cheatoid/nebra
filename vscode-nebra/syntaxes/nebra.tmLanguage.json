@@ -78,7 +78,8 @@
           "patterns": [
             { "include": "#string-escapes" },
             {
-              "name": "meta.interpolation.nebra",
+              "name": "meta.template.expression.nebra",
+              "contentName": "meta.embedded.line.nebra",
               "begin": "\\{",
               "end": "\\}",
               "beginCaptures": {

@@ -114,7 +114,8 @@ internal partial class IRVisitor
                 }
 
                 var exprSource = raw[start..j];
-                var parsed = ParseInterpolationExpr(exprSource, span);
+                var position = InterpolatedText.PositionOf(context.GetText(), start + 1, context.Start.Line, context.Start.Column);
+                var parsed = ParseInterpolationExpr(exprSource, position);
                 if (parsed != null)
                     parts.Add(new InterpExprPart(span, parsed));
 
@@ -132,12 +133,15 @@ internal partial class IRVisitor
         return new InterpolatedStringExpr(NewNodeID, span, parts);
     }
 
-    private Expr? ParseInterpolationExpr(string exprSource, TextSpan span)
+    /// <summary>Parses the code between the braces of an interpolated string, placed at <paramref name="position"/> in the file.</summary>
+    private Expr? ParseInterpolationExpr(string exprSource, (int Line, int Column) position)
     {
         try
         {
             var input = new Antlr4.Runtime.AntlrInputStream(exprSource);
             var lexer = new NebraLexer(input);
+            lexer.Line = position.Line;
+            lexer.Column = position.Column;
             lexer.RemoveErrorListeners();
             var tokens = new Antlr4.Runtime.CommonTokenStream(lexer);
             var parser = new NebraParser(tokens);

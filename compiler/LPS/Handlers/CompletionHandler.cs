@@ -21,6 +21,12 @@ public sealed class CompletionHandler(NebraWorkspace workspace) : CompletionHand
         "defer", "guard", "continue", "try", "catch", "finally"
     ];
 
+    /// <summary>The keywords an expression can use, offered between the braces of an interpolated string.</summary>
+    private static readonly string[] ExpressionKeywords =
+    [
+        "and", "or", "not", "nil", "true", "false", "function", "new", "await", "typeof", "instanceof", "match", "as", "super"
+    ];
+
     public override async Task<CompletionList> Handle(CompletionParams request, CancellationToken ct)
     {
         var items = new List<CompletionItem>();
@@ -62,7 +68,10 @@ public sealed class CompletionHandler(NebraWorkspace workspace) : CompletionHand
             var lineText = LineText(result, request.Position.Line);
             var typePosition = TypePositionAtCursor.Find(lineText, request.Position.Character);
             var typeContext = typePosition != null;
-            var openString = TypePositionAtCursor.OpenStringStart(lineText, Math.Min(request.Position.Character, lineText.Length));
+            var stringAtCursor = StringAtCursor.Find(lineText, request.Position.Character);
+            var openString = stringAtCursor.OpenStart;
+            if (openString is { } template && lineText[template] == '`')
+                return new CompletionList();
 
             var node = NodeFinder.Find(result.Hir, line, col);
             var scopeId = result.Package.Root;
@@ -76,7 +85,7 @@ public sealed class CompletionHandler(NebraWorkspace workspace) : CompletionHand
             if (typeContext && openString != null)
                 return new CompletionList();
 
-            var expected = typeContext ? null : ExpectedTypeAtCursor.Find(result, line, openString is { } quote ? quote + 1 : col, symbols);
+            var expected = typeContext || stringAtCursor.InInterpolation ? null : ExpectedTypeAtCursor.Find(result, line, openString is { } quote ? quote + 1 : col, symbols);
             if (expected != null)
             {
                 var literals = LiteralCompletion.ValuesOf(expected, result.Types);
@@ -90,7 +99,7 @@ public sealed class CompletionHandler(NebraWorkspace workspace) : CompletionHand
 
             if (!typeContext)
             {
-                foreach (var kw in Keywords)
+                foreach (var kw in stringAtCursor.InInterpolation ? ExpressionKeywords : Keywords)
                 {
                     items.Add(new CompletionItem
                     {

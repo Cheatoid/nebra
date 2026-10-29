@@ -54,8 +54,11 @@ public sealed class SemanticTokensHandler(NebraWorkspace workspace) : SemanticTo
         var semanticOverrides = BuildSemanticOverrides(result);
 
         result.TokenStream.Fill();
-        var tokens = result.TokenStream.GetTokens();
+        PushTokens(builder, result.TokenStream.GetTokens(), semanticOverrides);
+    }
 
+    private static void PushTokens(SemanticTokensBuilder builder, IList<IToken> tokens, Dictionary<(int Line, int Col), int> semanticOverrides)
+    {
         var code = tokens.Where(token => token.Channel == 0).ToList();
         var positions = code.Select((token, index) => (token, index)).ToDictionary(entry => entry.token.TokenIndex, entry => entry.index);
         foreach (var token in tokens)
@@ -63,6 +66,12 @@ public sealed class SemanticTokensHandler(NebraWorkspace workspace) : SemanticTo
             if (token.Type == -1) continue;
             if (token.Channel != 0 && token.Type != NebraLexer.LONG_COMMENT && token.Type != NebraLexer.LINE_COMMENT)
                 continue;
+
+            if (token.Type == NebraLexer.INTERP_STRING)
+            {
+                PushInterpolation(builder, token, semanticOverrides);
+                continue;
+            }
 
             var line = token.Line - 1;
             var col = token.Column;
@@ -82,8 +91,24 @@ public sealed class SemanticTokensHandler(NebraWorkspace workspace) : SemanticTo
 
             builder.Push(line, col, length, typeIndex, 0);
         }
+    }
 
-        return;
+    /// <summary>
+    /// Highlights the code between the braces of an interpolated string like code written outside
+    /// one. The text around it is left to the grammar, which shows it as a string.
+    /// </summary>
+    private static void PushInterpolation(SemanticTokensBuilder builder, IToken token, Dictionary<(int Line, int Col), int> semanticOverrides)
+    {
+        var text = token.Text;
+        foreach (var (start, end) in InterpolatedText.CodeRanges(text))
+        {
+            var position = InterpolatedText.PositionOf(text, start, token.Line, token.Column);
+            var lexer = new NebraLexer(new AntlrInputStream(text[start..end])) { Line = position.Line, Column = position.Column };
+            lexer.RemoveErrorListeners();
+            var stream = new CommonTokenStream(lexer);
+            stream.Fill();
+            PushTokens(builder, stream.GetTokens(), semanticOverrides);
+        }
     }
 
     protected override Task<SemanticTokensDocument> GetSemanticTokensDocument(

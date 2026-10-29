@@ -50,7 +50,7 @@ public static class LiteralCompletion
     /// <summary>The range of the string left open before the cursor, its closing quote included when it follows the cursor.</summary>
     private static Range? StringRange(string lineText, int line, int cursor)
     {
-        if (TypePositionAtCursor.OpenStringStart(lineText, cursor) is not { } quote) return null;
+        if (StringAtCursor.OpenStringStart(lineText, cursor) is not { } quote) return null;
 
         var end = cursor < lineText.Length && lineText[cursor] == lineText[quote] ? cursor + 1 : cursor;
         return new Range(new Position(line, quote), new Position(line, end));
