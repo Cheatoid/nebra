@@ -196,7 +196,7 @@
         },
         {
           "name": "storage.modifier.nebra",
-          "match": "\\b(local|mut|const|static|protected|abstract|override|declare|meta)\\b"
+          "match": "\\b(local|mut|const|static|protected|abstract|override|declare|meta|sealed)\\b"
         },
         {
           "name": "storage.type.nebra",
@@ -223,7 +223,7 @@
           "match": "\\b(string|number|boolean|any|void|never)\\b"
         },
         {
-          "match": "(:)\\s*([A-Za-z_]\\w*)",
+          "match": "(:)\\s*(?!keyof\\b)([A-Za-z_]\\w*)",
           "captures": {
             "1": { "name": "punctuation.separator.type.nebra" },
             "2": { "name": "entity.name.type.nebra" }

@@ -17,7 +17,7 @@ public sealed class CompletionHandler(NebraWorkspace workspace) : CompletionHand
         "repeat", "return", "then", "true", "until", "while",
         "as", "async", "await", "case", "class", "constructor", "declare", "export", "extends", "from",
         "abstract", "implements", "import", "interface", "match", "meta", "module", "mut", "new", "override",
-        "protected", "static", "super", "when", "typeof", "instanceof", "keyof",
+        "protected", "sealed", "static", "super", "when", "typeof", "instanceof", "keyof",
         "defer", "guard", "continue", "try", "catch", "finally"
     ];
 

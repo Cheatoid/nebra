@@ -56,6 +56,8 @@ public sealed class SemanticTokensHandler(NebraWorkspace workspace) : SemanticTo
         result.TokenStream.Fill();
         var tokens = result.TokenStream.GetTokens();
 
+        var code = tokens.Where(token => token.Channel == 0).ToList();
+        var positions = code.Select((token, index) => (token, index)).ToDictionary(entry => entry.token.TokenIndex, entry => entry.index);
         foreach (var token in tokens)
         {
             if (token.Type == -1) continue;
@@ -75,6 +77,7 @@ public sealed class SemanticTokensHandler(NebraWorkspace workspace) : SemanticTo
             }
 
             var typeIndex = ClassifyToken(token.Type);
+            if (typeIndex == 0 && positions.TryGetValue(token.TokenIndex, out var position) && IsMemberName(code, position)) typeIndex = 4;
             if (typeIndex < 0) continue;
 
             builder.Push(line, col, length, typeIndex, 0);
@@ -259,6 +262,21 @@ public sealed class SemanticTokensHandler(NebraWorkspace workspace) : SemanticTo
         }
     }
 
+    /// <summary>
+    /// Whether the token at <paramref name="index"/> names a member, as the <c>catch</c> of
+    /// <c>promise.catch</c> or <c>promise:catch(...)</c> does: a keyword written there is a plain
+    /// name. After <c>:</c> only a method call with parentheses or a string is one, since a type
+    /// annotation follows a colon too and may go on with a table type, as <c>key: keyof { ... }</c> does.
+    /// </summary>
+    private static bool IsMemberName(List<IToken> code, int index)
+    {
+        if (index == 0) return false;
+        var before = code[index - 1].Type;
+        if (before is NebraLexer.DOT or NebraLexer.QDOT) return true;
+        if (before != NebraLexer.COLON || index + 1 >= code.Count) return false;
+        return code[index + 1].Type is NebraLexer.LPAREN or NebraLexer.NORMAL_STRING or NebraLexer.CHAR_STRING or NebraLexer.LONG_STRING;
+    }
+
     private static int ClassifyToken(int type)
     {
         return type switch
@@ -275,8 +293,9 @@ public sealed class SemanticTokensHandler(NebraWorkspace workspace) : SemanticTo
                 or NebraLexer.EXTENDS or NebraLexer.EXTEND or NebraLexer.IMPLEMENTS or NebraLexer.CONSTRUCTOR
                 or NebraLexer.STATIC or NebraLexer.NEW or NebraLexer.SUPER
                 or NebraLexer.ABSTRACT or NebraLexer.OVERRIDE or NebraLexer.PROTECTED
-                or NebraLexer.TYPEOF or NebraLexer.INSTANCEOF
+                or NebraLexer.TYPEOF or NebraLexer.INSTANCEOF or NebraLexer.KEYOF
                 or NebraLexer.DEFER or NebraLexer.GUARD or NebraLexer.CONTINUE
+                or NebraLexer.TRY or NebraLexer.CATCH or NebraLexer.FINALLY
                 => 0, // keyword
 
             NebraLexer.NORMAL_STRING or NebraLexer.CHAR_STRING or NebraLexer.LONG_STRING
@@ -300,7 +319,8 @@ public sealed class SemanticTokensHandler(NebraWorkspace workspace) : SemanticTo
     /// Highlights the contextual keywords the lexer reads as plain names: the <c>method</c> of an
     /// interface member, followed by the member's name and its parameter or type parameter list,
     /// the <c>operator</c> of a class member, followed by the operator it defines, the <c>from</c>
-    /// before an import's module and the <c>type</c> of an <c>import type</c>.
+    /// before an import's module, the <c>type</c> of an <c>import type</c> and the <c>sealed</c>
+    /// before <c>class</c>.
     /// </summary>
     private static void CollectContextualKeywords(AnalysisResult result, Dictionary<(int, int), int> overrides)
     {
@@ -311,10 +331,16 @@ public sealed class SemanticTokensHandler(NebraWorkspace workspace) : SemanticTo
         {
             var keyword = tokens[index];
             if (keyword.Type != NebraLexer.NAME) continue;
-            if (!IsMethodKeyword(tokens, index) && !IsOperatorKeyword(tokens, index) && !IsImportKeyword(tokens, index)) continue;
+            if (!IsMethodKeyword(tokens, index) && !IsOperatorKeyword(tokens, index) && !IsImportKeyword(tokens, index)
+                && !IsSealedKeyword(tokens, index)) continue;
 
             overrides[(keyword.Line - 1, keyword.Column)] = 0;
         }
+    }
+
+    private static bool IsSealedKeyword(List<IToken> tokens, int index)
+    {
+        return tokens[index].Text == "sealed" && tokens[index + 1].Type == NebraLexer.CLASS;
     }
 
     private static bool IsMethodKeyword(List<IToken> tokens, int index)
