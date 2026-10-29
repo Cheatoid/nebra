@@ -28,7 +28,7 @@ public sealed class ResolveLibsPass() : Pass(PassName, PassScope.PerBuild)
 
     private void LoadDeclarationFiles(PassContext context)
     {
-        LoadEmbeddedStdlibDeclarations(context);
+        LoadEmbeddedStdlibDeclarations(context, StdlibFilesInSource(context));
 
         var baseDir = context.Config.ProjectRoot;
 
@@ -135,7 +135,7 @@ public sealed class ResolveLibsPass() : Pass(PassName, PassScope.PerBuild)
     /// The base Lua type definitions in <c>std.d.neb</c> can be partially or
     /// fully suppressed via the <c>[stdlib]</c> section of <c>nebra.toml</c>.
     /// </summary>
-    private static void LoadEmbeddedStdlibDeclarations(PassContext context)
+    private static void LoadEmbeddedStdlibDeclarations(PassContext context, HashSet<string> inSource)
     {
         var stdlib = context.Config.Stdlib;
         var disabled = stdlib.Disabled.Count > 0
@@ -148,6 +148,7 @@ public sealed class ResolveLibsPass() : Pass(PassName, PassScope.PerBuild)
             if (!name.EndsWith(".d.neb", StringComparison.OrdinalIgnoreCase)) continue;
 
             var logicalName = ExtractLogicalName(name);
+            if (inSource.Contains(logicalName)) continue;
             var isStd = string.Equals(logicalName, StdLogicalName, StringComparison.OrdinalIgnoreCase);
             if (isStd && !stdlib.Enabled) continue;
 
@@ -169,6 +170,20 @@ public sealed class ResolveLibsPass() : Pass(PassName, PassScope.PerBuild)
 
             LoadDeclSource(context, $"<stdlib>/{logicalName}", source, isStd ? disabled : null);
         }
+    }
+
+    /// <summary>
+    /// The files of the standard library the project's sources hold themselves, under a directory
+    /// named <c>stdlib</c>, as the compiler's own repository does. They take the place of the
+    /// embedded copies, so editing one is checked against itself instead of declaring its names twice.
+    /// </summary>
+    private static HashSet<string> StdlibFilesInSource(PassContext context)
+    {
+        return SourceDeclarationFiles(context)
+            .Where(file => string.Equals(Path.GetFileName(Path.GetDirectoryName(file)), "stdlib", StringComparison.Ordinal))
+            .Select(Path.GetFileName)
+            .OfType<string>()
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
     }
 
     private static string ExtractLogicalName(string resourceName)

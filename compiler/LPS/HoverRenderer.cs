@@ -32,6 +32,11 @@ public sealed class HoverRenderer(AnalysisResult result, NebraWorkspace workspac
             return Render(new HoverText(Body(ownType), origin.Side, doc, ownType));
         }
 
+        if (node is DeclareModuleDecl module)
+        {
+            return Render(new HoverText(ModuleSummary(module), origin.Side, doc));
+        }
+
         result.Types.GetByID(effectiveType, out var shownType);
         if (origin.Kind == SymbolKind.Function && ownType is FunctionType function)
         {
@@ -372,6 +377,21 @@ public sealed class HoverRenderer(AnalysisResult result, NebraWorkspace workspac
             NilLiteralExpr => "nil",
             _ => "..."
         };
+    }
+
+    /// <summary>A declared module as it is written, with the names of what it declares.</summary>
+    private static string ModuleSummary(DeclareModuleDecl module)
+    {
+        var members = module.Members.Select(member => member switch
+        {
+            DeclareFunctionDecl function => $"function {string.Join(".", function.NamePath.Select(name => name.Name))}",
+            DeclareVariableDecl variable => variable.Name.Name,
+            ClassDecl classDecl => $"class {classDecl.Name.Name}",
+            InterfaceDecl interfaceDecl => $"interface {interfaceDecl.Name.Name}",
+            EnumDecl enumDecl => $"enum {enumDecl.Name.Name}",
+            _ => null,
+        }).OfType<string>().Select(line => "    " + line);
+        return string.Join("\n", [$"declare module \"{module.ModuleName.Name}\"", .. members, "end"]);
     }
 
     private static string FunctionKeyword(Node? declaration)
